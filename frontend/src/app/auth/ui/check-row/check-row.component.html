@@ -1,0 +1,5 @@
+    <div class="check-row" [class.on]="on" (click)="toggled.emit()">
+      <span class="cbox"><dy-icon name="check" [size]="12" [strokeWidth]="3"></dy-icon></span>
+      <span class="check-label"><ng-content></ng-content></span>
+    </div>
+  

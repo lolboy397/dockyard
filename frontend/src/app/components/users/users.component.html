@@ -1,0 +1,299 @@
+@if (!auth.isAdmin()) {
+  <div class="content-area">
+    <div class="empty-state" style="margin:auto;text-align:center;color:var(--fg-subtle);padding:64px;">
+      <dy-icon name="lock" [size]="22"></dy-icon>
+      <p>User management is available to admins only.</p>
+    </div>
+  </div>
+} @else {
+<div class="body" [class.no-detail]="!selected">
+
+  <!-- ════════════════════ LEFT · Members table ════════════════════ -->
+  <div class="content-area">
+    <div class="content-head">
+      <div class="content-title-row">
+        <h2 class="content-title">Users</h2>
+        <span class="content-count mono">{{ filtered.length }} of {{ users().length }}</span>
+      </div>
+      <div class="content-actions">
+        <button class="btn btn-ghost" (click)="load()"><dy-icon name="refresh-cw" [size]="14"></dy-icon> Refresh</button>
+      </div>
+    </div>
+
+    <div class="content-toolbar">
+      <div class="pills">
+        @for (f of filters; track f.id) {
+          <button class="pill" [class.on]="filter === f.id" (click)="filter = f.id">
+            {{ f.label }}<span class="pill-count">{{ counts[f.id] }}</span>
+          </button>
+        }
+      </div>
+      <div class="toolbar-meta mono">{{ users().length }} user{{ users().length === 1 ? '' : 's' }}</div>
+    </div>
+
+    @if (loading()) {
+      <div class="empty-state" style="padding:48px;text-align:center;color:var(--fg-subtle);">Loading members…</div>
+    } @else {
+      <div class="gtable members-table">
+        <div class="gtable-head" [style.grid-template-columns]="memberCols">
+          <span><input type="checkbox" /></span>
+          <span>User</span>
+          <span>Role</span>
+          <span>2FA</span>
+          <span>Last active</span>
+          <span>Status</span>
+          <span></span>
+        </div>
+        @for (u of filtered; track u.id) {
+          <div class="gtable-row member-row is-{{ userStatus(u) }}" [class.sel]="selectedId === u.id"
+               [style.grid-template-columns]="memberCols" (click)="select(u.id)">
+            <span (click)="$event.stopPropagation()"><input type="checkbox" /></span>
+            <span class="member">
+              <span class="uavatar" [class.is-owner]="u.role === 'owner'" [class.is-pending]="userStatus(u) === 'invited'">{{ initials(u) }}</span>
+              <span class="member-text">
+                <span class="member-name">{{ u.full_name || u.username }}@if (isYou(u)) {<span class="you">you</span>}</span>
+                <span class="member-email mono">{{ u.email || '@' + u.username }}</span>
+              </span>
+            </span>
+            <span class="role {{ u.role }}">
+              <dy-icon [name]="roleIcon(u.role)" [size]="14"></dy-icon>
+              {{ roleName(u.role) }}
+            </span>
+            <span>
+              @if (u.two_factor_enabled) {
+                <span class="twofa on"><dy-icon name="shield-check" [size]="13"></dy-icon>on</span>
+              } @else {
+                <span class="twofa off"><dy-icon name="shield-off" [size]="13"></dy-icon>off</span>
+              }
+            </span>
+            <span class="mono" style="color:var(--fg-subtle);font-size:11px;">{{ timeAgo(u.last_active_at) }}</span>
+            <span><span class="badge badge-{{ statusTone(userStatus(u)) }}"><span class="badge-dot"></span>{{ STATUS_LABEL[userStatus(u)] }}</span></span>
+            <span (click)="$event.stopPropagation()">
+              <button class="icon-btn ghost sm" (click)="select(u.id); openEdit()"><dy-icon name="ellipsis" [size]="14"></dy-icon></button>
+            </span>
+          </div>
+        }
+        @if (filtered.length === 0) {
+          <div class="empty-state" style="padding:40px;text-align:center;color:var(--fg-subtle);">No members match this filter.</div>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- ════════════════════ RIGHT · Member detail ═══════════════════ -->
+  @if (selected; as u) {
+    <div class="detail admin-detail">
+      <div class="detail-head">
+        <div class="detail-id">
+          <span class="uavatar lg" [class.is-owner]="u.role === 'owner'" [class.is-pending]="userStatus(u) === 'invited'">{{ initials(u) }}</span>
+          <div class="member-text">
+            <span class="detail-eyebrow">User</span>
+            <span class="detail-title">{{ u.full_name || u.username }}</span>
+            <span class="detail-sub">{{ u.email || '@' + u.username }}</span>
+          </div>
+        </div>
+        <div class="detail-head-actions">
+          <button class="btn btn-sm btn-ghost" (click)="openEdit()"><dy-icon name="pencil" [size]="12"></dy-icon> Edit</button>
+          <button class="icon-btn ghost sm" (click)="closeDetail()"><dy-icon name="x" [size]="14"></dy-icon></button>
+        </div>
+      </div>
+
+      <div class="detail-tabs">
+        @for (t of tabs; track t.id) {
+          <button class="dtab" [class.on]="tab === t.id" (click)="setTab(t.id)">{{ t.label }}</button>
+        }
+      </div>
+
+      <div class="detail-body">
+        <!-- ─ Profile ─ -->
+        @if (tab === 'profile') {
+          <div class="dbody">
+            <div class="role-banner" [class.owner]="u.role === 'owner'">
+              <span class="ic-wrap"><dy-icon [name]="roleIcon(u.role)" [size]="17"></dy-icon></span>
+              <div class="role-banner-text">
+                <div class="role-banner-title">{{ roleName(u.role) }}</div>
+                <div class="role-banner-desc">{{ roleDesc(u.role) }}</div>
+              </div>
+            </div>
+
+            <div class="dsection">
+              <span class="eyebrow">Account</span>
+              <div class="meta-grid">
+                <div class="meta-k">Status</div>
+                <div class="meta-v"><span class="badge badge-{{ statusTone(userStatus(u)) }}"><span class="badge-dot"></span>{{ STATUS_LABEL[userStatus(u)] }}</span></div>
+                <div class="meta-k">Email</div>
+                <div class="meta-v mono">{{ u.email || '—' }}</div>
+                <div class="meta-k">User since</div>
+                <div class="meta-v">{{ monthYear(u.created_at) }}</div>
+                <div class="meta-k">Last active</div>
+                <div class="meta-v mono">{{ timeAgo(u.last_active_at) }}</div>
+                <div class="meta-k">Auth method</div>
+                <div class="meta-v mono">{{ u.auth_method || 'password' }}</div>
+                <div class="meta-k">2FA</div>
+                <div class="meta-v">
+                  @if (u.two_factor_enabled) {
+                    <span class="twofa on"><dy-icon name="shield-check" [size]="13"></dy-icon>enabled</span>
+                  } @else {
+                    <span class="twofa off"><dy-icon name="shield-off" [size]="13"></dy-icon>not enabled</span>
+                  }
+                </div>
+                <div class="meta-k">Username</div>
+                <div class="meta-v mono">{{ '@' + u.username }}</div>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ─ Access (capabilities) ─ -->
+        @if (tab === 'access') {
+          <div class="dbody">
+            <div class="dsection">
+              <div class="dsection-head">
+                <span class="eyebrow">Capabilities</span>
+                <span class="toolbar-meta mono">{{ roleName(u.role) }}</span>
+              </div>
+              <div class="meta-grid">
+                @for (cap of capabilities(u); track cap.label) {
+                  <div class="meta-k">{{ cap.label }}</div>
+                  <div class="meta-v">{{ cap.yes ? 'Yes' : 'No' }}</div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ─ Activity ─ -->
+        @if (tab === 'activity') {
+          <div class="dbody">
+            <div class="dsection">
+              <div class="dsection-head">
+                <span class="eyebrow">Recent activity</span>
+                <span class="toolbar-meta mono">last 30 events</span>
+              </div>
+              @if (activityLoading()) {
+                <div class="role-empty">Loading activity…</div>
+              } @else if (activity().length === 0) {
+                <div class="role-empty">No recorded activity yet.</div>
+              } @else {
+                <div class="activity">
+                  @for (a of activity(); track a.id) {
+                    <div class="act-row">
+                      <span class="act-rail {{ activityRail(a.kind).rail }}"><dy-icon [name]="activityRail(a.kind).icon" [size]="13"></dy-icon></span>
+                      <span class="act-text">{{ a.message || a.kind }}@if (a.object_name) { <span class="obj">{{ a.object_name }}</span>}<span class="act-meta">{{ a.object_type || a.kind }}</span></span>
+                      <span class="act-ts">{{ timeAgo(a.created_at) }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- ─ Sessions ─ -->
+        @if (tab === 'sessions') {
+          <div class="dbody">
+            <div class="dsection">
+              <div class="dsection-head">
+                <span class="eyebrow">Active sessions</span>
+                @if (sessions().length > 1 || (sessions().length === 1 && !sessions()[0].current)) {
+                  <button class="btn btn-sm btn-ghost" (click)="revokeSessions()">
+                    <dy-icon name="log-out" [size]="12"></dy-icon> {{ isYou(u) ? 'Revoke others' : 'Revoke all' }}
+                  </button>
+                }
+              </div>
+              @if (sessionsLoading()) {
+                <div class="role-empty">Loading sessions…</div>
+              } @else if (sessions().length === 0) {
+                <div class="role-empty">No active sessions.</div>
+              } @else {
+                <div class="sess">
+                  @for (s of sessions(); track $index) {
+                    <div class="sess-card" [class.current]="s.current">
+                      <span class="sess-ic"><dy-icon [name]="sessionDevice(s).icon" [size]="15"></dy-icon></span>
+                      <div>
+                        <div class="sess-dev">{{ sessionDevice(s).label }}</div>
+                        <div class="sess-loc">{{ sessionLocation(s.ip) }}</div>
+                      </div>
+                      <div class="sess-right">
+                        @if (s.current) {
+                          <span class="sess-now">this device</span>
+                        } @else {
+                          <span class="sess-seen">{{ timeAgo(s.created_at) }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
+
+<!-- ════════════════════ Edit user · modal ════════════════════ -->
+@if (editing && selected; as u) {
+  <div class="amodal-backdrop" (mousedown)="closeEdit()">
+    <div class="amodal" (mousedown)="$event.stopPropagation()">
+      <div class="amodal-head">
+        <span class="uavatar" [class.is-owner]="u.role === 'owner'">{{ initials(u) }}</span>
+        <div class="amodal-title-wrap">
+          <span class="amodal-eyebrow">Edit user</span>
+          <div class="amodal-title">{{ u.full_name || u.username }}</div>
+          <div class="amodal-sub mono">{{ u.email || '@' + u.username }}</div>
+        </div>
+        <button class="icon-btn ghost sm" (click)="closeEdit()"><dy-icon name="x" [size]="14"></dy-icon></button>
+      </div>
+
+      <div class="amodal-body">
+        <!-- ROLE -->
+        <div class="form-section">
+          <span class="form-label">Role</span>
+          <div class="role-grid">
+            @for (role of roleCards; track role.id) {
+              <button type="button" class="role-card" [class.on]="editRole === role.id" (click)="pickRole(role.id)">
+                <dy-icon [name]="role.icon" [size]="15"></dy-icon>
+                <span class="role-card-label">{{ role.name }}</span>
+                @if (editRole === role.id) { <dy-icon name="check" [size]="13" class="role-check"></dy-icon> }
+              </button>
+            }
+          </div>
+          <p class="role-desc">{{ roleDesc(editRole) }}</p>
+        </div>
+
+        <!-- ACCOUNT -->
+        <div class="form-section">
+          <span class="form-label">Account</span>
+          <div class="toggle-row">
+            <div class="toggle-row-text">
+              <div class="toggle-row-title">Require two-factor authentication</div>
+              <div class="toggle-row-desc">User must set up 2FA before next sign-in.</div>
+            </div>
+            <button type="button" class="switch" [class.on]="editTwofa" [attr.aria-pressed]="editTwofa" (click)="editTwofa = !editTwofa"></button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-row-text">
+              <div class="toggle-row-title">Account status</div>
+              <div class="toggle-row-desc">Suspended members keep their settings but cannot sign in.</div>
+            </div>
+            <div class="seg seg-status">
+              <button type="button" class="seg-opt" [class.on]="editStatus === 'active'" [class.running]="editStatus === 'active'" (click)="editStatus = 'active'">Active</button>
+              <button type="button" class="seg-opt" [class.on]="editStatus === 'suspended'" [class.danger]="editStatus === 'suspended'" (click)="editStatus = 'suspended'">Suspended</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="amodal-foot">
+        <button type="button" class="remove-link" (click)="remove()"><dy-icon name="user-minus" [size]="13"></dy-icon>Remove from organization</button>
+        <div class="foot-right">
+          <button class="btn btn-ghost" (click)="closeEdit()">Cancel</button>
+          <button class="btn btn-primary" [class.is-disabled]="!editDirty || saving" (click)="saveEdit()"><dy-icon name="check" [size]="14"></dy-icon> {{ saving ? 'Saving…' : 'Save changes' }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+}

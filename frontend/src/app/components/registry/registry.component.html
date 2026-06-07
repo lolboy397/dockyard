@@ -1,0 +1,133 @@
+    <div class="content-area">
+
+      <!-- HEAD -->
+      <div class="content-head">
+        <div class="content-title-row">
+          <h2 class="content-title">Registry</h2>
+          <span class="content-count mono">{{ registries.length }}</span>
+        </div>
+        <div class="content-actions">
+          <button class="btn btn-sm btn-secondary" (click)="toggleImages()">
+            <dy-icon name="search" [size]="13"></dy-icon> Search images
+          </button>
+          @if (auth.canWrite()) {
+            <button class="btn btn-sm btn-primary" (click)="showAdd = !showAdd">
+              <dy-icon name="plus" [size]="13"></dy-icon> Add registry
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- ADD REGISTRY MODAL -->
+      @if (showAdd) {
+        <app-modal title="Add registry" eyebrow="registry" (close)="showAdd=false">
+
+          <div class="field">
+            <label class="label">Registry URL</label>
+            <input class="input input-sm" [(ngModel)]="newReg.url" placeholder="ghcr.io" />
+          </div>
+          <div class="field">
+            <label class="label">Display name</label>
+            <input class="input input-sm" [(ngModel)]="newReg.name" placeholder="GitHub Container Registry" />
+          </div>
+          <div class="field-row" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label class="label">Username</label>
+              <input class="input input-sm" [(ngModel)]="newReg.username" placeholder="username" />
+            </div>
+            <div class="field">
+              <label class="label">Token / Password</label>
+              <input class="input input-sm" type="password" [(ngModel)]="newReg.password" placeholder="ghp_\u2026" />
+            </div>
+          </div>
+
+          <div modal-footer>
+            <button class="btn btn-sm btn-ghost" (click)="showAdd=false">Cancel</button>
+            <button class="btn btn-sm btn-primary" (click)="addRegistry()" [disabled]="!newReg.url">
+              <dy-icon name="log-in" [size]="13"></dy-icon> Add &amp; login
+            </button>
+          </div>
+
+        </app-modal>
+      }
+
+      <div style="padding:0 20px 32px;display:flex;flex-direction:column;gap:24px;">
+
+        <!-- CONNECTED REGISTRIES -->
+        <section>
+          <div class="section-band">
+            <span class="eyebrow">Connected registries</span>
+            <span class="band-meta mono">{{ loading ? 'checking...' : 'last sync · just now' }}</span>
+          </div>
+          @if (loading) {
+            <div style="padding:32px;text-align:center;color:var(--fg-subtle);font-size:13px;">Checking registries...</div>
+          } @else {
+            <div class="reg-grid">
+              @for (r of registries; track r.id) {
+                <div class="reg-card" [class.is-down]="r.status === 'unreachable'">
+                  <div class="reg-top">
+                    <dy-icon name="cloud" [size]="18"
+                             [style.color]="r.status === 'connected' ? 'var(--accent)' : 'var(--danger-400)'">
+                    </dy-icon>
+                    <span class="reg-name">{{ r.name }}</span>
+                    <span [class]="'badge badge-' + (r.status === 'connected' ? 'running' : 'danger')">
+                      {{ r.status === 'connected' ? 'Connected' : r.status === 'unknown' ? 'Unknown' : 'Unreachable' }}
+                    </span>
+                  </div>
+                  <div class="reg-url mono">{{ r.url }}</div>
+                  <div class="reg-meta">
+                    <span class="mono"><span class="dim">type</span> {{ r.type }}</span>
+                    <span class="mono"><span class="dim">auth</span> {{ r.username || 'anonymous' }}</span>
+                    <span class="mono"><span class="dim">images</span> {{ r.images_count }}</span>
+                  </div>
+                  @if (r.type !== 'internal' && auth.canWrite()) {
+                    <div style="margin-top:10px;display:flex;gap:6px;">
+                      <button class="btn btn-sm btn-ghost" style="flex:1;" (click)="removeRegistry(r)">
+                        <dy-icon name="log-out" [size]="12"></dy-icon> Remove
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </section>
+
+        <!-- INTERNAL IMAGES (when Search images is open) -->
+        @if (showImages) {
+          <section>
+            <div class="section-band">
+              <span class="eyebrow">Internal registry images</span>
+              <span class="band-meta mono">localhost:5000</span>
+            </div>
+            @if (loadingImages) {
+              <div style="padding:24px;text-align:center;color:var(--fg-subtle);font-size:13px;">Loading...</div>
+            } @else if (internalImages.length === 0) {
+              <div style="padding:24px;text-align:center;color:var(--fg-subtle);font-size:13px;">
+                No images in the internal registry yet. Build and push an image to see it here.
+              </div>
+            } @else {
+              <div class="gtable" style="margin:0;">
+                <div class="gtable-head" style="grid-template-columns:2fr 1fr 80px;">
+                  <span>Repository</span><span>Tags</span><span>Count</span>
+                </div>
+                @for (img of internalImages; track img.name) {
+                  <div class="gtable-row" style="grid-template-columns:2fr 1fr 80px;">
+                    <span class="col-name">
+                      <dy-icon name="layers" [size]="14" [style.color]="'var(--fg-muted)'"></dy-icon>
+                      <span class="row-name">{{ img.name }}</span>
+                    </span>
+                    <span class="mono" style="color:var(--fg-muted);font-size:11px;">
+                      {{ (img.tags || []).slice(0,3).join(', ') }}{{ (img.tags || []).length > 3 ? ' +' + ((img.tags || []).length - 3) : '' }}
+                    </span>
+                    <span class="mono" style="color:var(--fg-subtle);">{{ (img.tags || []).length }}</span>
+                  </div>
+                }
+              </div>
+            }
+          </section>
+        }
+
+      </div>
+    </div>
+  

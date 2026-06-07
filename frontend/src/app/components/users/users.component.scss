@@ -1,0 +1,10 @@
+/* Members screen fills the page-body flex column so the .body split-pane
+   (table + detail) can size correctly — same contract as the other
+   master-detail route components (see styles.scss host list). */
+:host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

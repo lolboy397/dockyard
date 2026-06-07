@@ -1,0 +1,81 @@
+    <div class="content-area" style="height:100%;display:flex;flex-direction:column;overflow:hidden;">
+      <div class="content-head" style="flex-shrink:0;">
+        <div class="content-title-row">
+          <span class="eyebrow" style="margin-right:8px;">cross-container · live</span>
+          <h2 class="content-title">Logs</h2>
+        </div>
+        <div class="content-actions">
+          <button class="btn btn-sm btn-ghost" (click)="clearLines()">
+            <dy-icon name="eraser" [size]="13"></dy-icon>
+            Clear
+          </button>
+          <button class="btn btn-sm btn-ghost" (click)="togglePause()">
+            <dy-icon [name]="paused ? 'play' : 'pause'" [size]="13"></dy-icon>
+            {{ paused ? 'Resume' : 'Pause' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="logs-layout" style="flex:1;overflow:hidden;">
+        <!-- Sources sidebar -->
+        <aside class="logs-side">
+          <div class="logs-side-head">
+            <span class="eyebrow">Sources</span>
+            <span class="mono" style="font-size:10px;color:var(--fg-subtle);">{{ activeSources.length }} of {{ sources.length }}</span>
+          </div>
+          @for (s of sources; track s.id) {
+            <label class="src-row" [class.is-off]="!s.on">
+              <input type="checkbox" [(ngModel)]="s.on" (change)="toggleSource(s)">
+              <span class="src-dot" [style.background]="s.color"></span>
+              <span class="src-name">{{ s.name }}</span>
+              <span class="src-count mono">{{ s.count }}</span>
+            </label>
+          }
+          @if (sources.length === 0) {
+            <div style="padding:12px;color:var(--fg-subtle);font-size:11px;">No containers found.</div>
+          }
+          <button class="src-add" (click)="loadContainers()">
+            <dy-icon name="refresh-cw" [size]="12"></dy-icon>
+            Refresh sources
+          </button>
+        </aside>
+
+        <!-- Log stream -->
+        <section class="logs-main">
+          <div class="logs-toolbar">
+            <div class="logs-search-wrap">
+              <dy-icon name="search" [size]="13" color="var(--fg-muted)"></dy-icon>
+              <input class="logs-search" [(ngModel)]="filterText" placeholder="Filter regex or text…">
+            </div>
+            <div class="pills sm">
+              @for (l of levels; track l) {
+                <button class="pill" [class.on]="level===l" (click)="level=l">
+                  {{ l[0].toUpperCase() + l.slice(1) }}
+                </button>
+              }
+            </div>
+            <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--running-400);display:inline-flex;align-items:center;gap:5px;">
+              @if (!paused) { <dy-dot tone="running" [size]="5"></dy-dot> live · {{ lps }} lines/s }
+              @else { <dy-dot tone="idle" [size]="5"></dy-dot> paused }
+            </span>
+          </div>
+          <div class="logs-stream" #logStream>
+            @for (line of filteredLines; track $index) {
+              <div class="lline">
+                <span class="lts">{{ line.ts }}</span>
+                <span class="llvl" [class]="'lvl-' + line.level">{{ line.level.toUpperCase().padEnd(4) }}</span>
+                <span class="lsrc" [style.color]="line.color">{{ line.src }}</span>
+                <span class="lmsg">{{ line.msg }}</span>
+              </div>
+            }
+            @if (filteredLines.length === 0 && activeSources.length > 0) {
+              <div style="color:var(--fg-subtle);font-size:11px;">Waiting for log output…</div>
+            }
+            @if (activeSources.length === 0) {
+              <div style="color:var(--fg-subtle);font-size:11px;">Enable at least one source to stream logs.</div>
+            }
+          </div>
+        </section>
+      </div>
+    </div>
+  

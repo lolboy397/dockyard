@@ -1,0 +1,11 @@
+<svg width="160" height="32" viewBox="0 0 160 32" xmlns="http://www.w3.org/2000/svg" font-family="Geist, ui-sans-serif, system-ui, sans-serif">
+  
+  <rect x="0" y="4" width="24" height="24" rx="4" fill="#22D3EE"></rect>
+  <rect x="5" y="11" width="3.2" height="3.2" rx="0.6" fill="#04181D"></rect>
+  <rect x="10.4" y="11" width="3.2" height="3.2" rx="0.6" fill="#04181D"></rect>
+  <rect x="15.8" y="11" width="3.2" height="3.2" rx="0.6" fill="#04181D"></rect>
+  <rect x="5" y="16.4" width="3.2" height="3.2" rx="0.6" fill="#04181D"></rect>
+  <rect x="10.4" y="16.4" width="3.2" height="3.2" rx="0.6" fill="#04181D"></rect>
+  
+  <text x="34" y="22" font-size="20" font-weight="600" letter-spacing="-0.5" fill="#F5F7FB">Dockyard</text>
+</svg>

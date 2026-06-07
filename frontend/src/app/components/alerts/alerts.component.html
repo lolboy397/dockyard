@@ -1,0 +1,103 @@
+    <div class="content-area">
+      <div class="content-head">
+        <div class="content-title-row">
+          <h2 class="content-title">Alerts</h2>
+          <span class="content-count mono">{{ rules().length }}</span>
+        </div>
+        <div class="content-actions">
+          @if (auth.canWrite()) {
+            <button class="btn btn-sm btn-primary" (click)="openNew()">
+              <dy-icon name="bell-plus" [size]="13"></dy-icon> New alert
+            </button>
+          }
+        </div>
+      </div>
+
+      <div style="padding:0 20px 32px;">
+        @if (loading()) {
+          <div class="empty">Loading…</div>
+        } @else if (rules().length === 0) {
+          <div class="empty">
+            <dy-icon name="bell-off" [size]="22"></dy-icon>
+            <p>No alert rules yet. Create one to be notified when host CPU, memory or disk crosses a threshold, or when a container exits.</p>
+          </div>
+        } @else {
+          <div class="gtable" style="margin:0;">
+            <div class="gtable-head" style="grid-template-columns:1.5fr 1.5fr 130px 120px 80px;">
+              <span>Name</span><span>Condition</span><span>Channel</span><span>Status</span>
+              <span style="text-align:right;">Actions</span>
+            </div>
+            @for (a of rules(); track a.id) {
+              <div class="gtable-row" style="grid-template-columns:1.5fr 1.5fr 130px 120px 80px;align-items:center;">
+                <span class="row-name">{{ a.name }}</span>
+                <span class="mono" style="font-size:12px;color:var(--fg-muted);">{{ condition(a) }}</span>
+                <span style="font-size:12px;">{{ a.channel === 'webhook' ? 'Webhook' : 'In-app' }}</span>
+                <span>
+                  <button class="btn btn-sm btn-ghost" (click)="toggleEnabled(a)" [disabled]="!auth.canWrite()">
+                    <dy-icon [name]="a.enabled ? 'toggle-right' : 'toggle-left'" [size]="15"
+                             [style.color]="a.enabled ? 'var(--running-400)' : 'var(--fg-disabled)'"></dy-icon>
+                    {{ a.enabled ? 'On' : 'Off' }}
+                  </button>
+                </span>
+                <span style="display:flex;justify-content:flex-end;">
+                  @if (auth.canWrite()) {
+                    <button class="icon-btn sm ghost" (click)="remove(a)" title="Delete">
+                      <dy-icon name="trash-2" [size]="12"></dy-icon>
+                    </button>
+                  }
+                </span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      @if (showNew) {
+        <app-modal title="New alert rule" eyebrow="alerts" (close)="showNew=false">
+          <div class="field">
+            <label class="label">Name</label>
+            <input class="input input-sm" [(ngModel)]="form.name" placeholder="High CPU" />
+          </div>
+          <div class="field">
+            <label class="label">Condition</label>
+            <select class="input input-sm" [(ngModel)]="form.type">
+              <option value="host_cpu">Host CPU above threshold</option>
+              <option value="host_mem">Host memory above threshold</option>
+              <option value="host_disk">Host disk above threshold</option>
+              <option value="container_exited">A container exits</option>
+            </select>
+          </div>
+          @if (form.type !== 'container_exited') {
+            <div class="field">
+              <label class="label">Threshold (%)</label>
+              <input class="input input-sm" type="number" min="0" max="100" [(ngModel)]="form.threshold" />
+            </div>
+          }
+          <div class="field">
+            <label class="label">Trigger after (minutes)</label>
+            <input class="input input-sm" type="number" min="0" step="1" [(ngModel)]="form.forMinutes" />
+            <span style="font-size:11px;color:var(--fg-subtle);">The condition must hold this long before firing. 0 = fire immediately.</span>
+          </div>
+          <div class="field">
+            <label class="label">Channel</label>
+            <select class="input input-sm" [(ngModel)]="form.channel">
+              <option value="in_app">In-app (notification center)</option>
+              <option value="webhook">Webhook</option>
+            </select>
+          </div>
+          @if (form.channel === 'webhook') {
+            <div class="field">
+              <label class="label">Webhook URL</label>
+              <input class="input input-sm" [(ngModel)]="form.webhook_url" placeholder="https://hooks.slack.com/…" />
+            </div>
+          }
+          <div modal-footer>
+            <button class="btn btn-sm btn-ghost" (click)="showNew=false">Cancel</button>
+            <button class="btn btn-sm btn-primary" (click)="create()" [disabled]="!form.name.trim()">
+              <dy-icon name="bell-plus" [size]="13"></dy-icon> Create
+            </button>
+          </div>
+        </app-modal>
+      }
+    </div>
+  

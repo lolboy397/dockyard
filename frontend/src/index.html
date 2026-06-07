@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Dockyard</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- Fonts (Geist / Geist Mono) are self-hosted via @fontsource and bundled by the build — no external requests. -->
+</head>
+<body>
+  <app-root></app-root>
+  <!-- Lucide icons are vendored locally (frontend/public/lucide.min.js) for fully offline hosting.
+       Icons are rendered by the dy-icon component (which calls lucide.createIcons itself), so no
+       inline bootstrap script is needed — this keeps a strict script-src 'self' CSP intact. -->
+  <script src="lucide.min.js"></script>
+</body>
+</html>

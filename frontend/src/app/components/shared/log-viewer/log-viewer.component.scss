@@ -1,0 +1,57 @@
+    :host { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
+    .lv-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      border-radius: var(--r-md, 8px);
+      overflow: hidden;
+    }
+    .build-logs {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--bg-inset, #04060A);
+      padding: 10px 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.65;
+    }
+    .lline {
+      display: flex;
+      gap: 8px;
+      padding: 0 14px;
+      border-radius: 2px;
+    }
+    .lprefix {
+      flex: none;
+      width: 14px;
+      text-align: center;
+      color: var(--info-400, #60A5FA);
+      user-select: none;
+      font-size: 11px;
+    }
+    .lmsg {
+      flex: 1;
+      min-width: 0;
+      word-break: break-word;
+      white-space: pre-wrap;
+      color: var(--ink-10, #E6E9F2);
+    }
+    /* Step lines */
+    .lline-step .lprefix { color: var(--info-400, #60A5FA); }
+    .lline-step .lmsg { color: var(--accent); font-weight: 600; }
+    .lline-step { background: rgba(34,211,238,0.04); }
+    /* Error lines */
+    .lline-err .lprefix { color: var(--danger-400, #F87171); }
+    .lline-err .lmsg { color: var(--danger-400, #F87171); }
+    .lline-err { background: rgba(239,68,68,0.04); }
+    /* Success lines — entire line bright green */
+    .lline-ok .lprefix { color: var(--running-400, #34D399); }
+    .lline-ok .lmsg { color: var(--running-400, #34D399); font-weight: 500; }
+    /* Dimmed lines */
+    .lline-dim .lprefix { color: var(--bg-raised, #1a1a2e); }
+    .lline-dim .lmsg { color: var(--fg-subtle); }
+    /* Empty */
+    .lv-empty { padding: 16px 14px; color: var(--fg-subtle); font: 400 11px/1.5 var(--font-mono); }
+  

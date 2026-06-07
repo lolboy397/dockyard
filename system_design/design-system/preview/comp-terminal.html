@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Terminal & logs</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg); display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pane { background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+  .head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg-raised); border-bottom: 1px solid var(--border); }
+  .head .name { font-family: var(--font-mono); font-size: 11px; color: var(--fg-muted); }
+  .head .dots { display: flex; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ink-5); }
+  .body { padding: 10px 12px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; color: var(--ink-10); min-height: 160px; }
+  .body .l { display: flex; gap: 10px; }
+  .body .ts { color: var(--fg-subtle); }
+  .body .lvl-info { color: var(--info-400); width: 4ch; }
+  .body .lvl-warn { color: var(--warn-400); width: 4ch; }
+  .body .lvl-err  { color: var(--danger-400); width: 4ch; }
+  .body .msg { color: var(--ink-10); }
+  .prompt { color: var(--accent); }
+  .cursor { display: inline-block; width: 6px; height: 12px; background: var(--accent); vertical-align: middle; animation: bl 1s steps(1) infinite; }
+  @keyframes bl { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+  <div class="pane">
+    <div class="head"><span class="name">~/dockyard $ shell · nginx-prod</span><span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div>
+    <div class="body">
+      <div><span class="prompt">root@nginx-prod:/#</span> ls /etc/nginx</div>
+      <div>conf.d  fastcgi.conf  mime.types  nginx.conf  scgi_params  uwsgi_params</div>
+      <div><span class="prompt">root@nginx-prod:/#</span> nginx -t</div>
+      <div>nginx: configuration file /etc/nginx/nginx.conf test is successful</div>
+      <div><span class="prompt">root@nginx-prod:/#</span> <span class="cursor"></span></div>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="head"><span class="name">logs · api-prod · stream</span><span style="color:var(--running-400); font-family:var(--font-mono); font-size:10px">● live</span></div>
+    <div class="body">
+      <div class="l"><span class="ts">14:32:08.142</span><span class="lvl-info">INFO</span><span class="msg">listening on :8080</span></div>
+      <div class="l"><span class="ts">14:32:08.319</span><span class="lvl-info">INFO</span><span class="msg">connected to postgres-main</span></div>
+      <div class="l"><span class="ts">14:32:11.402</span><span class="lvl-info">INFO</span><span class="msg">GET /healthz 200 4ms</span></div>
+      <div class="l"><span class="ts">14:32:14.811</span><span class="lvl-warn">WARN</span><span class="msg">slow query: SELECT * FROM jobs (412ms)</span></div>
+      <div class="l"><span class="ts">14:32:18.221</span><span class="lvl-err">ERR </span><span class="msg">upstream 502 — worker-jobs unreachable</span></div>
+      <div class="l"><span class="ts">14:32:18.412</span><span class="lvl-info">INFO</span><span class="msg">retry 1/3 in 200ms…</span></div>
+    </div>
+  </div>
+</body>
+</html>

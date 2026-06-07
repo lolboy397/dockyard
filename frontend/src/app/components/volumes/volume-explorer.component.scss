@@ -1,0 +1,10 @@
+/* The explorer fills the volumes route host so its flex column (header / tabs /
+   panes) sizes correctly. The ve-* visual rules live in the global
+   styles/volume-explorer.scss partial. */
+:host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

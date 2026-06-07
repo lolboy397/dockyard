@@ -1,0 +1,55 @@
+    <div class="content-area">
+      <div class="content-head">
+        <div class="content-title-row">
+          <h2 class="content-title">App Templates</h2>
+          <span class="content-count mono">{{ templates.length }}</span>
+        </div>
+      </div>
+
+      <div class="tpl-grid">
+        @for (t of templates; track t.id) {
+          <div class="tpl-card">
+            <div class="tpl-top">
+              <span class="tpl-ic"><dy-icon [name]="t.icon" [size]="18"></dy-icon></span>
+              <div>
+                <div class="tpl-name">{{ t.name }}</div>
+                <div class="tpl-cat">{{ t.category }}</div>
+              </div>
+            </div>
+            <div class="tpl-desc">{{ t.description }}</div>
+            <div class="tpl-foot">
+              <span class="tpl-svc mono">{{ t.vars.length }} option{{ t.vars.length === 1 ? '' : 's' }}</span>
+              @if (auth.canWrite()) {
+                <button class="btn btn-sm btn-primary" (click)="openDeploy(t)">
+                  <dy-icon name="rocket" [size]="13"></dy-icon> Deploy
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (active) {
+        <app-modal [title]="'Deploy ' + active.name" eyebrow="template" (close)="close()">
+          <div class="field">
+            <label class="label">Stack name</label>
+            <input class="input input-sm" [(ngModel)]="stackName" placeholder="my-{{ active.id }}" />
+          </div>
+          @for (v of vars; track v.key) {
+            <div class="field">
+              <label class="label">{{ v.label }}</label>
+              <input class="input input-sm" [type]="v.type === 'password' ? 'password' : (v.type === 'number' ? 'number' : 'text')"
+                     [(ngModel)]="v.value" />
+              @if (v.hint) { <span class="hint">{{ v.hint }}</span> }
+            </div>
+          }
+          <div modal-footer>
+            <button class="btn btn-sm btn-ghost" (click)="close()">Cancel</button>
+            <button class="btn btn-sm btn-primary" (click)="deploy()" [disabled]="deploying || !stackName.trim()">
+              <dy-icon name="rocket" [size]="13"></dy-icon> {{ deploying ? 'Deploying…' : 'Deploy stack' }}
+            </button>
+          </div>
+        </app-modal>
+      }
+    </div>
+  

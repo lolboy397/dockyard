@@ -1,0 +1,514 @@
+    <div class="body" [class.no-detail]="!selectedContainer">
+
+      <!-- LEFT: Table panel -->
+      <div class="content-area">
+        <div class="content-head">
+          <div class="content-title-row">
+            <h2 class="content-title">Containers</h2>
+            <span class="content-count">{{ filtered.length }} of {{ containers.length }}</span>
+          </div>
+          <div class="content-actions">
+            <button class="btn btn-sm btn-secondary" (click)="load(true)">
+              <dy-icon name="refresh-cw" [size]="13"></dy-icon> Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="content-toolbar">
+          <div class="pills">
+            <button class="pill" [class.on]="containerFilter==='all'" (click)="containerFilter='all';filterContainers()">
+              All <span class="pill-count">{{ containers.length }}</span>
+            </button>
+            <button class="pill" [class.on]="containerFilter==='running'" (click)="containerFilter='running';filterContainers()">
+              Running <span class="pill-count">{{ runningCount }}</span>
+            </button>
+            <button class="pill" [class.on]="containerFilter==='stopped'" (click)="containerFilter='stopped';filterContainers()">
+              Stopped <span class="pill-count">{{ stoppedCount }}</span>
+            </button>
+          </div>
+          <div class="toolbar-meta mono">live &middot; updates on change</div>
+        </div>
+
+        @if (loading) {
+          <div class="ctable">
+            <div class="ctable-head ctable-cols">
+              <span></span><span>Name</span><span>Image</span><span>Status</span>
+              <span>Ports</span><span>CPU</span><span>Memory</span><span>Started</span><span></span>
+            </div>
+            @for (i of skeletonRows; track i) {
+              <div class="ctable-row ctable-cols" style="pointer-events:none;">
+                <span class="skel" style="width:14px;height:14px;border-radius:3px;"></span>
+                <div class="col-name">
+                  <span class="skel" style="width:110px;height:12px;border-radius:3px;"></span>
+                  <span class="skel" style="width:52px;height:10px;border-radius:3px;"></span>
+                </div>
+                <span class="skel" style="width:88px;height:10px;border-radius:3px;"></span>
+                <span class="skel" style="width:68px;height:18px;border-radius:3px;"></span>
+                <span class="skel" style="width:60px;height:10px;border-radius:3px;"></span>
+                <span class="skel" style="width:28px;height:10px;border-radius:3px;"></span>
+                <span class="skel" style="width:38px;height:10px;border-radius:3px;"></span>
+                <span class="skel" style="width:40px;height:10px;border-radius:3px;"></span>
+                <span></span>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="ctable">
+            <div class="ctable-head ctable-cols">
+              <span></span>
+              <span>Name</span>
+              <span>Image</span>
+              <span>Status</span>
+              <span>Ports</span>
+              <span>CPU</span>
+              <span>Memory</span>
+              <span>Started</span>
+              <span></span>
+            </div>
+            @if (filtered.length === 0) {
+              <div class="ctable-empty">No containers found</div>
+            }
+            @for (c of filtered; track c.Id) {
+              <div class="ctable-row ctable-cols"
+                   [class.sel]="selectedContainer?.Id === c.Id"
+                   (click)="select(c)"
+                   (contextmenu)="rowMenu($event, c)">
+                <div class="col col-check" (click)="$event.stopPropagation()">
+                  <input type="checkbox">
+                </div>
+                <div class="col col-name">
+                  <span class="row-name">{{ c.Names[0]?.replace('/','') }}</span>
+                  <span class="row-id mono">{{ c.Id.slice(0,8) }}</span>
+                </div>
+                <span class="col col-image mono">{{ c.Image }}</span>
+                <span class="col col-status">
+                  <span class="badge"
+                        [style.background]="badgeBg(statusTone(c.State))"
+                        [style.color]="badgeFg(statusTone(c.State))">
+                    <dy-dot [tone]="statusTone(c.State)" [size]="5"></dy-dot>
+                    {{ c.State }}
+                  </span>
+                </span>
+                <span class="col col-port mono">{{ formatPorts(c.Ports) }}</span>
+                <span class="col col-cpu mono">{{ containerCpu(c.Id) }}</span>
+                <span class="col col-mem mono">{{ containerMem(c.Id) }}</span>
+                <span class="col col-time mono">{{ timeAgo(c.Created) }}</span>
+                <div class="col col-act" (click)="$event.stopPropagation()">
+                  <button class="icon-btn sm ghost" (click)="ellipsisMenu($event, c)" title="Actions">
+                    <dy-icon name="ellipsis" [size]="14"></dy-icon>
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- RIGHT: Detail panel -->
+      @if (selectedContainer) {
+        <aside class="detail">
+          <div class="detail-head">
+            <div class="detail-titles">
+              <div class="detail-eyebrow eyebrow">container &middot; {{ selectedContainer.Id.slice(0,8) }}</div>
+              <div class="detail-title">
+                <span>{{ selectedContainer.Names[0]?.replace('/','') }}</span>
+                <span class="badge"
+                      [style.background]="badgeBg(statusTone(selectedContainer.State))"
+                      [style.color]="badgeFg(statusTone(selectedContainer.State))">
+                  {{ selectedContainer.State }}
+                </span>
+              </div>
+            </div>
+            <div class="detail-head-actions">
+              @if (auth.canWrite()) {
+              @if (selectedContainer.State === 'running') {
+                <button class="btn btn-sm" (click)="detailAction('restart')">
+                  <dy-icon name="rotate-ccw" [size]="12"></dy-icon>
+                  Restart
+                </button>
+                <button class="btn btn-sm" (click)="detailAction('stop')">
+                  <dy-icon name="square" [size]="12"></dy-icon>
+                  Stop
+                </button>
+              } @else {
+                <button class="btn btn-sm btn-primary" (click)="detailAction('start')">
+                  <dy-icon name="play" [size]="12"></dy-icon>
+                  Start
+                </button>
+              }
+              }
+              <button class="icon-btn ghost" (click)="closeDetail()">
+                <dy-icon name="x" [size]="14"></dy-icon>
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-tabs">
+            <button class="dtab" [class.on]="detailTab==='overview'" (click)="detailTab='overview'">Overview</button>
+            <button class="dtab" [class.on]="detailTab==='logs'" (click)="switchToLogs()">Logs</button>
+            @if (auth.canWrite()) {
+              <button class="dtab" [class.on]="detailTab==='shell'" (click)="detailTab='shell'">Shell</button>
+            }
+            <button class="dtab" [class.on]="detailTab==='ports'" (click)="detailTab='ports'">Ports</button>
+            <button class="dtab" [class.on]="detailTab==='env'" (click)="detailTab='env'">Env</button>
+            <button class="dtab" [class.on]="detailTab==='mounts'" (click)="detailTab='mounts'">Mounts</button>
+            <button class="dtab" [class.on]="detailTab==='updates'" (click)="detailTab='updates'">
+              Updates
+              @if (watchUpdateAvailable) { <dy-dot tone="warn" [size]="6" style="margin-left:5px"></dy-dot> }
+            </button>
+          </div>
+
+          <div class="detail-body">
+
+            @if (detailTab === 'overview') {
+              @if (loadingDetail) {
+                <div style="padding:40px;text-align:center;color:var(--fg-subtle);font-size:12px;">Loading...</div>
+              } @else if (inspect) {
+                <div class="dbody">
+                  @if (stats) {
+                    <div class="dsection">
+                      <div class="dsection-head"><span class="eyebrow">Resource use</span></div>
+                      <div class="metrics">
+                        <div class="metric">
+                          <div class="metric-top">
+                            <span class="metric-label">CPU</span>
+                            <svg class="metric-spark" viewBox="0 0 70 28" fill="none">
+                              <polyline [attr.points]="sparkPoints(cpuHistory)" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+                            </svg>
+                          </div>
+                          <div class="metric-value mono">{{ cpuPercent }}%</div>
+                        </div>
+                        <div class="metric">
+                          <div class="metric-top">
+                            <span class="metric-label">Memory</span>
+                            <svg class="metric-spark" viewBox="0 0 70 28" fill="none">
+                              <polyline [attr.points]="sparkPoints(memHistory)" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+                            </svg>
+                          </div>
+                          <div class="metric-value mono">{{ memUsage }}</div>
+                        </div>
+                        <div class="metric">
+                          <div class="metric-top">
+                            <span class="metric-label">Network in</span>
+                            <svg class="metric-spark" viewBox="0 0 70 28" fill="none">
+                              <polyline [attr.points]="sparkPoints(netRxHistory)" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+                            </svg>
+                          </div>
+                          <div class="metric-value mono">{{ netRxRate }}</div>
+                        </div>
+                        <div class="metric">
+                          <div class="metric-top">
+                            <span class="metric-label">Network out</span>
+                            <svg class="metric-spark" viewBox="0 0 70 28" fill="none">
+                              <polyline [attr.points]="sparkPoints(netTxHistory)" stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+                            </svg>
+                          </div>
+                          <div class="metric-value mono">{{ netTxRate }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  }
+
+                  <div class="dsection">
+                    <div class="dsection-head">
+                      <span class="eyebrow">Details</span>
+                    </div>
+                    <div class="meta-grid">
+                      <span class="meta-k">Image</span>         <span class="meta-v mono">{{ inspect.Config?.Image }}</span>
+                      <span class="meta-k">ID</span>            <span class="meta-v mono">{{ inspect.Id.slice(0,12) }}</span>
+                      <span class="meta-k">Created</span>       <span class="meta-v mono">{{ inspect.Created | date:'yyyy-MM-dd HH:mm' }} UTC</span>
+                      @if (inspect.Config?.Cmd?.length) {
+                        <span class="meta-k">Command</span>     <span class="meta-v mono" style="word-break:break-all;white-space:normal;">{{ inspect.Config.Cmd.join(' ') }}</span>
+                      } @else if (inspect.Config?.Entrypoint?.length) {
+                        <span class="meta-k">Entrypoint</span> <span class="meta-v mono" style="word-break:break-all;white-space:normal;">{{ inspect.Config.Entrypoint.join(' ') }}</span>
+                      }
+                      <span class="meta-k">Network</span>       <span class="meta-v mono">{{ networkSummary(inspect) }}</span>
+                      <span class="meta-k">Restart policy</span><span class="meta-v mono">{{ inspect.HostConfig?.RestartPolicy?.Name || '—' }}</span>
+                    </div>
+                  </div>
+
+                  @if (inspect.Config?.Labels && objectKeys(inspect.Config.Labels).length) {
+                    <div class="dsection">
+                      <div class="dsection-head"><span class="eyebrow">Labels</span></div>
+                      <div class="chips">
+                        @for (key of objectKeys(inspect.Config.Labels).slice(0, 12); track key) {
+                          <span class="chip" style="font-size:10px;">{{ key }}={{ inspect.Config.Labels[key] }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            }
+
+            @if (detailTab === 'logs') {
+              <div class="dbody dlogs">
+                <div class="logs-toolbar">
+                  <input class="logs-search" [(ngModel)]="logFilter" placeholder="Filter logs…">
+                  <div class="pills sm">
+                    <button class="pill" [class.on]="logLevelFilter==='all'"  (click)="logLevelFilter='all'">All</button>
+                    <button class="pill" [class.on]="logLevelFilter==='info'" (click)="logLevelFilter='info'">Info</button>
+                    <button class="pill" [class.on]="logLevelFilter==='warn'" (click)="logLevelFilter='warn'">Warn</button>
+                    <button class="pill" [class.on]="logLevelFilter==='err'"  (click)="logLevelFilter='err'">Error</button>
+                  </div>
+                  @if (liveLog) {
+                    <span class="logs-live">
+                      <dy-dot tone="running" [size]="5"></dy-dot>
+                      live
+                    </span>
+                  }
+                  <button class="btn btn-sm btn-ghost" (click)="toggleLogs()">
+                    {{ liveLog ? 'Pause' : 'Resume' }}
+                  </button>
+                </div>
+                <div class="logs">
+                  @for (line of filteredLogs; track $index) {
+                    @let p = parseLine(line);
+                    <div class="lline">
+                      @if (p.ts) { <span class="lts">{{ p.ts }}</span> }
+                      <span class="llvl" [class]="p.lvlClass">{{ p.lvl }}</span>
+                      <span class="lmsg">{{ p.msg }}</span>
+                    </div>
+                  }
+                  @if (!logLines.length && liveLog) {
+                    <div style="color:var(--fg-subtle);font-size:11px;">Waiting for logs…</div>
+                  }
+                  @if (!logLines.length && !liveLog) {
+                    <div style="color:var(--fg-subtle);font-size:11px;">Press Resume to stream logs.</div>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (detailTab === 'shell') {
+              <div class="dshell" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+                <div class="shell-head">
+                  <dy-icon name="terminal" [size]="12"></dy-icon>
+                  <span style="margin-left:6px;font-size:12px;">{{ selectedContainer.Names[0]?.replace('/','') }}</span>
+                  @if (!shellConnected) {
+                    <button class="btn btn-sm btn-ghost" style="margin-left:auto;" (click)="connectShell()">
+                      <dy-icon name="plug" [size]="11"></dy-icon> Connect
+                    </button>
+                  } @else {
+                    <button class="btn btn-sm btn-ghost" style="margin-left:auto;" (click)="disconnectShell()">
+                      <dy-icon name="plug-zap" [size]="11"></dy-icon> Disconnect
+                    </button>
+                  }
+                </div>
+                <div class="shell-body" #shellOutput style="flex:1;overflow-y:auto;padding:10px 14px;white-space:pre-wrap;word-break:break-all;">
+                  @for (line of shellLines; track $index) {
+                    <div>{{ line }}</div>
+                  }
+                  @if (!shellConnected && !shellLines.length) {
+                    <span style="color:var(--fg-subtle);font-size:11px;">Click Connect to open an interactive shell.</span>
+                  }
+                  @if (shellConnected) {
+                    <span class="cursor"></span>
+                  }
+                </div>
+                @if (shellConnected) {
+                  <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-top:1px solid var(--border-subtle);">
+                    <span class="prompt" style="flex-shrink:0;">$</span>
+                    <input #shellInput class="logs-search" style="flex:1;border:none;background:transparent;outline:none;"
+                           [(ngModel)]="shellCmd" placeholder="Type command…"
+                           (keydown.enter)="sendShellCmd()"
+                           (keydown.ArrowUp)="shellHistoryUp()"
+                           (keydown.ArrowDown)="shellHistoryDown()">
+                  </div>
+                }
+              </div>
+            }
+
+            @if (detailTab === 'ports') {
+              <div class="dbody">
+                <div class="dsection">
+                  <div class="dsection-head"><span class="eyebrow">Published ports</span></div>
+                  @if (inspect && portEntries(inspect.NetworkSettings?.Ports).length) {
+                    <table class="kv-table">
+                      <thead><tr><th>Host</th><th>Container</th><th>Proto</th><th></th></tr></thead>
+                      <tbody>
+                        @for (entry of portEntries(inspect.NetworkSettings!.Ports); track entry.container) {
+                          <tr>
+                            <td class="mono">{{ entry.host }}</td>
+                            <td class="mono">{{ entry.container }}</td>
+                            <td>{{ entry.protocol }}</td>
+                            <td><a class="open-link" href="http://{{ entry.host }}" target="_blank" rel="noopener">Open ↗</a></td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  } @else {
+                    <div style="color:var(--fg-subtle);font-size:12px;">No ports published.</div>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (detailTab === 'env') {
+              <div class="dbody">
+                <div class="dsection">
+                  <div class="dsection-head">
+                    <span class="eyebrow">Environment variables</span>
+                    <button class="btn btn-sm btn-ghost" (click)="copyEnvAsFile()" title="Copy as .env">Copy as .env</button>
+                  </div>
+                  @if (inspect?.Config?.Env?.length) {
+                    <div class="env-list">
+                      @for (ev of inspect!.Config!.Env!; track ev) {
+                        <div class="env-row">
+                          <span class="env-k mono">{{ ev.split('=')[0] }}</span>
+                          <span class="env-v mono">{{ ev.split('=').slice(1).join('=') }}</span>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <div style="color:var(--fg-subtle);font-size:12px;">No environment variables.</div>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (detailTab === 'mounts') {
+              <div class="dbody">
+                <div class="dsection">
+                  <div class="dsection-head"><span class="eyebrow">Volume mounts</span></div>
+                  @if (inspect?.Mounts?.length) {
+                    <div class="env-list">
+                      @for (m of inspect!.Mounts!; track m.Destination) {
+                        <div class="env-row">
+                          <span class="env-k mono">{{ m.Destination }}</span>
+                          <span class="env-v mono">← {{ m.Source || m.Name || m.Type }}{{ m.Mode ? ' (' + m.Mode + ')' : '' }}</span>
+                        </div>
+                      }
+                    </div>
+                  } @else {
+                    <div style="color:var(--fg-subtle);font-size:12px;">No mounts.</div>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (detailTab === 'updates') {
+              <div class="dbody">
+                @if (watchLoading) {
+                  <div style="padding:40px;text-align:center;color:var(--fg-subtle);font-size:12px;">Loading…</div>
+                } @else {
+
+                  <div class="dsection">
+                    <div class="dsection-head"><span class="eyebrow">Image updates</span></div>
+                    <div class="meta-grid">
+                      <span class="meta-k">Status</span>
+                      <span class="meta-v" style="display:inline-flex;align-items:center;gap:6px;">
+                        <dy-dot [tone]="watchStatus().tone" [size]="6"></dy-dot>{{ watchStatus().label }}
+                      </span>
+                      <span class="meta-k">Image</span>
+                      <span class="meta-v mono">{{ selectedContainer!.Image }}</span>
+                      <span class="meta-k">Last checked</span>
+                      <span class="meta-v mono">{{ watch?.last_checked_at ? (watch!.last_checked_at | date:'yyyy-MM-dd HH:mm') + ' UTC' : '—' }}</span>
+                    </div>
+                  </div>
+
+                  <div class="dsection">
+                    <div class="dsection-head"><span class="eyebrow">Settings</span></div>
+                    <div class="meta-grid">
+                      <span class="meta-k">Check for updates</span>
+                      <span class="meta-v">
+                        <button class="btn btn-sm btn-ghost" [disabled]="watchBusy || !auth.canWrite()" (click)="toggleWatch()">
+                          <dy-icon [name]="watch ? 'toggle-right' : 'toggle-left'" [size]="15"
+                                   [style.color]="watch ? 'var(--running-400)' : 'var(--fg-disabled)'"></dy-icon>
+                          {{ watch ? 'On' : 'Off' }}
+                        </button>
+                      </span>
+                      @if (watch) {
+                        <span class="meta-k">Auto-update</span>
+                        <span class="meta-v">
+                          <button class="btn btn-sm btn-ghost" [disabled]="watchBusy || !auth.canWrite()" (click)="toggleAutoUpdate()">
+                            <dy-icon [name]="watch.auto_update ? 'toggle-right' : 'toggle-left'" [size]="15"
+                                     [style.color]="watch.auto_update ? 'var(--running-400)' : 'var(--fg-disabled)'"></dy-icon>
+                            {{ watch.auto_update ? 'On' : 'Off' }}
+                          </button>
+                        </span>
+                        <span class="meta-k">Check interval</span>
+                        <span class="meta-v">
+                          <select class="input input-sm" style="width:auto;"
+                                  [ngModel]="watch.check_interval" (ngModelChange)="changeWatchInterval($event)"
+                                  [disabled]="watchBusy || !auth.canWrite()">
+                            @for (iv of watchIntervals; track iv.value) {
+                              <option [ngValue]="iv.value">{{ iv.label }}</option>
+                            }
+                          </select>
+                        </span>
+                      }
+                    </div>
+                  </div>
+
+                  @if (watch) {
+                    @if (auth.canWrite()) {
+                      <div class="dsection">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                          <button class="btn btn-sm btn-ghost" [disabled]="watchChecking || watchUpdating" (click)="watchCheckNow()">
+                            <dy-icon name="refresh-cw" [size]="13" [class.spin]="watchChecking"></dy-icon>
+                            {{ watchChecking ? 'Checking…' : 'Check now' }}
+                          </button>
+                          @if (watchUpdateAvailable) {
+                            <button class="btn btn-sm btn-primary" [disabled]="watchUpdating" (click)="watchUpdateNow()">
+                              <dy-icon name="circle-arrow-up" [size]="13"></dy-icon>
+                              {{ watchUpdating ? 'Updating…' : 'Update now' }}
+                            </button>
+                          }
+                        </div>
+                        <p style="margin:10px 0 0;font-size:11px;color:var(--fg-subtle);line-height:1.5;">
+                          @if (watch.auto_update) {
+                            New versions are pulled and the container recreated automatically.
+                          } @else {
+                            You're notified when a new version is available; update manually above.
+                          }
+                        </p>
+                      </div>
+                    }
+                  } @else {
+                    <div class="dsection">
+                      <p style="font-size:12px;color:var(--fg-subtle);line-height:1.5;">
+                        Turn on <b>Check for updates</b> to watch <span class="mono">{{ selectedContainer!.Image }}</span>
+                        for new versions in its registry.
+                      </p>
+                    </div>
+                  }
+
+                }
+              </div>
+            }
+
+          </div>
+        </aside>
+      }
+      @if (limitsContainer) {
+        <app-modal title="Resource limits" [eyebrow]="limitsName" (close)="limitsContainer = null">
+          <div class="field-row" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label class="label">CPU limit (cores)</label>
+              <input class="input input-sm" type="number" min="0" step="0.25" [(ngModel)]="limitsForm.cpus" placeholder="0 = unlimited" />
+            </div>
+            <div class="field">
+              <label class="label">Memory limit (MB)</label>
+              <input class="input input-sm" type="number" min="0" step="64" [(ngModel)]="limitsForm.memory_mb" placeholder="0 = unlimited" />
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Restart policy</label>
+            <select class="input input-sm" [(ngModel)]="limitsForm.restart_policy">
+              <option value="no">no</option>
+              <option value="on-failure">on-failure</option>
+              <option value="unless-stopped">unless-stopped</option>
+              <option value="always">always</option>
+            </select>
+          </div>
+          <div modal-footer>
+            <button class="btn btn-sm btn-ghost" (click)="limitsContainer = null">Cancel</button>
+            <button class="btn btn-sm btn-primary" (click)="saveLimits()" [disabled]="savingLimits">
+              {{ savingLimits ? 'Applying…' : 'Apply' }}
+            </button>
+          </div>
+        </app-modal>
+      }
+    </div>
+  

@@ -1,0 +1,8 @@
+    <div class="toggle-row" [class.on]="on" (click)="toggled.emit()">
+      <div class="toggle-text">
+        <div class="toggle-title">{{ title }}</div>
+        @if (desc) { <div class="toggle-desc">{{ desc }}</div> }
+      </div>
+      <span class="switch"></span>
+    </div>
+  

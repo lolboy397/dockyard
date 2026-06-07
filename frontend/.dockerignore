@@ -1,0 +1,10 @@
+# Keep the build context small and avoid copying host (Windows) binaries
+# into the linux build image. The image installs deps via `npm ci`.
+node_modules
+dist
+.angular
+.git
+.gitignore
+*.log
+Dockerfile
+.dockerignore

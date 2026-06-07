@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Mono & numerals</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 20px 24px; background: var(--bg); }
+  .row { display: grid; grid-template-columns: 90px 1fr; gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); font-family: var(--font-mono); }
+  .row:last-child { border-bottom: 0; }
+  .meta { font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); }
+  .v { color: var(--fg); font-variant-numeric: tabular-nums; font-feature-settings: 'zero','ss01'; }
+  .lg { font-size: 22px; line-height: 28px; letter-spacing: -0.01em; }
+  .md { font-size: 13px; line-height: 20px; }
+  .accent { color: var(--accent); }
+  .muted { color: var(--fg-muted); }
+</style>
+</head>
+<body>
+  <div class="row"><span class="meta">Stat</span><span class="v lg">12&nbsp;<span class="muted" style="font-size:13px">running</span>&nbsp;·&nbsp;<span class="accent">2.4 GB</span></span></div>
+  <div class="row"><span class="meta">ID</span><span class="v md">sha256:a1b2c3d4e5f6789012345678…</span></div>
+  <div class="row"><span class="meta">Port</span><span class="v md">0.0.0.0:8080 → 80/tcp</span></div>
+  <div class="row"><span class="meta">Time</span><span class="v md">2026‑05‑24 14:32:08.142 UTC</span></div>
+  <div class="row"><span class="meta">Numerals</span><span class="v md">0 1 2 3 4 5 6 7 8 9 · 0,123,456.78 · 99.9%</span></div>
+</body>
+</html>

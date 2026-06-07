@@ -1,0 +1,157 @@
+    <div class="content-area">
+      <!-- HEAD -->
+      <div class="content-head">
+        <div class="content-title-row">
+          <h2 class="content-title">Images</h2>
+          <span class="content-count">{{ filtered.length }} of {{ images.length }}</span>
+        </div>
+        <div class="content-actions">
+          @if (auth.canWrite()) {
+            <button class="btn btn-sm btn-ghost" (click)="pruneImages()">
+              <dy-icon name="trash-2" [size]="13"></dy-icon> Prune&hellip;
+            </button>
+            <span class="divider-v"></span>
+            <button class="btn btn-sm btn-secondary" (click)="showPullBar=!showPullBar" title="Pull image from registry">
+              <dy-icon name="download" [size]="13"></dy-icon> Pull image
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- PULL BAR (shown when showPullBar is true) -->
+      @if (showPullBar) {
+        <div class="pull-bar">
+          <dy-icon name="download" [size]="13" style="color:var(--fg-subtle);flex-shrink:0;"></dy-icon>
+          <input class="input input-sm" style="flex:1;max-width:420px;" [(ngModel)]="pullRef"
+                 placeholder="docker.io/library/nginx:latest"
+                 (keydown.enter)="pullImage()" />
+          <button class="btn btn-sm btn-primary" (click)="pullImage()" [disabled]="pulling">
+            {{ pulling ? 'Pulling…' : 'Pull' }}
+          </button>
+          <button class="icon-btn ghost" (click)="showPullBar=false">
+            <dy-icon name="x" [size]="13"></dy-icon>
+          </button>
+        </div>
+      }
+
+      <!-- TOOLBAR -->
+      <div class="content-toolbar">
+        <div class="pills">
+          <button class="pill" [class.on]="imageFilter==='all'" (click)="imageFilter='all';applyFilter()">
+            All <span class="pill-count">{{ images.length }}</span>
+          </button>
+          <button class="pill" [class.on]="imageFilter==='used'" (click)="imageFilter='used';applyFilter()">
+            In use <span class="pill-count">{{ usedCount }}</span>
+          </button>
+          <button class="pill" [class.on]="imageFilter==='unused'" (click)="imageFilter='unused';applyFilter()">
+            Unused <span class="pill-count">{{ unusedCount }}</span>
+          </button>
+        </div>
+        <div class="toolbar-meta mono">{{ toolbarMeta }}</div>
+      </div>
+
+      <!-- BULK ACTION BAR -->
+      @if (checkedIds.size > 0 && auth.canWrite()) {
+        <div class="bulk-bar">
+          <span class="bulk-count">{{ checkedIds.size }} selected</span>
+          <button class="btn btn-sm btn-ghost" (click)="clearChecks()">Clear</button>
+          <button class="btn btn-sm btn-ghost" (click)="bulkRemove()" style="color:var(--danger-400);">
+            <dy-icon name="trash-2" [size]="13"></dy-icon> Remove {{ checkedIds.size }}
+          </button>
+        </div>
+      }
+
+      <!-- TABLE -->
+      @if (loading) {
+        <div class="gtable" style="margin:0 16px 24px;">
+          <div class="gtable-head" style="grid-template-columns:{{ cols }}">
+            <span></span><span>Repository · tag</span><span>Size</span>
+            <span>Used by</span><span>Pulled</span><span></span>
+          </div>
+          @for (i of [1,2,3,4,5,6]; track i) {
+            <div class="gtable-row" style="grid-template-columns:{{ cols }};pointer-events:none;">
+              <span></span>
+              <div class="col-name">
+                <span class="skel" style="width:120px;height:12px;border-radius:3px;"></span>
+              </div>
+              <span class="skel" style="width:50px;height:10px;border-radius:3px;"></span>
+              <span class="skel" style="width:55px;height:10px;border-radius:3px;"></span>
+              <span class="skel" style="width:45px;height:10px;border-radius:3px;"></span>
+              <span></span>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="gtable" style="margin:0 16px 24px;">
+          <div class="gtable-head" style="grid-template-columns:{{ cols }}">
+            <span><input type="checkbox" (change)="toggleAll($event)"></span>
+            <span>Repository · tag</span>
+            <span>Size</span>
+            <span>Used by</span>
+            <span>Pulled</span>
+            <span></span>
+          </div>
+
+          @if (filtered.length === 0) {
+            <div class="ctable-empty">No images found</div>
+          }
+
+          @for (img of filtered; track img.Id) {
+            <div class="gtable-row"
+                 style="grid-template-columns:{{ cols }}"
+                 [class.sel]="selectedId === img.Id"
+                 (click)="select(img)"
+                 (contextmenu)="imageMenu($event, img)">
+
+              <!-- Checkbox -->
+              <span (click)="$event.stopPropagation()">
+                <input type="checkbox"
+                       [checked]="checkedIds.has(img.Id)"
+                       (change)="toggleCheck(img.Id, $event)">
+              </span>
+
+              <!-- Name + Tag + Digest -->
+              <div class="col-name" style="align-items:center;gap:6px;">
+                <dy-icon name="layers" [size]="14" style="color:var(--fg-muted);flex-shrink:0;"></dy-icon>
+                <span class="row-name">{{ repoName(img) }}</span>
+                @if (repoTagPart(img)) {
+                  <span class="row-tag">:{{ repoTagPart(img) }}</span>
+                } @else {
+                  <span class="row-tag" style="color:var(--fg-subtle);font-style:italic;">untagged</span>
+                }
+                <span class="row-id mono">{{ shortDigest(img) }}</span>
+              </div>
+
+              <!-- Size -->
+              <span class="mono" style="font-size:11px;">{{ formatSize(img.Size) }}</span>
+
+              <!-- Used by -->
+              <span style="font-size:11px;">
+                @if (img.Containers > 0) {
+                  <span style="color:var(--fg);">{{ img.Containers }} container{{ img.Containers > 1 ? 's' : '' }}</span>
+                } @else {
+                  <span style="color:var(--fg-subtle);">—</span>
+                }
+              </span>
+
+              <!-- Pulled (relative time) -->
+              <span class="mono" style="font-size:11px;color:var(--fg-subtle);">
+                {{ timeAgo(img.Created) }}
+              </span>
+
+              <!-- Ellipsis action -->
+              <span (click)="$event.stopPropagation()">
+                @if (auth.canWrite()) {
+                  <button class="icon-btn ghost sm" [title]="'Remove ' + repoTag(img)"
+                          (click)="removeImage(img)">
+                    <dy-icon name="ellipsis" [size]="14"></dy-icon>
+                  </button>
+                }
+              </span>
+
+            </div>
+          }
+        </div>
+      }
+    </div>
+  

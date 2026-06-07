@@ -1,0 +1,139 @@
+    <div class="content-area">
+      <!-- Header -->
+      <div class="content-head">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="icon-btn" (click)="back()">
+            <dy-icon name="arrow-left" [size]="14"></dy-icon>
+          </button>
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              @if (inspect) { <dy-dot [tone]="statusTone(inspect.State.Status)"></dy-dot> }
+              <span style="font-size:16px;font-weight:600;color:var(--fg);">{{ containerName }}</span>
+            </div>
+            <div class="mono" style="font-size:11px;color:var(--fg-subtle);">{{ containerId.slice(0,12) }}</div>
+          </div>
+        </div>
+        <div class="content-actions">
+          @if (inspect?.State?.Running) {
+            <button class="btn btn-sm" (click)="stop()">
+              <dy-icon name="square" [size]="13"></dy-icon> Stop
+            </button>
+            <button class="btn btn-sm" (click)="restart()">
+              <dy-icon name="rotate-cw" [size]="13"></dy-icon> Restart
+            </button>
+          } @else {
+            <button class="btn btn-sm btn-primary" (click)="start()">
+              <dy-icon name="play" [size]="13"></dy-icon> Start
+            </button>
+          }
+          <button class="btn btn-sm btn-danger" (click)="remove()">
+            <dy-icon name="trash-2" [size]="13"></dy-icon> Remove
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" style="padding:0 20px;">
+        <button class="tab" [class.on]="tab==='overview'" (click)="tab='overview'">Overview</button>
+        <button class="tab" [class.on]="tab==='logs'" (click)="tab='logs';startLogs()">Logs</button>
+        <button class="tab" [class.on]="tab==='stats'" (click)="tab='stats';startStats()">Stats</button>
+      </div>
+
+      <!-- Tab: Overview -->
+      @if (tab === 'overview' && inspect) {
+        <div style="padding:16px 20px;display:flex;flex-direction:column;gap:16px;">
+          <div class="card">
+            <div class="card-head"><span class="card-title">Container details</span></div>
+            <div class="card-body">
+              <div class="meta-grid">
+                <span class="meta-k">ID</span>          <span class="meta-v">{{ inspect.Id }}</span>
+                <span class="meta-k">Image</span>       <span class="meta-v">{{ inspect.Config?.Image }}</span>
+                <span class="meta-k">Created</span>     <span class="meta-v">{{ inspect.Created | date:'medium' }}</span>
+                <span class="meta-k">Status</span>      <span class="meta-v">{{ inspect.State?.Status }}</span>
+                <span class="meta-k">Restart pol.</span><span class="meta-v">{{ inspect.HostConfig?.RestartPolicy?.Name }}</span>
+              </div>
+            </div>
+          </div>
+
+          @if (inspect.NetworkSettings?.Ports) {
+            <div class="card">
+              <div class="card-head"><span class="card-title">Port bindings</span></div>
+              <div class="card-body">
+                @for (entry of portEntries(inspect.NetworkSettings.Ports); track entry.container) {
+                  <div style="display:flex;gap:12px;padding:4px 0;font-size:12px;">
+                    <span class="mono" style="color:var(--fg);">{{ entry.host }}</span>
+                    <span style="color:var(--fg-subtle);">→</span>
+                    <span class="mono" style="color:var(--fg-muted);">{{ entry.container }}</span>
+                  </div>
+                }
+                @if (!portEntries(inspect.NetworkSettings.Ports).length) {
+                  <span style="font-size:12px;color:var(--fg-subtle);">No port bindings</span>
+                }
+              </div>
+            </div>
+          }
+
+          @if (inspect.Config?.Env?.length) {
+            <div class="card">
+              <div class="card-head"><span class="card-title">Environment</span></div>
+              <div class="card-body">
+                @for (env of inspect.Config.Env; track env) {
+                  <div style="font-size:11px;font-family:var(--font-mono);color:var(--fg-muted);padding:2px 0;">{{ env }}</div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Tab: Logs -->
+      @if (tab === 'logs') {
+        <div style="display:flex;flex-direction:column;height:100%;padding:0 20px 20px;">
+          <div class="card" style="display:flex;flex-direction:column;flex:1;min-height:300px;">
+            <div class="logs-toolbar">
+              <span class="detail-eyebrow" style="margin:0;">Container logs</span>
+              <div style="flex:1;"></div>
+              @if (liveLog) {
+                <span class="live-indicator">
+                  <dy-dot tone="running" [size]="5"></dy-dot>
+                  live
+                </span>
+              }
+              <button class="btn btn-sm btn-ghost" (click)="toggleLogs()">
+                {{ liveLog ? 'Pause' : 'Resume' }}
+              </button>
+            </div>
+            <div class="logs-body" #logContainer>
+              @for (line of logLines; track $index) {
+                <div>{{ line }}</div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Tab: Stats -->
+      @if (tab === 'stats' && stats) {
+        <div style="padding:16px 20px;">
+          <div class="metrics" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;">
+            <div class="metric">
+              <div class="metric-label">CPU usage</div>
+              <div class="metric-value">{{ cpuPercent }}%</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Memory usage</div>
+              <div class="metric-value">{{ memUsage }}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Net RX</div>
+              <div class="metric-value">{{ netRx }}</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Net TX</div>
+              <div class="metric-value">{{ netTx }}</div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  

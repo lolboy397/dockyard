@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Dockyard — Design System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="stylesheet" href="colors_and_type.css"/>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 50% -200px, rgba(34,211,238,0.06), transparent 60%),
+      var(--bg);
+    min-height: 100vh;
+  }
+  .grid-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: radial-gradient(1000px 700px at 50% 0, #000, transparent 75%);
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 0 var(--s-6); }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    height: 56px; display: flex; align-items: center; gap: var(--s-5);
+    background: rgba(10,14,23,0.72);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .topbar .inner { max-width: 1180px; margin: 0 auto; width: 100%; padding: 0 var(--s-6); display: flex; align-items: center; gap: var(--s-4); }
+  .brand-lockup { display: flex; align-items: center; gap: var(--s-3); }
+  .brand-lockup .mark { width: 24px; height: 24px; }
+  .brand-lockup .name { font-weight: var(--fw-semi); font-size: 15px; letter-spacing: var(--tracking-snug); color: var(--fg); }
+  .brand-lockup .tag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps);
+    text-transform: uppercase; color: var(--accent);
+    border: 1px solid var(--accent-ring); border-radius: var(--r-xs);
+    padding: 2px 6px; margin-left: 2px;
+  }
+  .nav { margin-left: auto; display: flex; align-items: center; gap: var(--s-1); }
+  .nav a {
+    font-size: var(--fs-base); color: var(--fg-muted); padding: 6px 10px; border-radius: var(--r-md);
+    transition: all var(--t-fast) var(--ease-out);
+  }
+  .nav a:hover { color: var(--fg); background: var(--bg-hover); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: var(--s-20) 0 var(--s-12); }
+  .hero .eyebrow { margin-bottom: var(--s-5); }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(40px, 7vw, var(--fs-6xl));
+    line-height: 1.02;
+    letter-spacing: var(--tracking-tight);
+    font-weight: var(--fw-semi);
+    margin: 0 0 var(--s-5);
+    max-width: 14ch;
+  }
+  .hero h1 .cy { color: var(--accent); }
+  .hero p.lede {
+    font-size: var(--fs-xl); line-height: var(--lh-xl); color: var(--fg-muted);
+    max-width: 56ch; margin: 0 0 var(--s-8);
+  }
+  .meta-strip { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: var(--fs-sm);
+    color: var(--fg-muted); background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle); border-radius: var(--r-full);
+    padding: 6px 12px;
+  }
+  .chip b { color: var(--fg); font-weight: var(--fw-med); }
+  .chip .dot { width: 8px; height: 8px; border-radius: var(--r-full); background: var(--running-400); box-shadow: 0 0 8px var(--running-400); }
+
+  /* ---------- section scaffolding ---------- */
+  section { padding: var(--s-12) 0; border-top: 1px solid var(--border-subtle); }
+  .sec-head { display: flex; align-items: baseline; gap: var(--s-4); margin-bottom: var(--s-8); }
+  .sec-head .idx { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--accent); }
+  .sec-head h2 { font-size: var(--fs-2xl); line-height: 1.2; margin: 0; }
+  .sec-head p { margin: 0 0 0 auto; color: var(--fg-subtle); font-size: var(--fs-base); max-width: 42ch; text-align: right; }
+
+  .cards { display: grid; gap: var(--s-4); grid-template-columns: repeat(2, 1fr); align-items: start; }
+  .cards.three { grid-template-columns: repeat(3, 1fr); }
+  .cards.one { grid-template-columns: 1fr; }
+
+  .card {
+    background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    border-radius: var(--r-lg); overflow: hidden;
+    transition: border-color var(--t-base) var(--ease-out), background var(--t-base) var(--ease-out);
+  }
+  .card:hover { border-color: var(--border); }
+  .card .label {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px var(--s-4); border-bottom: 1px solid var(--border-subtle);
+  }
+  .card .label .t { font-size: var(--fs-base); font-weight: var(--fw-med); color: var(--fg); }
+  .card .label .k { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); }
+  .card .frame { display: block; width: 100%; border: 0; background: var(--bg); }
+
+  /* ---------- ui kit cards ---------- */
+  .kits { display: grid; gap: var(--s-4); grid-template-columns: repeat(2, 1fr); }
+  .kit {
+    position: relative; display: block; text-decoration: none; color: inherit;
+    background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    border-radius: var(--r-xl); padding: var(--s-6); overflow: hidden;
+    transition: border-color var(--t-base) var(--ease-out), transform var(--t-base) var(--ease-out);
+  }
+  .kit:hover { border-color: var(--border-brand); transform: translateY(-2px); }
+  .kit .kicker { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--accent); }
+  .kit h3 { margin: var(--s-3) 0 var(--s-2); font-size: var(--fs-2xl); }
+  .kit p { color: var(--fg-muted); font-size: var(--fs-base); margin: 0; max-width: 44ch; }
+  .kit .go {
+    margin-top: var(--s-5); display: inline-flex; align-items: center; gap: 8px;
+    font-size: var(--fs-base); font-weight: var(--fw-med); color: var(--fg);
+  }
+  .kit .go svg { width: 16px; height: 16px; transition: transform var(--t-base) var(--ease-out); }
+  .kit:hover .go svg { transform: translateX(4px); }
+  .kit .glow { position: absolute; right: -80px; top: -80px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle, rgba(34,211,238,0.10), transparent 70%); pointer-events: none; }
+
+  /* ---------- footer ---------- */
+  footer { border-top: 1px solid var(--border-subtle); padding: var(--s-8) 0 var(--s-16); }
+  footer .row { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
+  footer .row .sp { margin-left: auto; }
+  footer code { color: var(--fg-muted); }
+
+  @media (max-width: 880px) {
+    .cards, .cards.three, .kits { grid-template-columns: 1fr; }
+    .sec-head { flex-direction: column; gap: var(--s-2); }
+    .sec-head p { margin: 0; text-align: left; }
+    .nav { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="grid-overlay"></div>
+
+<header class="topbar">
+  <div class="inner">
+    <div class="brand-lockup">
+      <img class="mark" src="assets/logo-mark.svg" alt="Dockyard mark"/>
+      <span class="name">Dockyard</span>
+      <span class="tag">Design System</span>
+    </div>
+    <nav class="nav">
+      <a href="#foundations">Foundations</a>
+      <a href="#components">Components</a>
+      <a href="#kits">UI Kits</a>
+      <a href="#tokens">Tokens</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- HERO -->
+  <section class="hero" style="border-top:0">
+    <div class="eyebrow">v1 · first-pass proposal</div>
+    <h1>Ship anything.<br/>With <span class="cy">everything</span>.</h1>
+    <p class="lede">The complete design language behind Dockyard — a dark-first, dense, terminal-fluent docker manager built for serious developers and enterprise teams.</p>
+    <div class="meta-strip">
+      <span class="chip"><span class="dot"></span> tokens <b>live</b></span>
+      <span class="chip">type <b>Geist · Geist Mono</b></span>
+      <span class="chip">accent <b>#22D3EE</b></span>
+      <span class="chip">icons <b>Lucide</b></span>
+      <span class="chip">grid <b>4px</b></span>
+    </div>
+  </section>
+
+  <!-- BRAND -->
+  <section id="brand">
+    <div class="sec-head">
+      <span class="idx">01</span>
+      <h2>Brand</h2>
+      <p>One solid square — the universal container glyph — paired with the Geist wordmark. Cyan on ink, never on light gradients.</p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label"><span class="t">Logo &amp; lockups</span><span class="k">brand-logo</span></div>
+        <ds-embed class="frame" src="preview/brand-logo.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Icon set</span><span class="k">brand-icons</span></div>
+        <ds-embed class="frame" src="preview/brand-icons.html"></ds-embed>
+      </div>
+      <div class="card" style="grid-column: 1 / -1">
+        <div class="label"><span class="t">Illustration · isometric line</span><span class="k">brand-illustration</span></div>
+        <ds-embed class="frame" src="preview/brand-illustration.html"></ds-embed>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLOR -->
+  <section id="foundations">
+    <div class="sec-head">
+      <span class="idx">02</span>
+      <h2>Color</h2>
+      <p>A 12-step ink scale biased blue, one cyan accent used surgically, plus a separate status family.</p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label"><span class="t">Brand · cyan</span><span class="k">colors-brand</span></div>
+        <ds-embed class="frame" src="preview/colors-brand.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Ink scale</span><span class="k">colors-ink</span></div>
+        <ds-embed class="frame" src="preview/colors-ink.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Status</span><span class="k">colors-status</span></div>
+        <ds-embed class="frame" src="preview/colors-status.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Surfaces &amp; elevation</span><span class="k">colors-surfaces</span></div>
+        <ds-embed class="frame" src="preview/colors-surfaces.html"></ds-embed>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPE -->
+  <section>
+    <div class="sec-head">
+      <span class="idx">03</span>
+      <h2>Type</h2>
+      <p>Geist for display &amp; UI, Geist Mono for every numeral, ID, port, duration and uppercase eyebrow.</p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label"><span class="t">Display</span><span class="k">type-display</span></div>
+        <ds-embed class="frame" src="preview/type-display.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Body</span><span class="k">type-body</span></div>
+        <ds-embed class="frame" src="preview/type-body.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Mono</span><span class="k">type-mono</span></div>
+        <ds-embed class="frame" src="preview/type-mono.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Eyebrow &amp; kbd</span><span class="k">type-eyebrow-kbd</span></div>
+        <ds-embed class="frame" src="preview/type-eyebrow-kbd.html"></ds-embed>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACING -->
+  <section id="tokens">
+    <div class="sec-head">
+      <span class="idx">04</span>
+      <h2>Spacing, radii &amp; motion</h2>
+      <p>Strict 4px grid, six radii from chip to hero, four soft elevation levels, one confident ease.</p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label"><span class="t">Spacing scale</span><span class="k">spacing-scale</span></div>
+        <ds-embed class="frame" src="preview/spacing-scale.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Radii</span><span class="k">spacing-radii</span></div>
+        <ds-embed class="frame" src="preview/spacing-radii.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Elevation</span><span class="k">spacing-elevation</span></div>
+        <ds-embed class="frame" src="preview/spacing-elevation.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Motion</span><span class="k">spacing-motion</span></div>
+        <ds-embed class="frame" src="preview/spacing-motion.html"></ds-embed>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section id="components">
+    <div class="sec-head">
+      <span class="idx">05</span>
+      <h2>Components</h2>
+      <p>The atoms and molecules of the in-product surface — built dense, rectilinear, border-led.</p>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label"><span class="t">Buttons</span><span class="k">comp-buttons</span></div>
+        <ds-embed class="frame" src="preview/comp-buttons.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Badges</span><span class="k">comp-badges</span></div>
+        <ds-embed class="frame" src="preview/comp-badges.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Inputs</span><span class="k">comp-inputs</span></div>
+        <ds-embed class="frame" src="preview/comp-inputs.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Tabs</span><span class="k">comp-tabs</span></div>
+        <ds-embed class="frame" src="preview/comp-tabs.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Container row</span><span class="k">comp-row</span></div>
+        <ds-embed class="frame" src="preview/comp-row.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Menu</span><span class="k">comp-menu</span></div>
+        <ds-embed class="frame" src="preview/comp-menu.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Card</span><span class="k">comp-cards</span></div>
+        <ds-embed class="frame" src="preview/comp-cards.html"></ds-embed>
+      </div>
+      <div class="card">
+        <div class="label"><span class="t">Toast</span><span class="k">comp-toast</span></div>
+        <ds-embed class="frame" src="preview/comp-toast.html"></ds-embed>
+      </div>
+      <div class="card" style="grid-column: 1 / -1">
+        <div class="label"><span class="t">Terminal</span><span class="k">comp-terminal</span></div>
+        <ds-embed class="frame" src="preview/comp-terminal.html"></ds-embed>
+      </div>
+    </div>
+  </section>
+
+  <!-- UI KITS -->
+  <section id="kits">
+    <div class="sec-head">
+      <span class="idx">06</span>
+      <h2>UI kits</h2>
+      <p>Two assembled, clickable surfaces — the canonical reference for product and marketing.</p>
+    </div>
+    <div class="kits">
+      <a class="kit" href="ui_kits/app/index.html">
+        <div class="glow"></div>
+        <span class="kicker">Application</span>
+        <h3>The Dockyard app</h3>
+        <p>Dashboard, containers, images, volumes, networks, projects, terminal, command palette — the full in-product surface, running.</p>
+        <span class="go">Open app kit
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+        </span>
+      </a>
+      <a class="kit" href="ui_kits/marketing/index.html">
+        <div class="glow"></div>
+        <span class="kicker">Marketing</span>
+        <h3>The marketing site</h3>
+        <p>Hero, features, pricing and footer — the public face, built on the same tokens with room to breathe.</p>
+        <span class="go">Open marketing kit
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+        </span>
+      </a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="row">
+      <img src="assets/logo-mark.svg" alt="" width="20" height="20"/>
+      <span style="color:var(--fg-muted); font-size: var(--fs-base)">Dockyard Design System</span>
+      <span class="sp"></span>
+      <code style="font-family:var(--font-mono); font-size: var(--fs-sm)">colors_and_type.css</code>
+      <code style="font-family:var(--font-mono); font-size: var(--fs-sm)">README.md</code>
+      <code style="font-family:var(--font-mono); font-size: var(--fs-sm)">SKILL.md</code>
+    </div>
+  </footer>
+
+</main>
+
+
+<script>
+class DsEmbed extends HTMLElement {
+  connectedCallback() {
+    if (this._init) return; this._init = true;
+    const src = this.getAttribute('src');
+    const root = this.attachShadow({ mode: 'open' });
+    root.innerHTML = '<div class="ds-loading"></div>';
+    fetch(src).then(r => r.text()).then(txt => {
+      const doc = new DOMParser().parseFromString(txt, 'text/html');
+      doc.querySelectorAll('script').forEach(s => s.remove());
+      let css = [...doc.querySelectorAll('style')].map(s => s.textContent).join('\n');
+      // retarget the preview's body rules onto our shadow wrapper
+      css = css.replace(/\bbody\b/g, '.ds-root');
+      const body = doc.body ? doc.body.innerHTML : '';
+      root.innerHTML = '<style>:host{display:block}.ds-root{font-family:var(--font-sans);color:var(--fg-default);}</style>'
+        + '<style>' + css + '</style>'
+        + '<div class="ds-root">' + body + '</div>';
+    }).catch(e => { root.innerHTML = '<div style="padding:16px;font-family:var(--font-mono);color:var(--danger-400);font-size:12px">failed to load ' + src + '</div>'; });
+  }
+}
+customElements.define('ds-embed', DsEmbed);
+</script>
+
+</body>
+</html>

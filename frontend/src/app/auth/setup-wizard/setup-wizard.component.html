@@ -1,0 +1,252 @@
+    <div class="setup fade-up">
+      <!-- ---- left rail ---- -->
+      <aside class="setup-rail">
+        <div class="rail-brand">
+          <dy-brand-mark [size]="26"></dy-brand-mark>
+          <span class="brand-word">Dockyard</span>
+          <span class="rail-tag">setup</span>
+        </div>
+        <p class="rail-lede">Configure this instance. Takes about two minutes — you can change everything later in settings.</p>
+
+        <div class="steps">
+          @for (s of steps; track s.id; let i = $index) {
+            <div class="step" [class.on]="i === stepIdx" [class.done]="i < stepIdx" [class.clickable]="i <= maxReached"
+                 (click)="i <= maxReached && go(i)">
+              <span class="step-num">
+                @if (i < stepIdx) { <dy-icon name="check" [size]="13" [strokeWidth]="2.5"></dy-icon> }
+                @else { {{ i + 1 }} }
+              </span>
+              <span class="step-label">{{ s.label }}</span>
+            </div>
+            @if (i < steps.length - 1) { <span class="step-connector"></span> }
+          }
+        </div>
+
+        <div class="rail-foot">
+          <div class="rail-host">
+            <span class="eyebrow-dot"></span>
+            <span>localhost · engine {{ engineVersion }}</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ---- right content ---- -->
+      <div class="setup-main">
+        <div class="setup-progress"><div class="setup-progress-bar" [style.width.%]="progress"></div></div>
+
+        <div class="setup-body">
+          @switch (step.id) {
+            <!-- ============ WELCOME ============ -->
+            @case ('welcome') {
+              <div class="welcome">
+                <div class="welcome-marks"><dy-brand-mark [size]="34"></dy-brand-mark></div>
+                <div class="setup-head" style="margin-bottom:18px;">
+                  <div class="setup-eyebrow">First-run setup</div>
+                  <h1 class="setup-title">Welcome to Dockyard</h1>
+                  <p class="setup-desc">You’re setting up a new local instance. First, let’s create your admin account and point Dockyard at your Docker engine.</p>
+                </div>
+
+                <div class="welcome-feature-list">
+                  @for (f of features; track f.t) {
+                    <div class="wf">
+                      <span class="wf-ic"><dy-icon [name]="f.ic" [size]="17"></dy-icon></span>
+                      <div class="wf-text">
+                        <div class="t">{{ f.t }}</div>
+                        <div class="d">{{ f.d }}</div>
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <div style="margin-top:26px;padding-top:18px;border-top:1px solid var(--border-subtle);width:100%;">
+                  <dy-check-row [on]="data.accepted" (toggled)="data.accepted = !data.accepted">
+                    I understand that Dockyard will have full control over this Docker host, its containers, images and volumes.
+                  </dy-check-row>
+                </div>
+              </div>
+            }
+
+            <!-- ============ ADMIN ============ -->
+            @case ('admin') {
+              <div>
+                <div class="setup-head">
+                  <div class="setup-eyebrow">Step 1 · Administrator</div>
+                  <h1 class="setup-title">Create the admin account</h1>
+                  <p class="setup-desc">This is the first and highest-privilege account. It can manage every container, user and setting on this instance.</p>
+                </div>
+
+                <div class="form-grid cols-2">
+                  <dy-field label="Full name">
+                    <dy-text-input [value]="data.fullName" (valueChange)="data.fullName = $event"
+                      placeholder="Mara Okafor" icon="user" [autoFocus]="true"></dy-text-input>
+                  </dy-field>
+                  <dy-field label="Email">
+                    <dy-text-input [value]="data.email" (valueChange)="data.email = $event"
+                      placeholder="mara@example.com" icon="mail" type="email"></dy-text-input>
+                  </dy-field>
+                  <dy-field label="Username" hint="Lowercase, no spaces. Used to sign in." class="span-2">
+                    <dy-text-input [value]="data.username" (valueChange)="setUsername($event)"
+                      placeholder="admin" icon="at-sign" [mono]="true"></dy-text-input>
+                  </dy-field>
+
+                  <div class="span-2" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+                    <dy-field label="Password">
+                      <dy-password-input [value]="data.password" (valueChange)="data.password = $event"
+                        placeholder="••••••••••"></dy-password-input>
+                    </dy-field>
+                    <dy-field label="Confirm password" [error]="mismatch ? 'Passwords don’t match' : null">
+                      <dy-password-input [value]="data.confirm" (valueChange)="data.confirm = $event"
+                        placeholder="••••••••••" [err]="mismatch" icon="lock-keyhole"></dy-password-input>
+                    </dy-field>
+                  </div>
+                  <div class="span-2"><dy-password-strength [value]="data.password"></dy-password-strength></div>
+                </div>
+              </div>
+            }
+
+            <!-- ============ INSTANCE ============ -->
+            @case ('instance') {
+              <div>
+                <div class="setup-head">
+                  <div class="setup-eyebrow">Step 2 · Engine</div>
+                  <h1 class="setup-title">Connect your Docker engine</h1>
+                  <p class="setup-desc">Name this instance and tell Dockyard where the Docker daemon lives. Defaults work for a standard local install.</p>
+                </div>
+
+                <div class="form-grid">
+                  <dy-field label="Instance name" hint="Shown in the title bar and across multi-instance views.">
+                    <dy-text-input [value]="data.instanceName" (valueChange)="data.instanceName = $event"
+                      placeholder="production" icon="server" [autoFocus]="true"></dy-text-input>
+                  </dy-field>
+
+                  <dy-field label="Docker host" hint="Unix socket for a local daemon, or a tcp:// address for a remote one.">
+                    <dy-text-input [value]="data.dockerHost" (valueChange)="data.dockerHost = $event"
+                      placeholder="/var/run/docker.sock" prefix="unix://" [mono]="true"></dy-text-input>
+                  </dy-field>
+
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+                    <dy-field label="Data directory" hint="Where Dockyard stores its config & database.">
+                      <dy-text-input [value]="data.dataDir" (valueChange)="data.dataDir = $event"
+                        placeholder="/var/lib/dockyard" icon="folder" [mono]="true"></dy-text-input>
+                    </dy-field>
+                    <dy-field label="Bind address" hint="Host : port the web UI listens on.">
+                      <dy-text-input [value]="data.bindAddr" (valueChange)="data.bindAddr = $event"
+                        placeholder="0.0.0.0:9443" icon="globe" [mono]="true"></dy-text-input>
+                    </dy-field>
+                  </div>
+
+                  <div class="test-row">
+                    <dy-btn variant="secondary" icon="plug-zap" [loading]="testing" (clicked)="runTest()">Test connection</dy-btn>
+                    @if (tested && !testing) {
+                      <span class="test-result" [class.ok]="testOk" [class.err]="!testOk">
+                        <dy-icon [name]="testOk ? 'circle-check' : 'circle-alert'" [size]="15"></dy-icon> {{ testMessage }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- ============ PREFS ============ -->
+            @case ('prefs') {
+              <div>
+                <div class="setup-head">
+                  <div class="setup-eyebrow">Step 3 · Preferences</div>
+                  <h1 class="setup-title">Set your defaults</h1>
+                  <p class="setup-desc">A few instance-wide preferences. Every one of these can be changed later in settings.</p>
+                </div>
+
+                <div class="form-grid">
+                  <dy-toggle [on]="data.tls" (toggled)="data.tls = !data.tls"
+                    title="Require TLS"
+                    desc="Serve the UI over HTTPS with a self-signed certificate. Strongly recommended for any non-loopback bind address."></dy-toggle>
+                  <dy-toggle [on]="data.autoUpdate" (toggled)="data.autoUpdate = !data.autoUpdate"
+                    title="Automatic updates"
+                    desc="Pull and apply Dockyard updates from the stable channel as they ship."></dy-toggle>
+                  <dy-toggle [on]="data.telemetry" (toggled)="data.telemetry = !data.telemetry"
+                    title="Anonymous usage stats"
+                    desc="Share anonymized, aggregate usage to help prioritize features. No container data, ever. Off by default."></dy-toggle>
+
+                  <dy-field label="Default registry" hint="Used when you pull an image without a registry prefix." [optional]="true">
+                    <dy-text-input [value]="data.registry" (valueChange)="data.registry = $event"
+                      placeholder="docker.io" icon="cloud" [mono]="true"></dy-text-input>
+                  </dy-field>
+                </div>
+              </div>
+            }
+
+            <!-- ============ REVIEW ============ -->
+            @case ('review') {
+              <div>
+                <div class="setup-head">
+                  <div class="setup-eyebrow">Step 4 · Review</div>
+                  <h1 class="setup-title">Confirm and create</h1>
+                  <p class="setup-desc">Double-check everything below. Creating the admin finalizes setup — you’ll sign in next.</p>
+                </div>
+
+                <div class="review-group">
+                  <div class="review-gh">
+                    <span class="t"><dy-icon name="user" [size]="14" color="var(--accent)"></dy-icon> Admin account</span>
+                    <span class="review-edit" (click)="go(1)"><dy-icon name="pencil" [size]="12"></dy-icon> Edit</span>
+                  </div>
+                  <div class="review-rows">
+                    <div class="review-row"><span class="review-k">Full name</span><span class="review-v" [class.dim]="!data.fullName">{{ data.fullName || '—' }}</span></div>
+                    <div class="review-row"><span class="review-k">Email</span><span class="review-v" [class.dim]="!data.email">{{ data.email || '—' }}</span></div>
+                    <div class="review-row"><span class="review-k">Username</span><span class="review-v" [class.dim]="!data.username">{{ data.username || '—' }}</span></div>
+                    <div class="review-row"><span class="review-k">Password</span><span class="review-v dim">{{ pwMask }}</span></div>
+                  </div>
+                </div>
+
+                <div class="review-group">
+                  <div class="review-gh">
+                    <span class="t"><dy-icon name="server" [size]="14" color="var(--accent)"></dy-icon> Instance</span>
+                    <span class="review-edit" (click)="go(2)"><dy-icon name="pencil" [size]="12"></dy-icon> Edit</span>
+                  </div>
+                  <div class="review-rows">
+                    <div class="review-row"><span class="review-k">Name</span><span class="review-v" [class.dim]="!data.instanceName">{{ data.instanceName || '—' }}</span></div>
+                    <div class="review-row"><span class="review-k">Docker host</span><span class="review-v">{{ 'unix://' + (data.dockerHost || '/var/run/docker.sock') }}</span></div>
+                    <div class="review-row"><span class="review-k">Data directory</span><span class="review-v">{{ data.dataDir || '/var/lib/dockyard' }}</span></div>
+                    <div class="review-row"><span class="review-k">Bind address</span><span class="review-v">{{ data.bindAddr || '0.0.0.0:9443' }}</span></div>
+                  </div>
+                </div>
+
+                <div class="review-group">
+                  <div class="review-gh">
+                    <span class="t"><dy-icon name="sliders-horizontal" [size]="14" color="var(--accent)"></dy-icon> Preferences</span>
+                    <span class="review-edit" (click)="go(3)"><dy-icon name="pencil" [size]="12"></dy-icon> Edit</span>
+                  </div>
+                  <div class="review-rows">
+                    <div class="review-row"><span class="review-k">TLS</span><span class="review-v" [class.dim]="!data.tls">{{ onOff(data.tls) }}</span></div>
+                    <div class="review-row"><span class="review-k">Auto updates</span><span class="review-v" [class.dim]="!data.autoUpdate">{{ onOff(data.autoUpdate) }}</span></div>
+                    <div class="review-row"><span class="review-k">Usage stats</span><span class="review-v" [class.dim]="!data.telemetry">{{ onOff(data.telemetry) }}</span></div>
+                    <div class="review-row"><span class="review-k">Default registry</span><span class="review-v">{{ data.registry || 'docker.io' }}</span></div>
+                  </div>
+                </div>
+              </div>
+            }
+          }
+        </div>
+
+        <div class="setup-foot">
+          <span class="foot-meta">step {{ stepIdx + 1 }} of {{ steps.length }}</span>
+          <div class="foot-actions">
+            @if (stepIdx > 0) { <dy-btn variant="ghost" icon="arrow-left" (clicked)="back()">Back</dy-btn> }
+            @if (step.id === 'review') {
+              <dy-btn variant="primary" icon="check" (clicked)="doFinish()" [loading]="finishing">Create admin &amp; finish</dy-btn>
+            } @else {
+              <dy-btn variant="primary" iconRight="arrow-right" (clicked)="next()" [disabled]="!valid">Continue</dy-btn>
+            }
+          </div>
+        </div>
+      </div>
+
+      @if (finishing) {
+        <div class="finish">
+          <span class="finish-mark"><dy-icon name="check" [size]="30" [strokeWidth]="2.5"></dy-icon></span>
+          <div class="finish-title">Instance ready</div>
+          <div class="finish-desc">Created admin <span class="mono" style="color:var(--fg-default);">{{ data.username }}</span> · taking you to sign in…</div>
+          <div class="finish-bar"><div class="finish-bar-fill"></div></div>
+        </div>
+      }
+    </div>
+  

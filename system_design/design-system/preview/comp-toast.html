@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Toasts & progress</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg); display: flex; flex-direction: column; gap: 12px; }
+  .toast { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--sh-2); max-width: 480px; }
+  .toast .ic { width: 16px; height: 16px; flex: none; }
+  .toast .body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .toast .title { font-size: 13px; font-weight: 500; color: var(--fg); }
+  .toast .meta { font-size: 11px; color: var(--fg-muted); }
+  .toast .action { font-size: 12px; color: var(--accent); font-weight: 500; cursor: pointer; }
+  .ok .ic { color: var(--running-400); }
+  .err .ic { color: var(--danger-400); }
+  .info .ic { color: var(--info-400); }
+
+  /* progress bar */
+  .progress-wrap { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 14px; max-width: 480px; }
+  .progress-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--fg-muted); margin-bottom: 8px; }
+  .progress-top .name { color: var(--fg); font-weight: 500; }
+  .progress-top .pct { font-family: var(--font-mono); color: var(--accent); }
+  .track { height: 4px; background: var(--bg-inset); border-radius: 2px; overflow: hidden; }
+  .fill { height: 100%; background: var(--accent); width: 64%; box-shadow: 0 0 8px rgba(34,211,238,0.5); }
+  .layers { display: flex; gap: 4px; margin-top: 8px; }
+  .layer { flex: 1; height: 2px; background: var(--bg-inset); border-radius: 1px; }
+  .layer.done { background: var(--running-400); }
+  .layer.cur { background: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="toast ok">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+    <div class="body"><span class="title">Container started.</span><span class="meta">nginx-prod · listening on :8080</span></div>
+    <span class="action">View</span>
+  </div>
+  <div class="toast err">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <div class="body"><span class="title">Pull failed — registry timeout</span><span class="meta">ghcr.io/internal/worker:42 · 30s elapsed</span></div>
+    <span class="action">Retry</span>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-top"><span class="name">Pulling postgres:16.2</span><span class="pct">64% · 178 / 280 MB</span></div>
+    <div class="track"><div class="fill"></div></div>
+    <div class="layers">
+      <div class="layer done"></div><div class="layer done"></div><div class="layer done"></div>
+      <div class="layer cur"></div><div class="layer"></div><div class="layer"></div><div class="layer"></div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,124 @@
+.live-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--running-400);
+  display: inline-block;
+}
+
+/* ── Event list ─────────────────────────────────────────────── */
+.events-list {
+  margin: 0 16px 24px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  font-size: 12.5px;
+}
+
+.events-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--fg-subtle);
+  font-size: 13px;
+}
+
+/* ── Event row ──────────────────────────────────────────────── */
+.event-row {
+  display: grid;
+  grid-template-columns: 84px 24px 90px 1.4fr 1fr 140px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  line-height: 1.4;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+}
+
+/* Timestamp */
+.event-ts {
+  color: var(--fg-subtle);
+  font-size: 11px;
+}
+
+/* Tone rail / icon */
+.event-rail {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  flex-shrink: 0;
+
+  &.event-rail-running { background: rgba(16,185,129,0.12); color: var(--running-400); }
+  &.event-rail-danger  { background: rgba(239,68,68,0.12);  color: var(--danger-400); }
+  &.event-rail-warn    { background: rgba(245,158,11,0.12); color: var(--warn-400); }
+  &.event-rail-info    { background: rgba(59,130,246,0.12); color: var(--info-400); }
+  &.event-rail-idle    { background: rgba(148,163,184,0.10); color: var(--idle-400); }
+}
+
+/* Action label */
+.event-type {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+/* Object cell */
+.event-obj {
+  color: var(--fg-default);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  .obj-type {
+    color: var(--fg-subtle);
+    margin-right: 2px;
+  }
+}
+
+/* Optional detail note */
+.event-note {
+  color: var(--fg-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Actor column */
+.event-by {
+  color: var(--fg-subtle);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* On phones, scroll the table horizontally instead of collapsing columns */
+@media (max-width: 820px) {
+  .events-list { overflow-x: auto; }
+  .event-row { min-width: 640px; }
+}

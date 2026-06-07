@@ -1,0 +1,7 @@
+# Build context hygiene; the binary is compiled inside the image.
+.git
+.gitignore
+*.db
+data
+Dockerfile
+.dockerignore

@@ -1,0 +1,179 @@
+@if (auth.ready() && !auth.authed()) {
+  <!-- ── First-run setup / Login (full-viewport takeover) ── -->
+  <dy-auth></dy-auth>
+} @else if (auth.authed()) {
+<div class="app" [class.sidebar-open]="sidebarOpen">
+  <!-- Mobile drawer backdrop -->
+  <div class="sidebar-backdrop" (click)="sidebarOpen=false"></div>
+
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="brand">
+        <!-- Brand mark -->
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="3" fill="#22D3EE"/>
+          <rect x="6" y="9" width="3" height="3" rx="0.5" fill="#04181D"/>
+          <rect x="10.5" y="9" width="3" height="3" rx="0.5" fill="#04181D"/>
+          <rect x="15" y="9" width="3" height="3" rx="0.5" fill="#04181D"/>
+          <rect x="6" y="13.5" width="3" height="3" rx="0.5" fill="#04181D"/>
+          <rect x="10.5" y="13.5" width="3" height="3" rx="0.5" fill="#04181D"/>
+        </svg>
+        <span class="brand-word">Dockyard</span>
+      </div>
+    </div>
+
+    <div class="sidebar-search" (click)="paletteOpen=true" role="button" tabindex="0" (keydown.enter)="paletteOpen=true">
+      <dy-icon name="search" [size]="13"></dy-icon>
+      <span style="color:var(--fg-subtle);font-size:12px;">Quick find…</span>
+      <span class="kbd-mini">⌘K</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      @for (group of navGroups; track group.label) {
+        <div class="nav-group">
+          <div class="nav-group-label">{{ group.label }}</div>
+          @for (item of group.items; track item.route) {
+            <a class="nav-item"
+               [routerLink]="item.route"
+               routerLinkActive="active">
+              <dy-icon [name]="item.icon" [size]="15"></dy-icon>
+              <span class="nav-label">{{ item.label }}</span>
+              @if (item.countKey && navCounts[item.countKey] != null) {
+                <span class="nav-count">{{ navCounts[item.countKey] }}</span>
+              }
+            </a>
+          }
+        </div>
+      }
+      @if (auth.isAdmin()) {
+        <div class="nav-group">
+          <div class="nav-group-label">Admin</div>
+          <a class="nav-item" routerLink="/users" routerLinkActive="active">
+            <dy-icon name="users" [size]="15"></dy-icon>
+            <span class="nav-label">Users</span>
+          </a>
+          <a class="nav-item" routerLink="/roles" routerLinkActive="active">
+            <dy-icon name="shield" [size]="15"></dy-icon>
+            <span class="nav-label">Roles</span>
+          </a>
+        </div>
+      }
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="env-switcher" style="cursor:default;">
+        <dy-dot [tone]="engineStatus"></dy-dot>
+        <div class="env-text">
+          <div class="env-name">{{ auth.status()?.instance_name || 'local' }}</div>
+          <div class="env-region mono">{{ dockerVersion ? 'engine ' + dockerVersion : '—' }}</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ───────────────────────────────────────────── -->
+  <div class="main">
+    <!-- Top bar -->
+    <header class="topbar">
+      <button class="nav-toggle" (click)="toggleSidebar($event)" aria-label="Toggle navigation">
+        <dy-icon name="menu" [size]="18"></dy-icon>
+      </button>
+      <div class="crumbs">
+        <span class="crumb" [class.on]="!activeSection">Dockyard</span>
+        @if (activeSection) {
+          <span class="crumb-sep">/</span>
+          <span class="crumb on">{{ activeSection }}</span>
+        }
+      </div>
+      <button class="palette-trigger" (click)="paletteOpen=true">
+        <dy-icon name="search" [size]="13"></dy-icon>
+        <span>Search containers, images, commands…</span>
+        <span class="kbd-mini">⌘K</span>
+      </button>
+      <div class="topbar-right">
+        @if (auth.isViewer()) {
+          <span class="ro-pill" title="You have read-only (viewer) access"><dy-icon name="eye" [size]="12"></dy-icon> read-only</span>
+        }
+        <div class="notif-wrap">
+          <button class="icon-btn ghost" title="Recent activity" (click)="toggleNotif($event)"><dy-icon name="bell" [size]="14"></dy-icon></button>
+          @if (notifOpen) {
+            <div class="notif-menu" (click)="$event.stopPropagation()">
+              <div class="notif-head">Recent activity</div>
+              @if (notifications.length === 0) {
+                <div class="notif-empty">No recent activity</div>
+              }
+              @for (n of notifications; track n.id) {
+                <div class="notif-row">
+                  <span class="notif-text">{{ notifLabel(n) }}</span>
+                  <span class="notif-meta mono">{{ n.actor }} · {{ notifAgo(n.created_at) }} ago</span>
+                </div>
+              }
+              <a class="notif-foot" routerLink="/events" (click)="notifOpen=false">View all activity →</a>
+            </div>
+          }
+        </div>
+        <div class="divider-v"></div>
+        <div class="user-menu-wrap">
+          <button class="avatar-btn" (click)="toggleUserMenu($event)" title="Account">
+            <span class="avatar">{{ userInitials }}</span>
+          </button>
+          @if (userMenuOpen) {
+            <div class="user-menu" (click)="$event.stopPropagation()">
+              <div class="um-head">
+                <div class="um-name">{{ auth.user()?.full_name || auth.user()?.username }}</div>
+                <div class="um-sub mono">{{ '@' + (auth.user()?.username || '') }} · {{ auth.user()?.role }}</div>
+              </div>
+              <button class="um-item" (click)="toggleTheme(); $event.stopPropagation()">
+                <dy-icon [name]="theme === 'light' ? 'moon' : 'sun'" [size]="14"></dy-icon>
+                {{ theme === 'light' ? 'Dark mode' : 'Light mode' }}
+              </button>
+              <button class="um-item" (click)="logout()"><dy-icon name="log-out" [size]="14"></dy-icon> Sign out</button>
+            </div>
+          }
+        </div>
+      </div>
+    </header>
+
+    <!-- Page content -->
+    <div class="page-body">
+      <router-outlet></router-outlet>
+    </div>
+  </div>
+
+  <!-- ── Status bar ─────────────────────────────────────── -->
+  <footer class="statusbar">
+    <div class="status-group">
+      <span class="status-item">
+        <dy-dot [tone]="engineStatus" [size]="5"></dy-dot>
+        engine {{ engineStatus }}
+      </span>
+      @if (dockerVersion) {
+        <span class="status-item mono">{{ dockerVersion }}</span>
+      }
+      @if (navCounts.containers != null) {
+        <span class="status-item">{{ navCounts.containers }} containers &middot; {{ navCounts.images }} images</span>
+      }
+    </div>
+    <div class="status-group">
+      @if (auth.user()) {
+        <span class="status-item">{{ auth.user()?.role }}</span>
+        <span class="status-divider">·</span>
+      }
+      <span class="status-item">{{ auth.status()?.app_version ? 'v' + auth.status()?.app_version : '' }}</span>
+    </div>
+  </footer>
+</div>
+
+<!-- Context menu overlay (right-click menus across the app) -->
+<dy-context-menu></dy-context-menu>
+
+<!-- Toast overlay -->
+<dy-toast-container></dy-toast-container>
+
+<!-- Command palette overlay -->
+<app-command-palette [open]="paletteOpen" (closed)="paletteOpen=false"></app-command-palette>
+
+<!-- Confirm / danger dialog -->
+<app-confirm-dialog></app-confirm-dialog>
+}

@@ -1,0 +1,335 @@
+    <div class="body" [class.no-detail]="!selectedDef">
+
+      <!-- ═══════════════════════════ LEFT: DEFINITIONS LIST ═══════════════════════ -->
+      <div class="content-area">
+
+        <!-- HEAD -->
+        <div class="content-head">
+          <div class="content-title-row">
+            <h2 class="content-title">Build Definitions</h2>
+            <span class="content-count">{{ definitions.length }}</span>
+          </div>
+          <div class="content-actions">
+            @if (auth.canWrite()) {
+              <button class="btn btn-sm btn-secondary" (click)="clearCache()">
+                <dy-icon name="trash-2" [size]="13"></dy-icon> Clear cache
+              </button>
+              <button class="btn btn-sm btn-primary" (click)="showForm = !showForm">
+                <dy-icon name="plus" [size]="13"></dy-icon> New definition
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- FILTER PILLS -->
+        <div class="content-toolbar">
+          <div class="pills">
+            <button class="pill" [class.on]="defFilter==='all'" (click)="setFilter('all')">
+              All <span class="pill-count">{{ definitions.length }}</span>
+            </button>
+            <button class="pill" [class.on]="defFilter==='git'" (click)="setFilter('git')">
+              Git <span class="pill-count">{{ countBySource('git') }}</span>
+            </button>
+            <button class="pill" [class.on]="defFilter==='inline'" (click)="setFilter('inline')">
+              Inline <span class="pill-count">{{ countBySource('inline') }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- NEW DEFINITION MODAL -->
+        @if (showForm) {
+          <app-modal title="New build definition" eyebrow="builds" (close)="showForm=false">
+
+            <!-- source type toggle -->
+            <div class="pills">
+              <button class="pill" [class.on]="form.sourceType==='inline'" (click)="form.sourceType='inline'">
+                Inline Dockerfile
+              </button>
+              <button class="pill" [class.on]="form.sourceType==='git'" (click)="form.sourceType='git'">
+                <dy-icon name="git-branch" [size]="12"></dy-icon> Git repository
+              </button>
+            </div>
+
+            <!-- name + tag -->
+            <div class="field-row" style="grid-template-columns:1fr 1fr;">
+              <div class="field">
+                <label class="label">Name</label>
+                <input type="text" class="input input-sm" [(ngModel)]="form.name" placeholder="my-app" />
+              </div>
+              <div class="field">
+                <label class="label">Tag</label>
+                <input type="text" class="input input-sm" [(ngModel)]="form.tag" placeholder="latest" />
+              </div>
+            </div>
+
+            @if (form.sourceType === 'git') {
+              <!-- git URL -->
+              <div class="field">
+                <label class="label">Git URL</label>
+                <input type="text" class="input input-sm" [(ngModel)]="form.gitUrl" placeholder="https://github.com/user/repo.git" />
+              </div>
+              <!-- branch + dockerfile path -->
+              <div class="field-row" style="grid-template-columns:1fr 1fr;">
+                <div class="field">
+                  <label class="label">Branch</label>
+                  <input type="text" class="input input-sm" [(ngModel)]="form.gitBranch" placeholder="main" />
+                </div>
+                <div class="field">
+                  <label class="label">Dockerfile path</label>
+                  <input type="text" class="input input-sm" [(ngModel)]="form.dockerfilePath" placeholder="Dockerfile" />
+                </div>
+              </div>
+            }
+
+            @if (form.sourceType === 'inline') {
+              <div class="field">
+                <label class="label">Dockerfile</label>
+                <textarea class="input" rows="10"
+                          style="font-family:var(--font-mono);font-size:11px;resize:vertical;"
+                          [(ngModel)]="form.dockerfile"></textarea>
+              </div>
+            }
+
+            <!-- push to registry -->
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label style="cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-muted);">
+                <input type="checkbox" [(ngModel)]="form.pushToRegistry" style="width:14px;height:14px;" />
+                Push to registry after build
+              </label>
+              @if (form.pushToRegistry) {
+                <input type="text" class="input input-sm" style="flex:1;" [(ngModel)]="form.registryUrl" placeholder="localhost:5000" />
+              }
+            </div>
+
+            <div modal-footer>
+              <button class="btn btn-sm btn-ghost" (click)="showForm=false">Cancel</button>
+              <button class="btn btn-sm btn-primary" [disabled]="!canSubmit()" (click)="submitCreateDef()">Save definition</button>
+            </div>
+
+          </app-modal>
+        }
+
+        <!-- DEFINITIONS TABLE -->
+        @if (loading) {
+          <div class="gtable" style="margin:0 16px 24px;">
+            <div class="gtable-head" style="grid-template-columns:{{ defCols }}">
+              <span>Name &amp; Tag</span><span>Source</span>
+              <span>Last status</span><span>Last run</span>
+              <span style="text-align:right;">Runs</span><span></span>
+            </div>
+            @for (i of [1,2,3]; track i) {
+              <div class="gtable-row" style="grid-template-columns:{{ defCols }};pointer-events:none;">
+                <div class="col-name"><span class="skel" style="width:100px;height:12px;border-radius:3px;"></span></div>
+                <span><span class="skel" style="width:48px;height:16px;border-radius:4px;"></span></span>
+                <span><span class="skel" style="width:56px;height:16px;border-radius:4px;"></span></span>
+                <span><span class="skel" style="width:44px;height:10px;border-radius:3px;"></span></span>
+                <span></span><span></span>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="gtable" style="margin:0 16px 24px;">
+            <div class="gtable-head" style="grid-template-columns:{{ defCols }}">
+              <span>Name &amp; Tag</span>
+              <span>Source</span>
+              <span>Last status</span>
+              <span>Last run</span>
+              <span style="text-align:right;">Runs</span>
+              <span></span>
+            </div>
+
+            @if (filteredDefs.length === 0) {
+              <div class="ctable-empty">No build definitions yet. Click <strong>New definition</strong> to create one.</div>
+            }
+
+            @for (def of filteredDefs; track def.id) {
+              <div class="gtable-row" [class.sel]="selectedDef?.id === def.id"
+                   style="grid-template-columns:{{ defCols }}"
+                   (click)="selectDef(def)">
+                <div class="col-name" style="align-items:center;gap:6px;">
+                  <dy-icon name="hammer" [size]="14" style="color:var(--fg-muted);flex-shrink:0;"></dy-icon>
+                  <span class="row-name">{{ def.name }}</span>
+                  <span class="row-tag">:{{ def.tag }}</span>
+                </div>
+                <span>
+                  <span class="def-source-badge" [class.git]="def.source_type === 'git'">
+                    @if (def.source_type === 'git') {
+                      <dy-icon name="git-branch" [size]="11"></dy-icon>
+                    }
+                    {{ def.source_type }}
+                  </span>
+                </span>
+                <span>
+                  @if (def.last_build_status) {
+                    <span [class]="badgeClass(def.last_build_status)">{{ statusLabel(def.last_build_status) }}</span>
+                  } @else {
+                    <span style="color:var(--fg-subtle);">—</span>
+                  }
+                </span>
+                <span style="font-size:11px;color:var(--fg-subtle);">{{ def.last_built_at ? timeAgo(def.last_built_at) : '—' }}</span>
+                <span class="mono" style="font-size:11px;color:var(--fg-subtle);text-align:right;">{{ def.run_count }}</span>
+                <span class="col-act" (click)="$event.stopPropagation()">
+                  <button class="icon-btn ghost sm" title="Run" (click)="triggerRun(def)">
+                    <dy-icon name="play" [size]="13"></dy-icon>
+                  </button>
+                </span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- ══════════════════════════ RIGHT: DETAIL PANEL ══════════════════════════ -->
+      @if (selectedDef) {
+        <aside class="detail">
+          <div class="detail-head">
+            <div class="detail-titles">
+              <div class="detail-eyebrow eyebrow">definition · {{ selectedDef.id }}</div>
+              <div class="detail-title">
+                <span>{{ selectedDef.name }}<span style="color:var(--fg-subtle);">:{{ selectedDef.tag }}</span></span>
+                <span class="def-source-badge" [class.git]="selectedDef.source_type === 'git'">
+                  @if (selectedDef.source_type === 'git') {
+                    <dy-icon name="git-branch" [size]="11"></dy-icon>
+                  }
+                  {{ selectedDef.source_type }}
+                </span>
+              </div>
+            </div>
+            <div class="detail-head-actions">
+              <button class="btn btn-sm btn-primary" (click)="triggerRun(selectedDef)">
+                <dy-icon name="play" [size]="12"></dy-icon> Run
+              </button>
+              <button class="icon-btn ghost" (click)="closeDef()">
+                <dy-icon name="x" [size]="14"></dy-icon>
+              </button>
+            </div>
+          </div>
+
+          <!-- TABS -->
+          <div class="detail-tabs">
+            <button class="dtab" [class.on]="detailTab==='overview'" (click)="detailTab='overview'">Overview</button>
+            <button class="dtab" [class.on]="detailTab==='runs'" (click)="detailTab='runs'; loadRuns(selectedDef.id)">
+              Runs
+              @if (defRuns.length > 0) {
+                <span class="dtab-count">{{ defRuns.length }}</span>
+              }
+            </button>
+            <button class="dtab" [class.on]="detailTab==='logs'" (click)="detailTab='logs'">Logs</button>
+          </div>
+
+          <div class="detail-body">
+
+            <!-- OVERVIEW TAB -->
+            @if (detailTab === 'overview') {
+              <div class="dbody">
+                <section class="dsection">
+                  <div class="dsection-head"><span class="eyebrow">Source</span></div>
+                  <div class="meta-grid">
+                    <div class="meta-k">Type</div>
+                    <div class="meta-v">
+                      <span class="def-source-badge" [class.git]="selectedDef.source_type === 'git'">
+                        {{ selectedDef.source_type }}
+                      </span>
+                    </div>
+                    @if (selectedDef.source_type === 'git') {
+                      <div class="meta-k">Git URL</div>
+                      <div class="meta-v mono">{{ selectedDef.git_url || '—' }}</div>
+                      <div class="meta-k">Branch</div>
+                      <div class="meta-v mono">{{ selectedDef.git_branch || 'main' }}</div>
+                      <div class="meta-k">Dockerfile path</div>
+                      <div class="meta-v mono">{{ selectedDef.dockerfile_path || 'Dockerfile' }}</div>
+                    }
+                  </div>
+                  @if (selectedDef.source_type === 'inline' && selectedDef.dockerfile) {
+                    <div class="build-logs" style="margin-top:8px;max-height:200px;overflow-y:auto;">
+                      @for (line of inlineDockerfileLines(); track line.n) {
+                        <div class="lline" [class]="line.cls">
+                          <span class="lnum">{{ line.n }}</span>
+                          <span class="lmsg">{{ line.text }}</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                </section>
+                <section class="dsection">
+                  <div class="dsection-head"><span class="eyebrow">Image</span></div>
+                  <div class="meta-grid">
+                    <div class="meta-k">Name</div>
+                    <div class="meta-v mono">{{ selectedDef.name }}</div>
+                    <div class="meta-k">Tag</div>
+                    <div class="meta-v mono">{{ selectedDef.tag }}</div>
+                    <div class="meta-k">Push to registry</div>
+                    <div class="meta-v">{{ selectedDef.push_to_registry ? 'Yes' : 'No' }}</div>
+                    @if (selectedDef.push_to_registry && selectedDef.registry_url) {
+                      <div class="meta-k">Registry URL</div>
+                      <div class="meta-v mono">{{ selectedDef.registry_url }}</div>
+                    }
+                    <div class="meta-k">Created</div>
+                    <div class="meta-v">{{ selectedDef.created_at | date:'medium' }}</div>
+                  </div>
+                </section>
+                <section class="dsection">
+                  <div class="dsection-head"><span class="eyebrow">Actions</span></div>
+                  <div>
+                    <button class="btn btn-sm btn-danger" (click)="deleteDef(selectedDef)">
+                      <dy-icon name="trash-2" [size]="13"></dy-icon> Delete definition
+                    </button>
+                  </div>
+                </section>
+              </div>
+            }
+            <!-- RUNS TAB -->
+            @if (detailTab === 'runs') {
+              <div class="dbody" style="padding:16px 0 0;">
+                @if (runsLoading) {
+                  <div class="ctable-empty">Loading runs…</div>
+                } @else if (defRuns.length === 0) {
+                  <div class="ctable-empty">No runs yet. Click Run to start the first build.</div>
+                } @else {
+                  <div class="gtable" style="margin:0 0 16px;">
+                    <div class="gtable-head" style="grid-template-columns:{{ runCols }}">
+                      <span>Run ID</span>
+                      <span>Status</span>
+                      <span>Step</span>
+                      <span>Duration</span>
+                      <span>When</span>
+                      <span></span>
+                    </div>
+                    @for (run of defRuns; track run.id) {
+                      <div class="gtable-row" style="grid-template-columns:{{ runCols }}"
+                           [class.sel]="selectedRun?.id === run.id">
+                        <span class="mono" style="font-size:11px;">{{ run.id.slice(0,8) }}</span>
+                        <span><span [class]="badgeClass(run.status)">{{ statusLabel(run.status) }}</span></span>
+                        <span style="font-size:11px;color:var(--fg-muted);">{{ run.step || '—' }}</span>
+                        <span class="mono" style="font-size:11px;color:var(--fg-subtle);">{{ formatDuration(run.duration_ms) }}</span>
+                        <span style="font-size:11px;color:var(--fg-subtle);">{{ timeAgo(run.created_at) }}</span>
+                        <span class="col-act" (click)="$event.stopPropagation()">
+                          <button class="icon-btn ghost sm" title="View logs" (click)="selectRun(run)">
+                            <dy-icon name="scroll-text" [size]="13"></dy-icon>
+                          </button>
+                        </span>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- LOGS TAB -->
+            @if (detailTab === 'logs') {
+              <div style="display:flex;flex-direction:column;overflow:hidden;height:100%;">
+                @if (!selectedRun) {
+                  <div class="ctable-empty">Select a run from the Runs tab to view its logs.</div>
+                } @else {
+                  <app-log-viewer
+                    [logs]="selectedRun.logs ?? ''"
+                    [live]="selectedRun.status === 'running' || selectedRun.status === 'queued'" />
+                }
+              </div>
+            }
+
+          </div>
+        </aside>
+      }
+    </div>
+  

@@ -1,0 +1,31 @@
+    <div class="modal-backdrop" (click)="onBackdrop($event)">
+      <div class="modal"
+           [class.modal-sm]="size === 'sm'"
+           [class.modal-lg]="size === 'lg'">
+
+        <!-- Header -->
+        <div class="modal-head">
+          <div class="modal-head-text">
+            @if (eyebrow) {
+              <div class="eyebrow" style="margin-bottom:5px;">{{ eyebrow }}</div>
+            }
+            <div class="modal-title">{{ title }}</div>
+          </div>
+          <button class="icon-btn ghost" (click)="close.emit()" aria-label="Close">
+            <dy-icon name="x" [size]="14"></dy-icon>
+          </button>
+        </div>
+
+        <!-- Body — projected content -->
+        <div class="modal-body">
+          <ng-content></ng-content>
+        </div>
+
+        <!-- Footer — projected via [modal-footer] attribute -->
+        <div class="modal-foot">
+          <ng-content select="[modal-footer]"></ng-content>
+        </div>
+
+      </div>
+    </div>
+  

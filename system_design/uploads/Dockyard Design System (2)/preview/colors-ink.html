@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Ink scale</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg); display: grid; grid-template-columns: repeat(13, 1fr); gap: 4px; }
+  .sw { aspect-ratio: 1 / 1.4; border-radius: var(--r-sm); padding: 8px 6px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--border-subtle); min-height: 100px; }
+  .name { font-family: var(--font-mono); font-size: 9px; letter-spacing: var(--tracking-caps); text-transform: uppercase; }
+  .hex { font-family: var(--font-mono); font-size: 9px; }
+  .light { color: rgba(255,255,255,0.85); }
+  .dark { color: #04181D; }
+</style>
+</head>
+<body>
+  <div class="sw light" style="background:#05070C"><span class="name">0</span><span class="hex">05070C</span></div>
+  <div class="sw light" style="background:#0A0E17"><span class="name">1</span><span class="hex">0A0E17</span></div>
+  <div class="sw light" style="background:#0F141F"><span class="name">2</span><span class="hex">0F141F</span></div>
+  <div class="sw light" style="background:#161C2A"><span class="name">3</span><span class="hex">161C2A</span></div>
+  <div class="sw light" style="background:#1E2536"><span class="name">4</span><span class="hex">1E2536</span></div>
+  <div class="sw light" style="background:#2A3245"><span class="name">5</span><span class="hex">2A3245</span></div>
+  <div class="sw light" style="background:#3B4660"><span class="name">6</span><span class="hex">3B4660</span></div>
+  <div class="sw light" style="background:#5B6680"><span class="name">7</span><span class="hex">5B6680</span></div>
+  <div class="sw dark" style="background:#8993AB"><span class="name">8</span><span class="hex">8993AB</span></div>
+  <div class="sw dark" style="background:#B7BFD2"><span class="name">9</span><span class="hex">B7BFD2</span></div>
+  <div class="sw dark" style="background:#E6E9F2"><span class="name">10</span><span class="hex">E6E9F2</span></div>
+  <div class="sw dark" style="background:#F5F7FB"><span class="name">11</span><span class="hex">F5F7FB</span></div>
+  <div class="sw dark" style="background:#FFFFFF"><span class="name">12</span><span class="hex">FFFFFF</span></div>
+</body>
+</html>

@@ -1,0 +1,43 @@
+    @if (open) {
+      <div class="palette-backdrop" (click)="close()">
+        <div class="palette" (click)="$event.stopPropagation()">
+          <div class="palette-search">
+            <dy-icon name="search" [size]="16"></dy-icon>
+            <input #searchInput [(ngModel)]="query" (ngModelChange)="onQuery()"
+                   placeholder="Type a command…"
+                   (keydown.escape)="close()"
+                   (keydown.arrowdown)="moveSelection(1)"
+                   (keydown.arrowup)="moveSelection(-1)"
+                   (keydown.enter)="runSelected()">
+            <kbd class="kbd-mini">esc</kbd>
+          </div>
+          <div class="palette-list">
+            @if (filtered.length === 0) {
+              <div class="palette-empty">No commands match.</div>
+            }
+            @for (cmd of filtered; track $index) {
+              <div class="palette-row" [class.on]="$index === selectedIdx"
+                   (mouseenter)="selectedIdx = $index"
+                   (click)="run(cmd)">
+                <dy-icon [name]="cmd.icon" [size]="14"></dy-icon>
+                <span class="palette-label" [innerHTML]="highlight(cmd.label)"></span>
+                <span class="palette-scope mono">{{ cmd.scope }}</span>
+                @if (cmd.hot) {
+                  <span class="palette-hot">
+                    @for (k of cmd.hot; track k) {
+                      <kbd class="kbd-mini">{{ k }}</kbd>
+                    }
+                  </span>
+                }
+              </div>
+            }
+          </div>
+          <div class="palette-foot">
+            <span><kbd class="kbd-mini">↑</kbd><kbd class="kbd-mini">↓</kbd> navigate</span>
+            <span><kbd class="kbd-mini">↵</kbd> run</span>
+            <span><kbd class="kbd-mini">esc</kbd> close</span>
+          </div>
+        </div>
+      </div>
+    }
+  

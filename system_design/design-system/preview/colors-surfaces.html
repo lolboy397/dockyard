@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Surface stack</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg); }
+  .stack { display: flex; gap: 0; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--border); }
+  .step { flex: 1; padding: 16px 14px; min-height: 130px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid var(--border-subtle); }
+  .step:last-child { border-right: 0; }
+  .name { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-muted); }
+  .hex { font-family: var(--font-mono); font-size: 11px; color: var(--fg-default); }
+  .role { font-size: 12px; color: var(--fg-muted); }
+</style>
+</head>
+<body>
+<div class="stack">
+  <div class="step" style="background:#05070C"><span class="name">bg</span><span class="role">page</span><span class="hex">#05070C</span></div>
+  <div class="step" style="background:#0A0E17"><span class="name">elevated</span><span class="role">cards</span><span class="hex">#0A0E17</span></div>
+  <div class="step" style="background:#0F141F"><span class="name">raised</span><span class="role">menus</span><span class="hex">#0F141F</span></div>
+  <div class="step" style="background:#161C2A"><span class="name">hover</span><span class="role">interactive</span><span class="hex">#161C2A</span></div>
+  <div class="step" style="background:#1E2536"><span class="name">pressed</span><span class="role">active</span><span class="hex">#1E2536</span></div>
+  <div class="step" style="background:#04060A"><span class="name">inset</span><span class="role">code wells</span><span class="hex">#04060A</span></div>
+</div>
+</body>
+</html>

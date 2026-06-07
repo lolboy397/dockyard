@@ -1,0 +1,16 @@
+    <button [attr.type]="type"
+            [class]="'btn btn-' + variant + (block ? ' btn-block' : '')"
+            [disabled]="disabled || loading"
+            (click)="clicked.emit($event)">
+      @if (loading) {
+        <span class="spin"><dy-icon name="loader-circle" [size]="15"></dy-icon></span>
+      } @else if (icon) {
+        <dy-icon [name]="icon" [size]="15"></dy-icon>
+      }
+      <!-- label span only contributes when content is projected (mockup: {children && <span/>}) -->
+      <span #label [hidden]="!hasLabel"><ng-content></ng-content></span>
+      @if (iconRight && !loading) {
+        <dy-icon [name]="iconRight" [size]="15"></dy-icon>
+      }
+    </button>
+  

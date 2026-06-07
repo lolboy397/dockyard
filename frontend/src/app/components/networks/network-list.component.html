@@ -1,0 +1,72 @@
+    <div class="content-area">
+      <div class="content-head">
+        <div class="content-title-row">
+          <h2 class="content-title">Networks</h2>
+          <span class="content-count">{{ filtered.length }} of {{ networks.length }}</span>
+        </div>
+        <div class="content-actions">
+          @if (auth.canWrite()) {
+            <button class="btn btn-sm btn-ghost" (click)="prune()">
+              <dy-icon name="trash-2" [size]="13"></dy-icon> Prune
+            </button>
+            <span class="divider-v"></span>
+          }
+          <button class="btn btn-sm btn-secondary" (click)="load()">
+            <dy-icon name="refresh-cw" [size]="13"></dy-icon> Refresh
+          </button>
+        </div>
+      </div>
+      <div class="content-toolbar">
+        <div class="pills">
+          <button class="pill" [class.on]="netFilter==='all'" (click)="netFilter='all';filter()">
+            All <span class="pill-count">{{ networks.length }}</span>
+          </button>
+          <button class="pill" [class.on]="netFilter==='user'" (click)="netFilter='user';filter()">
+            User <span class="pill-count">{{ userCount }}</span>
+          </button>
+          <button class="pill" [class.on]="netFilter==='system'" (click)="netFilter='system';filter()">
+            System <span class="pill-count">{{ systemCount }}</span>
+          </button>
+        </div>
+      </div>
+      @if (loading) {
+        <div style="padding:60px;text-align:center;color:var(--fg-subtle);font-size:13px;">loading…</div>
+      } @else {
+        <div class="gtable" style="margin:0 16px 24px;">
+          <div class="gtable-head" style="grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) 80px minmax(0,1fr) 90px 60px 32px;">
+            <span>Name</span><span>Driver</span><span>Scope</span><span>Subnet</span><span>Gateway</span><span>Containers</span><span></span>
+          </div>
+          @if (filtered.length === 0) { <div class="ctable-empty">No networks found</div> }
+          @for (n of filtered; track n.Id) {
+            <div class="gtable-row" style="grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) 80px minmax(0,1fr) 90px 60px 32px;"
+                 (contextmenu)="networkMenu($event, n)">
+              <div class="col-name">
+                <span class="row-name">{{ n.Name }}</span>
+                <div style="display:flex;gap:4px;margin-top:2px;">
+                  @if (isSystem(n)) {
+                    <span class="badge badge-idle" style="font-size:9px;">system</span>
+                  }
+                  @if (n.Internal) {
+                    <span class="badge badge-idle" style="font-size:9px;">internal</span>
+                  }
+                  <span class="row-id mono">{{ n.Id.slice(0,8) }}</span>
+                </div>
+              </div>
+              <span class="mono" style="font-size:11px;color:var(--fg-muted);">{{ n.Driver }}</span>
+              <span style="font-size:11px;color:var(--fg-muted);">{{ n.Scope }}</span>
+              <span class="mono" style="font-size:11px;">{{ subnet(n) }}</span>
+              <span class="mono" style="font-size:11px;">{{ gateway(n) }}</span>
+              <span style="font-size:11px;color:var(--fg-muted);">{{ containerCount(n) }}</span>
+              <div class="col-actions">
+                @if (auth.canWrite()) {
+                  <button class="icon-btn sm ghost" (click)="remove(n)" [disabled]="isSystem(n)" title="Remove network">
+                    <dy-icon name="trash-2" [size]="12"></dy-icon>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  

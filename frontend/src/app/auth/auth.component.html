@@ -1,0 +1,12 @@
+    <div class="stage" [attr.data-screen-label]="mode === 'setup' ? 'First-run setup' : 'Login'">
+      <div class="stage-grid"></div>
+      <dy-auth-background></dy-auth-background>
+
+      @if (mode === 'setup') {
+        <dy-setup-wizard [data]="data" (finished)="onSetupFinish()"></dy-setup-wizard>
+      } @else {
+        <dy-login-screen [knownUser]="completedUser" (signedIn)="onSignedIn()"></dy-login-screen>
+      }
+
+    </div>
+  

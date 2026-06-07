@@ -1,0 +1,14 @@
+    <div class="lv-wrap">
+      <div class="build-logs" #logEl>
+        @for (line of parsedLines; track line.n) {
+          <div class="lline" [class]="line.cls">
+            <span class="lprefix">{{ linePrefix(line.cls) }}</span>
+            <span class="lmsg">{{ line.text }}</span>
+          </div>
+        }
+        @if (!parsedLines.length) {
+          <div class="lv-empty">No output yet.</div>
+        }
+      </div>
+    </div>
+  

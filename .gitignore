@@ -1,0 +1,52 @@
+# ── Backend (Go) ──────────────────────────────────────────────
+# Compiled binaries
+/backend/docker-manager
+/backend/main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test / coverage output
+*.test
+*.out
+coverage.txt
+
+# SQLite databases (runtime data — never commit)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ── Runtime data volumes ──────────────────────────────────────
+/data/
+
+# ── Node / Angular (frontend has its own .gitignore too) ──────
+node_modules/
+/frontend/dist/
+/frontend/.angular/cache
+
+# ── IDEs and editors ──────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*~
+
+# ── OS files ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Secrets / local env ───────────────────────────────────────
+.env
+.env.local
+*.local
+# AES-GCM master key for secrets-at-rest (generated next to the DB at runtime;
+# also lands in the repo root / backend dir when running with default dev paths)
+secret.key
+**/secret.key

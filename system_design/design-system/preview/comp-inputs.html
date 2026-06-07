@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Inputs</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 22px; background: var(--bg); display: flex; flex-direction: column; gap: 14px; }
+  .row { display: grid; grid-template-columns: 100px 1fr 1fr; gap: 12px; align-items: center; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); }
+  .field { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 7px; color: var(--fg); font: 400 13px/1 var(--font-sans); }
+  .field input { background: transparent; border: 0; outline: 0; color: var(--fg); font: inherit; flex: 1; min-width: 0; }
+  .field input::placeholder { color: var(--fg-subtle); }
+  .field.focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,0.18); }
+  .field.error { border-color: var(--danger-500); }
+  .ic { width: 14px; height: 14px; color: var(--fg-muted); flex: none; }
+  .kbd { font-family: var(--font-mono); font-size: 10px; color: var(--fg-subtle); padding: 2px 6px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 3px; }
+  .select::after { content: '▾'; color: var(--fg-muted); font-size: 9px; margin-left: auto; }
+  .err-msg { grid-column: 2 / 4; font-family: var(--font-mono); font-size: 10px; color: var(--danger-400); margin-top: -8px; padding-left: 2px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <span class="lbl">Default</span>
+    <label class="field">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input placeholder="Search containers…"/>
+      <span class="kbd">⌘K</span>
+    </label>
+    <label class="field focus">
+      <input value="nginx-prod" />
+    </label>
+  </div>
+  <div class="row">
+    <span class="lbl">Select</span>
+    <div class="field select"><span style="color:var(--fg)">production · us-east-1</span></div>
+    <div class="field error" style="color:var(--danger-400)">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--danger-400)"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <input value="8080" style="color:var(--danger-400)"/>
+    </div>
+  </div>
+  <div class="err-msg" style="grid-column:auto">Port 8080 already in use by api-staging</div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+    <div class="input-wrap" [class.lead]="!!icon" [class.ok]="ok" [class.err]="err">
+      @if (prefix) { <span class="input-prefix">{{ prefix }}</span> }
+      @if (icon) { <span class="lead-ic"><dy-icon [name]="ok ? 'check' : icon" [size]="15"></dy-icon></span> }
+      <input #input
+        [attr.type]="type"
+        [value]="value"
+        [placeholder]="placeholder || ''"
+        [class.mono]="mono"
+        (input)="onInput($event)"
+        (focus)="onFocus($event)"
+        (blur)="onBlur()"
+        (keydown.enter)="enter.emit()" />
+      @if (trailTag) { <span class="trail-tag">{{ trailTag }}</span> }
+    </div>
+  

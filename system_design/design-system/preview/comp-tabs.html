@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Tabs & nav</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 22px; background: var(--bg); display: flex; flex-direction: column; gap: 22px; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); margin-bottom: 8px; display: block; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+  .tab { padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--fg-muted); cursor: pointer; position: relative; }
+  .tab:hover { color: var(--fg); }
+  .tab.on { color: var(--fg); }
+  .tab.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); }
+  .tab .ct { font-family: var(--font-mono); font-size: 10px; margin-left: 6px; color: var(--fg-subtle); padding: 1px 6px; background: var(--bg-raised); border-radius: 3px; }
+  .tab.on .ct { color: var(--accent); background: var(--accent-soft); }
+
+  /* Pill tabs */
+  .pills { display: inline-flex; padding: 3px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 7px; gap: 2px; }
+  .pill { padding: 4px 12px; font-size: 12px; font-weight: 500; color: var(--fg-muted); border-radius: 5px; cursor: pointer; }
+  .pill.on { background: var(--bg-hover); color: var(--fg); box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset; }
+
+  /* Side nav row */
+  .sidenav { display: flex; flex-direction: column; gap: 2px; padding: 4px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); width: 220px; }
+  .navitem { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 5px; color: var(--fg-muted); font-size: 13px; cursor: pointer; }
+  .navitem:hover { background: var(--bg-hover); color: var(--fg); }
+  .navitem.on { background: var(--accent-soft); color: var(--accent); }
+  .navitem .ct { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--fg-subtle); }
+  .navitem.on .ct { color: var(--accent); }
+  .ic { width: 14px; height: 14px; }
+
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+</style>
+</head>
+<body>
+  <div>
+    <span class="lbl">Tabs</span>
+    <div class="tabs">
+      <div class="tab on">Containers<span class="ct">12</span></div>
+      <div class="tab">Images<span class="ct">38</span></div>
+      <div class="tab">Volumes<span class="ct">9</span></div>
+      <div class="tab">Networks<span class="ct">4</span></div>
+      <div class="tab">Builds</div>
+    </div>
+  </div>
+  <div class="twocol">
+    <div>
+      <span class="lbl">Segmented</span>
+      <div class="pills"><div class="pill on">All</div><div class="pill">Running</div><div class="pill">Stopped</div></div>
+    </div>
+    <div>
+      <span class="lbl">Sidebar item</span>
+      <div class="sidenav">
+        <div class="navitem on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg> Containers<span class="ct">12</span></div>
+        <div class="navitem"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8 12 14 2 8"/><polyline points="2 14 12 20 22 14"/></svg> Images<span class="ct">38</span></div>
+        <div class="navitem"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/></svg> Volumes</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

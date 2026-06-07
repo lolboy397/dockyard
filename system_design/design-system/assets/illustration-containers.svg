@@ -1,0 +1,40 @@
+<svg width="600" height="360" viewBox="0 0 600 360" xmlns="http://www.w3.org/2000/svg">
+  
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"></path>
+    </pattern>
+    
+  </defs>
+  <rect width="600" height="360" fill="#05070C"></rect>
+  <rect width="600" height="360" fill="url(#grid)"></rect>
+
+  
+  <g transform="translate(150,90)">
+    
+    <g transform="translate(0,0)">
+      <path class="ln" d="M0 60 L80 20 L240 60 L160 100 Z"></path>
+      <path class="ln" d="M0 60 L0 100 L160 140 L160 100"></path>
+      <path class="ln" d="M160 100 L240 60 L240 100 L160 140 Z"></path>
+      <text class="lbl" x="60" y="90">nginx:1.27</text>
+    </g>
+    
+    <g transform="translate(40,80)">
+      <path class="ln" d="M0 60 L80 20 L240 60 L160 100 Z"></path>
+      <path class="ln" d="M0 60 L0 100 L160 140 L160 100"></path>
+      <path class="ln" d="M160 100 L240 60 L240 100 L160 140 Z"></path>
+      <text class="lbl" x="60" y="90">postgres:16</text>
+    </g>
+    
+    <g transform="translate(-40,160)">
+      <path class="ln" d="M0 60 L80 20 L240 60 L160 100 Z"></path>
+      <path class="ln" d="M0 60 L0 100 L160 140 L160 100"></path>
+      <path class="ln" d="M160 100 L240 60 L240 100 L160 140 Z"></path>
+      <text class="lbl" x="60" y="90">api:latest</text>
+    </g>
+  </g>
+
+  
+  <path class="ln-d" d="M120 200 Q60 240 90 290"></path>
+  <path class="ln-d" d="M490 200 Q540 250 510 300"></path>
+</svg>

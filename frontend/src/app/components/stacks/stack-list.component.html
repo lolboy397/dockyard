@@ -1,0 +1,223 @@
+    <div class="content-area">
+
+      <!-- HEAD -->
+      <div class="content-head">
+        <div class="content-title-row">
+          <h2 class="content-title">Compose</h2>
+          <span class="content-count">{{ stacks.length }}</span>
+        </div>
+        <div class="content-actions">
+          @if (auth.canWrite()) {
+            <button class="btn btn-sm btn-secondary" (click)="upAll()">
+              <dy-icon name="play" [size]="13"></dy-icon> Up all
+            </button>
+            <button class="btn btn-sm btn-primary" (click)="showNewStackForm = !showNewStackForm">
+              <dy-icon name="plus" [size]="13"></dy-icon> New stack
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- DEPLOY / EDIT STACK MODAL -->
+      @if (showNewStackForm) {
+        <app-modal
+          [title]="editingName ? 'Update: ' + editingName : 'Deploy new stack'"
+          eyebrow="compose"
+          size="lg"
+          (close)="cancelEdit()">
+
+          @if (!editingName) {
+            <div class="field">
+              <label class="label">Stack name</label>
+              <input class="input input-sm" style="width:240px;" [(ngModel)]="form.name"
+                     placeholder="stack-name" />
+            </div>
+          }
+
+          <div class="field">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <label class="label">Compose content</label>
+              <button class="btn btn-sm btn-ghost" (click)="fileInput.click()" type="button">
+                <dy-icon name="upload" [size]="12"></dy-icon> Import file
+              </button>
+              <input #fileInput type="file" accept=".yml,.yaml" style="display:none" (change)="onFileSelected($event)">
+            </div>
+            <textarea class="input" rows="16"
+                      style="font-family:var(--font-mono);font-size:11px;resize:vertical;"
+                      [(ngModel)]="form.content"
+                      placeholder="services:&#10;  web:&#10;    image: nginx:latest"></textarea>
+          </div>
+
+          <div modal-footer>
+            <button class="btn btn-sm btn-ghost" (click)="cancelEdit()">Cancel</button>
+            <button class="btn btn-sm btn-primary" [disabled]="deploying || !form.content" (click)="deploy()">
+              <dy-icon [name]="editingName ? 'refresh-cw' : 'rocket'" [size]="12"></dy-icon>
+              {{ deploying ? 'Deploying…' : (editingName ? 'Update stack' : 'Deploy stack') }}
+            </button>
+          </div>
+
+        </app-modal>
+      }
+
+      <!-- TOOLBAR: filter pills + meta -->
+      <div class="content-toolbar">
+        <div class="pills">
+          <button class="pill" [class.on]="stackFilter==='all'" (click)="stackFilter='all'">
+            All <span class="pill-count">{{ stacks.length }}</span>
+          </button>
+          <button class="pill" [class.on]="stackFilter==='healthy'" (click)="stackFilter='healthy'">
+            Healthy <span class="pill-count">{{ healthyCount }}</span>
+          </button>
+          <button class="pill" [class.on]="stackFilter==='issues'" (click)="stackFilter='issues'">
+            Issues <span class="pill-count">{{ issueCount }}</span>
+          </button>
+        </div>
+        <div class="toolbar-meta mono">{{ toolbarMeta }}</div>
+      </div>
+
+      <!-- STACKS LIST -->
+      @if (loading) {
+        <div class="stacks">
+          @for (i of [1,2,3]; track i) {
+            <div class="stack">
+              <div class="stack-head" style="pointer-events:none;">
+                <span class="stack-chev"><dy-icon name="chevron-right" [size]="14"></dy-icon></span>
+                <span class="skel" style="width:16px;height:16px;border-radius:3px;"></span>
+                <span class="skel" style="width:90px;height:12px;border-radius:3px;"></span>
+                <span class="skel" style="width:80px;height:18px;border-radius:3px;"></span>
+                <span class="skel" style="width:160px;height:10px;border-radius:3px;"></span>
+                <span></span>
+              </div>
+            </div>
+          }
+        </div>
+      } @else if (filtered.length === 0) {
+        <div class="ctable-empty">No stacks found</div>
+      } @else {
+        <div class="stacks">
+          @for (stack of filtered; track stack.name) {
+            <div class="stack">
+
+              <!-- Stack header -->
+              <div class="stack-head" (click)="toggle(stack.name)" (contextmenu)="stackMenu($event, stack)">
+                <span class="stack-chev" [class.on]="expanded[stack.name]">
+                  <dy-icon name="chevron-right" [size]="14"></dy-icon>
+                </span>
+                <dy-icon name="boxes" [size]="16" style="color:var(--accent);flex-shrink:0;"></dy-icon>
+                <span class="stack-name">{{ stack.name }}</span>
+                <span class="badge" [class]="stackBadgeClass(stack)">
+                  <span class="badge-dot"></span>{{ stack.running }}/{{ stack.services }} running
+                </span>
+                <span class="stack-meta">{{ stackMeta(stack) }}</span>
+                <div class="stack-actions" (click)="$event.stopPropagation()">
+                  @if (auth.canWrite()) {
+                  <button class="btn btn-sm btn-ghost" (click)="openEnv(stack)" title="Environment variables">
+                    <dy-icon name="key-round" [size]="12"></dy-icon> Env
+                  </button>
+                  <button class="btn btn-sm btn-ghost" (click)="openHistory(stack)" title="Deploy history / rollback">
+                    <dy-icon name="history" [size]="12"></dy-icon> History
+                  </button>
+                  <button class="btn btn-sm btn-ghost" (click)="stackAction(stack, 'restart')" title="Restart">
+                    <dy-icon name="rotate-ccw" [size]="12"></dy-icon> Restart
+                  </button>
+                  <button class="btn btn-sm btn-ghost" (click)="stackAction(stack, 'down')" title="Down">
+                    <dy-icon name="square" [size]="12"></dy-icon> Down
+                  </button>
+                  <button class="btn btn-sm btn-secondary" (click)="stackAction(stack, 'up')"
+                          [disabled]="!stack.has_file" title="{{ stack.has_file ? 'Up' : 'No compose file stored' }}">
+                    <dy-icon name="play" [size]="12"></dy-icon> Up
+                  </button>
+                  }
+                  @if (stack.has_file) {
+                    <button class="icon-btn ghost sm" (click)="editStack(stack.name)" title="Edit compose file">
+                      <dy-icon name="pen-line" [size]="12"></dy-icon>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <!-- Expanded: service rows -->
+              @if (expanded[stack.name]) {
+                <div class="stack-body">
+                  @if (!detail[stack.name]) {
+                    <div style="padding:10px 0;color:var(--fg-subtle);font-size:12px;">Loading services…</div>
+                  } @else if (!detail[stack.name]!.containers?.length) {
+                    <div style="padding:10px 0;color:var(--fg-subtle);font-size:12px;">No containers found</div>
+                  } @else {
+                    @for (c of detail[stack.name]!.containers; track c.id) {
+                      <div class="stack-svc">
+                        <span></span>
+                        <dy-icon name="box" [size]="13" style="color:var(--fg-muted);flex-shrink:0;"></dy-icon>
+                        <span class="svc-name">{{ c.service || c.name }}</span>
+                        <span class="svc-image">{{ c.image }}</span>
+                        <span class="badge" [class]="svcBadgeClass(c.status)"><span class="badge-dot"></span>{{ svcStatus(c.status) }}</span>
+                        <span class="svc-rep">{{ svcReplicas(c.status) }}</span>
+                        <button class="icon-btn ghost sm" (click)="$event.stopPropagation()" title="Options">
+                          <dy-icon name="ellipsis" [size]="13"></dy-icon>
+                        </button>
+                      </div>
+                    }
+                  }
+                </div>
+              }
+
+            </div>
+          }
+        </div>
+      }
+      @if (envStack) {
+        <app-modal [title]="'Environment · ' + envStack.name" eyebrow="stack env" (close)="envStack=null">
+          <p style="font-size:12px;color:var(--fg-muted);margin:0 0 12px;">
+            Stored encrypted at rest and written to a <span class="mono">.env</span> beside the compose file. Redeploy the stack to apply.
+          </p>
+          @for (v of envVars; track $index) {
+            <div class="field-row" style="grid-template-columns:1fr 1.3fr auto auto;gap:8px;align-items:end;margin-bottom:8px;">
+              <input class="input input-sm mono" [(ngModel)]="v.key" placeholder="KEY" />
+              <input class="input input-sm mono" [type]="v.is_secret ? 'password' : 'text'" [(ngModel)]="v.value" placeholder="value" />
+              <button class="icon-btn sm ghost" (click)="v.is_secret=!v.is_secret" [title]="v.is_secret ? 'Secret (masked)' : 'Plain'">
+                <dy-icon [name]="v.is_secret ? 'eye-off' : 'eye'" [size]="14"></dy-icon>
+              </button>
+              <button class="icon-btn sm ghost" (click)="removeEnvRow($index)" title="Remove">
+                <dy-icon name="x" [size]="14"></dy-icon>
+              </button>
+            </div>
+          }
+          <button class="btn btn-sm btn-ghost" (click)="addEnvRow()"><dy-icon name="plus" [size]="13"></dy-icon> Add variable</button>
+          <div modal-footer>
+            <button class="btn btn-sm btn-ghost" (click)="envStack=null">Cancel</button>
+            <button class="btn btn-sm btn-primary" (click)="saveEnv()" [disabled]="savingEnv">
+              <dy-icon name="save" [size]="13"></dy-icon> {{ savingEnv ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+        </app-modal>
+      }
+
+      @if (historyStack) {
+        <app-modal [title]="'Deploy history · ' + historyStack.name" eyebrow="rollback" (close)="historyStack=null">
+          @if (historyDeploys.length === 0) {
+            <div style="padding:24px;text-align:center;color:var(--fg-subtle);font-size:13px;">No deploy history yet.</div>
+          } @else {
+            <div class="gtable" style="margin:0;">
+              <div class="gtable-head" style="grid-template-columns:1fr auto;">
+                <span>Deployed</span><span style="text-align:right;">Action</span>
+              </div>
+              @for (d of historyDeploys; track d.id; let first = $first) {
+                <div class="gtable-row" style="grid-template-columns:1fr auto;align-items:center;">
+                  <span class="mono" style="font-size:12px;">
+                    {{ d.created_at | date:'MMM d, HH:mm:ss' }}@if (first) {<span style="color:var(--running-400);"> · current</span>}
+                  </span>
+                  <span style="text-align:right;">
+                    @if (!first) {
+                      <button class="btn btn-sm btn-ghost" (click)="rollback(d)" [disabled]="rollingBack">
+                        <dy-icon name="rotate-ccw" [size]="12"></dy-icon> Roll back
+                      </button>
+                    }
+                  </span>
+                </div>
+              }
+            </div>
+          }
+        </app-modal>
+      }
+    </div>
+  

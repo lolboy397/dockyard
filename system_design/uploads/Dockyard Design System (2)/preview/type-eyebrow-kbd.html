@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Eyebrows & kbd</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 20px 24px; background: var(--bg); display: flex; flex-direction: column; gap: 18px; }
+  .group { display: flex; flex-direction: column; gap: 6px; }
+  .label { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); }
+  .eyebrows { display: flex; gap: 20px; align-items: center; }
+  .keys { display: flex; gap: 8px; align-items: center; }
+  .keys span { font-size: 12px; color: var(--fg-muted); }
+</style>
+</head>
+<body>
+  <div class="group">
+    <span class="label">Eyebrows</span>
+    <div class="eyebrows">
+      <span class="eyebrow">v2.1 · enterprise</span>
+      <span class="eyebrow" style="color:var(--accent)">● live</span>
+      <span class="eyebrow">production · us-east-1</span>
+    </div>
+  </div>
+  <div class="group">
+    <span class="label">Keyboard</span>
+    <div class="keys">
+      <kbd>⌘</kbd><kbd>K</kbd><span>palette</span>
+      <kbd>⌘</kbd><kbd>↵</kbd><span>run</span>
+      <kbd>esc</kbd><span>close</span>
+      <kbd>⇧</kbd><kbd>?</kbd><span>shortcuts</span>
+    </div>
+  </div>
+</body>
+</html>

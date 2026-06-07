@@ -1,0 +1,73 @@
+@if (opened) {
+  <app-volume-explorer [volume]="opened" [initialTab]="explorerTab" (close)="opened = null"></app-volume-explorer>
+} @else {
+    <div class="content-area">
+      <div class="content-head">
+        <div class="content-title-row">
+          <h2 class="content-title">Volumes</h2>
+          <span class="content-count">{{ filtered.length }} of {{ volumes.length }}</span>
+        </div>
+        <div class="content-actions">
+          @if (auth.canWrite()) {
+            <button class="btn btn-sm btn-ghost" (click)="prune()">
+              <dy-icon name="trash-2" [size]="13"></dy-icon> Prune
+            </button>
+            <span class="divider-v"></span>
+          }
+          <button class="btn btn-sm btn-secondary" (click)="load()">
+            <dy-icon name="refresh-cw" [size]="13"></dy-icon> Refresh
+          </button>
+        </div>
+      </div>
+      <div class="content-toolbar">
+        <div class="pills">
+          <button class="pill" [class.on]="volFilter==='all'" (click)="volFilter='all';filter()">
+            All <span class="pill-count">{{ volumes.length }}</span>
+          </button>
+          <button class="pill" [class.on]="volFilter==='used'" (click)="volFilter='used';filter()">
+            In use <span class="pill-count">{{ usedCount }}</span>
+          </button>
+          <button class="pill" [class.on]="volFilter==='orphaned'" (click)="volFilter='orphaned';filter()">
+            Orphaned <span class="pill-count">{{ orphanedCount }}</span>
+          </button>
+        </div>
+        <div class="toolbar-meta mono">{{ reclaimable }}</div>
+      </div>
+      @if (loading) {
+        <div style="padding:60px;text-align:center;color:var(--fg-subtle);font-size:13px;">loading…</div>
+      } @else {
+        <div class="gtable">
+          <div class="gtable-head" style="grid-template-columns:minmax(0,1.8fr) 70px minmax(0,1.6fr) 70px 90px 32px;">
+            <span>Name</span><span>Driver</span><span>Mount point</span><span>Size</span><span>Created</span><span></span>
+          </div>
+          @if (filtered.length === 0) { <div class="ctable-empty">No volumes found</div> }
+          @for (vol of filtered; track vol.Name) {
+            <div class="gtable-row" style="grid-template-columns:minmax(0,1.8fr) 70px minmax(0,1.6fr) 70px 90px 32px;cursor:pointer;"
+                 (click)="open(vol)" (contextmenu)="volumeMenu($event, vol)" title="Browse files">
+              <div class="col-name">
+                <dy-icon name="database" [size]="14" color="var(--fg-muted)"></dy-icon>
+                <span class="row-name">{{ vol.Name }}</span>
+                @if (isOrphaned(vol)) {
+                  <span class="badge badge-warn" style="font-size:9px;margin-left:6px;">orphaned</span>
+                }
+              </div>
+              <span class="mono" style="font-size:11px;color:var(--fg-muted);">{{ vol.Driver }}</span>
+              <span style="font-size:11px;font-family:var(--font-mono);color:var(--fg-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ vol.Mountpoint }}</span>
+              <span class="mono" style="font-size:11px;">{{ volSize(vol) }}</span>
+              <span class="mono" style="font-size:11px;color:var(--fg-muted);">{{ vol.CreatedAt | date:'MMM d, y' }}</span>
+              <div style="display:flex;justify-content:flex-end;align-items:center;gap:4px;">
+                @if (auth.canWrite()) {
+                  <button class="icon-btn sm ghost" (click)="remove(vol); $event.stopPropagation()" title="Remove volume">
+                    <dy-icon name="trash-2" [size]="12"></dy-icon>
+                  </button>
+                }
+                <button class="icon-btn sm ghost" (click)="open(vol); $event.stopPropagation()" title="Browse files">
+                  <dy-icon name="chevron-right" [size]="14"></dy-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+}

@@ -1,0 +1,30 @@
+<svg width="600" height="360" viewBox="0 0 600 360" xmlns="http://www.w3.org/2000/svg">
+  
+  <defs>
+    <pattern id="grid2" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"></path>
+    </pattern>
+    
+  </defs>
+  <rect width="600" height="360" fill="#05070C"></rect>
+  <rect width="600" height="360" fill="url(#grid2)"></rect>
+
+  
+  <path class="edge" d="M300 180 L120 90"></path>
+  <path class="edge" d="M300 180 L480 90"></path>
+  <path class="edge" d="M300 180 L120 270"></path>
+  <path class="edge" d="M300 180 L480 270"></path>
+  <path class="edge" d="M300 180 L300 60"></path>
+  <path class="edge" d="M300 180 L300 300"></path>
+
+  
+  <circle class="node" cx="120" cy="90" r="14"></circle><text class="lbl2" x="100" y="64">web</text>
+  <circle class="node" cx="480" cy="90" r="14"></circle><text class="lbl2" x="460" y="64">api</text>
+  <circle class="node" cx="120" cy="270" r="14"></circle><text class="lbl2" x="92" y="304">cache</text>
+  <circle class="node" cx="480" cy="270" r="14"></circle><text class="lbl2" x="450" y="304">worker</text>
+  <circle class="node" cx="300" cy="60" r="14"></circle><text class="lbl2" x="280" y="36">gw</text>
+  <circle class="node" cx="300" cy="300" r="14"></circle><text class="lbl2" x="280" y="328">db</text>
+
+  
+  <rect class="core" x="288" y="168" width="24" height="24" rx="4"></rect>
+</svg>

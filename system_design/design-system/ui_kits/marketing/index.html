@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Dockyard — The docker manager for serious teams</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="stylesheet" href="../../colors_and_type.css"/>
+<link rel="stylesheet" href="marketing.css"/>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+<div class="page" data-screen-label="Marketing · Homepage">
+
+  <!-- ================== NAV ================== -->
+  <header class="nav">
+    <div class="container nav-inner">
+      <div class="nav-left">
+        <a class="nav-brand" href="#">
+          <svg width="22" height="22" viewBox="0 0 24 24">
+            <rect x="2" y="4" width="20" height="16" rx="3" fill="#22D3EE"/>
+            <rect x="6" y="9" width="3" height="3" rx="0.5" fill="#04181D"/>
+            <rect x="10.5" y="9" width="3" height="3" rx="0.5" fill="#04181D"/>
+            <rect x="15" y="9" width="3" height="3" rx="0.5" fill="#04181D"/>
+            <rect x="6" y="13.5" width="3" height="3" rx="0.5" fill="#04181D"/>
+            <rect x="10.5" y="13.5" width="3" height="3" rx="0.5" fill="#04181D"/>
+          </svg>
+          <span class="nav-brand-text">Dockyard</span>
+          <span class="nav-tag">v2.1</span>
+        </a>
+        <nav class="nav-links">
+          <a class="nav-link" href="#features">Product</a>
+          <a class="nav-link" href="#pricing">Pricing</a>
+          <a class="nav-link" href="#">Docs</a>
+          <a class="nav-link" href="#">Changelog</a>
+          <a class="nav-link" href="#">Enterprise</a>
+        </nav>
+      </div>
+      <div class="nav-right">
+        <a class="mk-btn mk-btn-ghost" href="#">Sign in</a>
+        <a class="mk-btn mk-btn-primary" href="#"><i data-lucide="download" style="width:14px;height:14px"></i> Download</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================== HERO ================== -->
+  <section class="hero">
+    <div class="hero-grid"></div>
+    <div class="container hero-inner">
+      <span class="hero-eyebrow"><span class="dot"></span> 2.1 ships fleet mode <span class="arrow">→</span></span>
+      <h1 class="hero-title">
+        Ship anything. <br/>
+        From anywhere. <br/>
+        With <span class="accent">everything.</span>
+      </h1>
+      <p class="hero-sub">
+        Dockyard is the docker manager built for teams running real containers at real scale.
+        Cluster-aware. Registry-native. Built to live in your terminal — and stay out of your way.
+      </p>
+      <div class="hero-cta">
+        <a class="mk-btn mk-btn-primary mk-btn-lg" href="#"><i data-lucide="download" style="width:14px;height:14px"></i> Download for macOS</a>
+        <a class="mk-btn mk-btn-lg" href="#"><i data-lucide="terminal" style="width:14px;height:14px"></i> brew install dockyard</a>
+      </div>
+      <div class="hero-meta">free for teams under 5 · works with any docker engine 24.0+</div>
+
+      <!-- Hero shot: mini-app preview -->
+      <div class="hero-shot">
+        <div class="hero-shot-chrome">
+          <div class="hero-shot-dots"><span></span><span></span><span></span></div>
+          <div class="hero-shot-url">dockyard · production · us-east-1</div>
+        </div>
+        <div class="hero-shot-body">
+          <div class="mini-app">
+            <aside class="mini-side">
+              <div class="brand-row">
+                <svg width="14" height="14" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3" fill="#22D3EE"/><rect x="6" y="9" width="3" height="3" rx="0.5" fill="#04181D"/><rect x="10.5" y="9" width="3" height="3" rx="0.5" fill="#04181D"/><rect x="15" y="9" width="3" height="3" rx="0.5" fill="#04181D"/><rect x="6" y="13.5" width="3" height="3" rx="0.5" fill="#04181D"/><rect x="10.5" y="13.5" width="3" height="3" rx="0.5" fill="#04181D"/></svg>
+                <span style="font-weight:600; font-size:11px; color:var(--fg)">Dockyard</span>
+              </div>
+              <div class="label">Workspace</div>
+              <div class="it on"><i data-lucide="box" class="ic"></i> Containers <span class="ct">12</span></div>
+              <div class="it"><i data-lucide="layers" class="ic"></i> Images <span class="ct">38</span></div>
+              <div class="it"><i data-lucide="database" class="ic"></i> Volumes <span class="ct">9</span></div>
+              <div class="it"><i data-lucide="network" class="ic"></i> Networks <span class="ct">4</span></div>
+              <div class="label">Build</div>
+              <div class="it"><i data-lucide="boxes" class="ic"></i> Compose</div>
+              <div class="it"><i data-lucide="hammer" class="ic"></i> Builds</div>
+              <div class="label">Observe</div>
+              <div class="it"><i data-lucide="scroll-text" class="ic"></i> Logs</div>
+              <div class="it"><i data-lucide="activity" class="ic"></i> Metrics</div>
+            </aside>
+            <main class="mini-main">
+              <h4>Containers</h4>
+              <div class="mini-row head"><span>Name</span><span>Image</span><span>Status</span><span>Cpu</span><span>Port</span></div>
+              <div class="mini-row sel"><span style="color:var(--fg); font-weight:500">nginx-prod</span><span class="mini-mono">nginx:1.27.0</span><span><span class="mini-badge run"><span class="d"></span>Running</span></span><span class="mini-mono">0.4%</span><span class="mini-mono">:8080</span></div>
+              <div class="mini-row"><span style="color:var(--fg)">postgres-main</span><span class="mini-mono">postgres:16.2</span><span><span class="mini-badge run"><span class="d"></span>Running</span></span><span class="mini-mono">2.1%</span><span class="mini-mono">:5432</span></div>
+              <div class="mini-row"><span style="color:var(--fg)">worker-jobs</span><span class="mini-mono">worker:42</span><span><span class="mini-badge warn"><span class="d"></span>Restart</span></span><span class="mini-mono">—</span><span class="mini-mono">—</span></div>
+              <div class="mini-row"><span style="color:var(--fg)">cache</span><span class="mini-mono">redis:7.2</span><span><span class="mini-badge idle"><span class="d"></span>Exited</span></span><span class="mini-mono">—</span><span class="mini-mono">—</span></div>
+              <div class="mini-row"><span style="color:var(--fg)">api-prod</span><span class="mini-mono">api:2026.05</span><span><span class="mini-badge run"><span class="d"></span>Running</span></span><span class="mini-mono">4.7%</span><span class="mini-mono">:3000</span></div>
+            </main>
+            <aside class="mini-detail">
+              <div class="eyebrow">container · a1b2c3d</div>
+              <h5>nginx-prod <span class="mini-badge run"><span class="d"></span>Running</span></h5>
+              <div style="display:flex; gap:8px; margin-top:6px">
+                <span class="mk-btn" style="height:24px; font-size:11px; padding:0 8px"><i data-lucide="rotate-ccw" style="width:11px;height:11px"></i> Restart</span>
+                <span class="mk-btn" style="height:24px; font-size:11px; padding:0 8px"><i data-lucide="terminal" style="width:11px;height:11px"></i> Shell</span>
+              </div>
+              <div class="terminal">
+                <div><span class="ts">14:32:08</span><span class="ok">INFO</span>&nbsp;&nbsp;listening on :8080</div>
+                <div><span class="ts">14:32:11</span><span class="ok">INFO</span>&nbsp;&nbsp;GET /healthz 200 4ms</div>
+                <div><span class="ts">14:32:14</span><span class="warn">WARN</span>&nbsp;&nbsp;slow query 412ms</div>
+                <div><span class="ts">14:32:18</span><span class="err">ERR </span>&nbsp;&nbsp;upstream 502</div>
+                <div><span class="ts">14:32:18</span><span class="ok">INFO</span>&nbsp;&nbsp;retry 1/3 in 200ms…</div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== LOGO STRIP ================== -->
+  <section class="logo-strip">
+    <div class="container">
+      <div class="strip-eyebrow">Trusted by teams shipping containers at scale</div>
+      <div class="logos">
+        <span class="logo-ph">Vector</span>
+        <span class="logo-ph">Northwind</span>
+        <span class="logo-ph">Helios</span>
+        <span class="logo-ph">Quanta</span>
+        <span class="logo-ph">Forge.io</span>
+        <span class="logo-ph">Pebble</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== FEATURES ================== -->
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Everything in one place</div>
+        <h2 class="section-title">Built for the parts of Docker that actually take your day</h2>
+        <p class="section-sub">Twelve panels' worth of tooling, collapsed into one fast, keyboard-driven surface.</p>
+      </div>
+
+      <div class="features">
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="box" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Containers, observably</div>
+          <div class="feat-body">Live CPU, memory and network per container. Tail logs from anywhere. Open a shell with one keystroke.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="layers" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Image graph</div>
+          <div class="feat-body">See every layer, every reference, every byte you can reclaim. Prune confidently, never accidentally.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="boxes" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Compose with diff</div>
+          <div class="feat-body">Edit compose files, see exactly what'll change before you apply. Roll back the whole stack with one command.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="network" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Networks, mapped</div>
+          <div class="feat-body">Visual topology of every bridge, overlay and host network. Trace the path a request takes, end to end.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="cloud" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Registry, unified</div>
+          <div class="feat-body">Docker Hub, GHCR, ECR, GAR, ACR — and your private registry. Search them like they're one.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="terminal" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Keyboard first</div>
+          <div class="feat-body">Every action is a command. <kbd class="kbd">⌘K</kbd> jumps to anything. Memorize twelve shortcuts, run the system.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="users" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Teams + RBAC</div>
+          <div class="feat-body">Granular roles across environments. Approval workflows for destructive ops. SSO + SCIM on day one.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="shield-check" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Audit & compliance</div>
+          <div class="feat-body">Every action signed and logged. SOC 2 + ISO 27001 ready. Stream events to your SIEM.</div>
+        </div>
+        <div class="feat">
+          <div class="feat-ic"><i data-lucide="activity" style="width:16px;height:16px"></i></div>
+          <div class="feat-title">Metrics, native</div>
+          <div class="feat-body">Per-container Prom-compatible metrics. Pin the views you live in. Alert on anything.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== BIG QUOTE ================== -->
+  <section class="bigquote">
+    <div class="container">
+      <div class="bigquote-text">
+        "Dockyard is the first manager that doesn't feel like it was built for a <span class="accent">demo</span>. It feels like it was built for the moment a deploy is on fire at 2am."
+      </div>
+      <div class="bigquote-cite">
+        <span class="bigquote-avatar">MR</span>
+        <span><strong style="color:var(--fg)">Mara Reyes</strong> · staff engineer, Vector</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SHOWCASE ================== -->
+  <section class="section">
+    <div class="container showcase">
+      <div class="showcase-text">
+        <div class="section-eyebrow">Logs, native</div>
+        <h3>Tail anything. Filter everything. Pin what matters.</h3>
+        <p>Stream logs across containers, stacks and hosts. Structured-aware filters. Save the views you live in. Open a shell on any line, in one keystroke.</p>
+        <ul class="showcase-list">
+          <li><span class="check"><i data-lucide="check" style="width:12px;height:12px"></i></span> Multi-container live tail with mute and pin</li>
+          <li><span class="check"><i data-lucide="check" style="width:12px;height:12px"></i></span> Regex + JSON-aware filters per line</li>
+          <li><span class="check"><i data-lucide="check" style="width:12px;height:12px"></i></span> Jump-to-shell on any line, anywhere</li>
+          <li><span class="check"><i data-lucide="check" style="width:12px;height:12px"></i></span> Export and share log windows with a link</li>
+        </ul>
+      </div>
+      <div class="showcase-shot">
+        <div class="l"><span class="ts">14:32:08.142</span><span class="lvl-info">INFO</span><span>api · listening on :8080</span></div>
+        <div class="l"><span class="ts">14:32:08.319</span><span class="lvl-info">INFO</span><span>api · connected to postgres-main</span></div>
+        <div class="l"><span class="ts">14:32:11.402</span><span class="lvl-info">INFO</span><span>nginx · GET /healthz 200 4ms</span></div>
+        <div class="l"><span class="ts">14:32:14.811</span><span class="lvl-warn">WARN</span><span>api · slow query (412ms)</span></div>
+        <div class="l"><span class="ts">14:32:18.221</span><span class="lvl-err">ERR </span><span>api · upstream 502 — worker-jobs unreachable</span></div>
+        <div class="l"><span class="ts">14:32:18.412</span><span class="lvl-info">INFO</span><span>api · retry 1/3 in 200ms…</span></div>
+        <div class="l"><span class="ts">14:32:18.612</span><span class="lvl-info">INFO</span><span>api · retry 2/3 succeeded</span></div>
+        <div class="l"><span class="ts">14:32:21.004</span><span class="lvl-info">INFO</span><span>nginx · GET /api/jobs 200 124ms</span></div>
+        <div class="l"><span class="ts">14:32:22.119</span><span class="lvl-info">INFO</span><span>worker · job 87a2 picked up</span></div>
+        <div class="l" style="margin-top:8px"><span class="prompt">$</span><span>dockyard logs tail --since 5m --level=warn,error</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== PRICING ================== -->
+  <section class="section" id="pricing" style="padding-top:48px">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-eyebrow">Pricing</div>
+        <h2 class="section-title">Free for individuals. Priced for teams.</h2>
+        <p class="section-sub">No surprise overage. Every plan includes the same product surface — pricing scales with seats.</p>
+      </div>
+
+      <div class="pricing-grid">
+        <div class="price-card">
+          <div class="price-name">Solo</div>
+          <div class="price-desc">For developers running containers on a laptop.</div>
+          <div class="price-value">
+            <span class="price-amount muted">Free</span>
+          </div>
+          <ul class="price-feat">
+            <li><i data-lucide="check" class="check"></i> Unlimited local containers</li>
+            <li><i data-lucide="check" class="check"></i> Compose, builds, logs</li>
+            <li><i data-lucide="check" class="check"></i> Public registries</li>
+            <li><i data-lucide="check" class="check"></i> Single workspace</li>
+          </ul>
+          <div class="price-cta"><a class="mk-btn" href="#">Download</a></div>
+        </div>
+
+        <div class="price-card featured">
+          <span class="price-tag">Popular</span>
+          <div class="price-name">Team</div>
+          <div class="price-desc">For teams running shared environments.</div>
+          <div class="price-value">
+            <span class="price-amount">$24</span>
+            <span class="price-period">/ user / month</span>
+          </div>
+          <ul class="price-feat">
+            <li><i data-lucide="check" class="check"></i> Everything in Solo</li>
+            <li><i data-lucide="check" class="check"></i> Shared workspaces &amp; environments</li>
+            <li><i data-lucide="check" class="check"></i> Private registries</li>
+            <li><i data-lucide="check" class="check"></i> RBAC, SSO, audit log</li>
+            <li><i data-lucide="check" class="check"></i> Priority support</li>
+          </ul>
+          <div class="price-cta"><a class="mk-btn mk-btn-primary" href="#">Start 14-day trial</a></div>
+        </div>
+
+        <div class="price-card">
+          <div class="price-name">Enterprise</div>
+          <div class="price-desc">For platform teams operating fleets.</div>
+          <div class="price-value">
+            <span class="price-amount muted">Custom</span>
+          </div>
+          <ul class="price-feat">
+            <li><i data-lucide="check" class="check"></i> Everything in Team</li>
+            <li><i data-lucide="check" class="check"></i> Fleet mode (1000+ hosts)</li>
+            <li><i data-lucide="check" class="check"></i> Self-hosted control plane</li>
+            <li><i data-lucide="check" class="check"></i> SCIM, custom roles, IP allow-listing</li>
+            <li><i data-lucide="check" class="check"></i> 24/7 support, named SE</li>
+          </ul>
+          <div class="price-cta"><a class="mk-btn" href="#">Talk to sales</a></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== CTA ================== -->
+  <section>
+    <div class="container">
+      <div class="cta">
+        <h2 class="cta-title">Run docker like you mean it.</h2>
+        <p class="cta-sub">Install in 90 seconds. Free forever for solo work.</p>
+        <div class="cta-buttons">
+          <a class="mk-btn mk-btn-primary mk-btn-lg" href="#"><i data-lucide="download" style="width:14px;height:14px"></i> Download</a>
+          <a class="mk-btn mk-btn-lg" href="#"><i data-lucide="github" style="width:14px;height:14px"></i> Star on GitHub</a>
+        </div>
+        <div class="mono" style="margin-top:14px; color:var(--fg-subtle); font-size:12px">$ brew install dockyard · 14 MB · macOS · Linux · Windows</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== FOOTER ================== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-brand">
+          <a class="nav-brand" href="#">
+            <svg width="22" height="22" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3" fill="#22D3EE"/><rect x="6" y="9" width="3" height="3" rx="0.5" fill="#04181D"/><rect x="10.5" y="9" width="3" height="3" rx="0.5" fill="#04181D"/><rect x="15" y="9" width="3" height="3" rx="0.5" fill="#04181D"/><rect x="6" y="13.5" width="3" height="3" rx="0.5" fill="#04181D"/><rect x="10.5" y="13.5" width="3" height="3" rx="0.5" fill="#04181D"/></svg>
+            <span class="nav-brand-text">Dockyard</span>
+          </a>
+          <div>The docker manager for teams running real containers at real scale.</div>
+        </div>
+        <div class="foot-col">
+          <h6>Product</h6>
+          <ul><li><a href="#">Containers</a></li><li><a href="#">Compose</a></li><li><a href="#">Logs</a></li><li><a href="#">Registry</a></li><li><a href="#">Fleet</a></li></ul>
+        </div>
+        <div class="foot-col">
+          <h6>Resources</h6>
+          <ul><li><a href="#">Docs</a></li><li><a href="#">Changelog</a></li><li><a href="#">Status</a></li><li><a href="#">Brand kit</a></li></ul>
+        </div>
+        <div class="foot-col">
+          <h6>Company</h6>
+          <ul><li><a href="#">About</a></li><li><a href="#">Customers</a></li><li><a href="#">Careers</a></li><li><a href="#">Press</a></li></ul>
+        </div>
+        <div class="foot-col">
+          <h6>Legal</h6>
+          <ul><li><a href="#">Terms</a></li><li><a href="#">Privacy</a></li><li><a href="#">Security</a></li><li><a href="#">DPA</a></li></ul>
+        </div>
+      </div>
+      <div class="foot-bot">
+        <span class="mono">© 2026 Dockyard, Inc. · build 2026.05.24‑a31f</span>
+        <span>All systems normal · <span style="color:var(--running-400)">●</span> api.dockyard.io</span>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>lucide.createIcons({ attrs: { 'stroke-width': 1.5 } });</script>
+</body>
+</html>

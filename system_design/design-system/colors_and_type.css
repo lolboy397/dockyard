@@ -1,0 +1,293 @@
+/* =========================================================================
+   DOCKYARD — Colors & Type
+   The full set of design tokens. Import this file in any artifact.
+   ========================================================================= */
+
+/* ----- Fonts ------------------------------------------------------------ */
+/* Geist + Geist Mono via Google Fonts. If a font file is missing locally,
+   the @import keeps things working. Self-host when shipping. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ============ COLOR — Base Scale (neutral, ink-blue undertone) ====== */
+  --ink-0:  #05070C;   /* deepest — page bg */
+  --ink-1:  #0A0E17;   /* primary surface */
+  --ink-2:  #0F141F;   /* raised surface */
+  --ink-3:  #161C2A;   /* hover surface */
+  --ink-4:  #1E2536;   /* border-strong / pressed */
+  --ink-5:  #2A3245;   /* divider, subtle border */
+  --ink-6:  #3B4660;   /* muted strokes on raised */
+  --ink-7:  #5B6680;   /* tertiary text */
+  --ink-8:  #8993AB;   /* secondary text */
+  --ink-9:  #B7BFD2;   /* primary text muted */
+  --ink-10: #E6E9F2;   /* primary text */
+  --ink-11: #F5F7FB;   /* high-emphasis text */
+  --ink-12: #FFFFFF;   /* on-color text */
+
+  /* ============ COLOR — Brand (cyan, "current" metaphor) ============== */
+  --brand-50:  #E6FCFF;
+  --brand-100: #BCF6FF;
+  --brand-200: #7CEBFC;
+  --brand-300: #3DDCF2;
+  --brand-400: #22D3EE;   /* PRIMARY — interactive, focus, accents */
+  --brand-500: #06B6D4;
+  --brand-600: #0891B2;
+  --brand-700: #0E7490;
+  --brand-800: #155E75;
+  --brand-900: #164E63;
+
+  /* ============ COLOR — Status ======================================= */
+  --running-400: #34D399;   /* healthy, running, success */
+  --running-500: #10B981;
+  --running-bg:  rgba(16, 185, 129, 0.12);
+
+  --warn-400: #FBBF24;      /* paused, restarting, attention */
+  --warn-500: #F59E0B;
+  --warn-bg:  rgba(245, 158, 11, 0.12);
+
+  --danger-400: #F87171;    /* stopped, error, destructive */
+  --danger-500: #EF4444;
+  --danger-bg:  rgba(239, 68, 68, 0.12);
+
+  --info-400: #60A5FA;
+  --info-500: #3B82F6;
+  --info-bg:  rgba(59, 130, 246, 0.12);
+
+  --idle-400: #94A3B8;      /* exited, stopped (non-error) */
+  --idle-bg:  rgba(148, 163, 184, 0.10);
+
+  /* ============ SEMANTIC — Surface / Text / Border =================== */
+  --bg:           var(--ink-0);
+  --bg-elevated:  var(--ink-1);
+  --bg-raised:    var(--ink-2);
+  --bg-hover:     var(--ink-3);
+  --bg-pressed:   var(--ink-4);
+  --bg-inset:     #04060A;          /* terminal / code wells */
+
+  --fg:           var(--ink-11);    /* h1, primary copy */
+  --fg-default:   var(--ink-10);    /* default body */
+  --fg-muted:     var(--ink-8);     /* labels, meta */
+  --fg-subtle:    var(--ink-7);     /* timestamps, captions */
+  --fg-disabled:  var(--ink-6);
+  --fg-on-brand:  #04181D;          /* text on cyan fills */
+
+  --border:        var(--ink-5);    /* default border */
+  --border-strong: var(--ink-4);    /* dividers between sections */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-brand:  var(--brand-400);
+
+  --accent:        var(--brand-400);
+  --accent-hover:  var(--brand-300);
+  --accent-press:  var(--brand-500);
+  --accent-soft:   rgba(34, 211, 238, 0.10);
+  --accent-ring:   rgba(34, 211, 238, 0.35);
+
+  /* ============ TYPE — Families ====================================== */
+  --font-sans: 'Geist', ui-sans-serif, -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  --font-display: 'Geist', ui-sans-serif, system-ui, sans-serif;
+
+  /* ============ TYPE — Scale (designed for 16px root) ================ */
+  --fs-xs:   11px;   --lh-xs:   16px;
+  --fs-sm:   12px;   --lh-sm:   18px;
+  --fs-base: 13px;   --lh-base: 20px;  /* dense UI default */
+  --fs-md:   14px;   --lh-md:   22px;
+  --fs-lg:   16px;   --lh-lg:   24px;
+  --fs-xl:   18px;   --lh-xl:   28px;
+  --fs-2xl:  22px;   --lh-2xl:  30px;
+  --fs-3xl:  28px;   --lh-3xl:  36px;
+  --fs-4xl:  36px;   --lh-4xl:  44px;
+  --fs-5xl:  48px;   --lh-5xl:  56px;
+  --fs-6xl:  64px;   --lh-6xl:  72px;
+  --fs-display: 84px; --lh-display: 92px;
+
+  /* ============ TYPE — Weight / Tracking ============================= */
+  --fw-light: 300;
+  --fw-reg:   400;
+  --fw-med:   500;
+  --fw-semi:  600;
+  --fw-bold:  700;
+
+  --tracking-tight:  -0.02em;   /* display */
+  --tracking-snug:   -0.01em;   /* h1-h3 */
+  --tracking-normal: 0;
+  --tracking-wide:    0.02em;
+  --tracking-caps:    0.08em;   /* eyebrows, kbd, all-caps labels */
+
+  /* ============ SPACING ============================================== */
+  --s-0: 0;
+  --s-px: 1px;
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --s-20: 80px;
+  --s-24: 96px;
+
+  /* ============ RADII ================================================ */
+  --r-xs: 3px;     /* chips, badges */
+  --r-sm: 5px;     /* inputs, small buttons */
+  --r-md: 7px;     /* buttons, menu items */
+  --r-lg: 10px;   /* cards */
+  --r-xl: 14px;   /* modals, panels */
+  --r-2xl: 20px;  /* hero, marketing */
+  --r-full: 999px;
+
+  /* ============ SHADOWS / ELEVATION ================================== */
+  /* Dark UI: shadows are SOFT and used sparingly. Borders carry the load. */
+  --sh-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 1px 2px rgba(0,0,0,0.35);
+  --sh-2: 0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 16px rgba(0,0,0,0.45);
+  --sh-3: 0 1px 0 rgba(255,255,255,0.05) inset, 0 12px 32px rgba(0,0,0,0.55);
+  --sh-4: 0 1px 0 rgba(255,255,255,0.06) inset, 0 24px 60px rgba(0,0,0,0.65);
+  --sh-glow: 0 0 0 1px var(--accent-ring), 0 0 24px rgba(34,211,238,0.25);
+  --sh-focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-ring);
+
+  /* ============ MOTION =============================================== */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);     /* default — UI */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* playful — sparingly */
+  --t-fast:   120ms;
+  --t-base:   180ms;
+  --t-slow:   240ms;
+  --t-slower: 400ms;
+
+  /* ============ LAYOUT =============================================== */
+  --container-max: 1280px;
+  --sidebar-w:     248px;
+  --topbar-h:       48px;
+  --statusbar-h:    28px;
+}
+
+/* =========================================================================
+   SEMANTIC ELEMENTS — sane defaults wired to tokens
+   ========================================================================= */
+html, body {
+  background: var(--bg);
+  color: var(--fg-default);
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, .h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-5xl);
+  line-height: var(--lh-5xl);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-snug);
+  color: var(--fg);
+}
+h2, .h2 {
+  font-size: var(--fs-3xl);
+  line-height: var(--lh-3xl);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-snug);
+  color: var(--fg);
+}
+h3, .h3 {
+  font-size: var(--fs-xl);
+  line-height: var(--lh-xl);
+  font-weight: var(--fw-semi);
+  color: var(--fg);
+}
+h4, .h4 {
+  font-size: var(--fs-lg);
+  line-height: var(--lh-lg);
+  font-weight: var(--fw-semi);
+  color: var(--fg);
+}
+p {
+  font-size: var(--fs-md);
+  line-height: var(--lh-md);
+  color: var(--fg-default);
+  text-wrap: pretty;
+}
+
+/* Display = oversized marketing hero */
+.display {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  font-weight: var(--fw-semi);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
+}
+
+/* Eyebrow — small uppercase label */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  font-weight: var(--fw-med);
+}
+
+/* Mono numerals — for sizes, ports, container IDs, durations */
+.num, .mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'zero', 'ss01';
+  font-variant-numeric: tabular-nums;
+}
+
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+pre, .codeblock {
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-4);
+  color: var(--ink-10);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-md);
+  overflow-x: auto;
+}
+
+kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--r-xs);
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease-out);
+}
+a:hover { color: var(--accent-hover); }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border-strong);
+  margin: var(--s-6) 0;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.30);
+  color: var(--fg);
+}
+
+/* Focus ring — applied to interactive elements */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--sh-focus);
+}

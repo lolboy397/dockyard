@@ -1,0 +1,167 @@
+services:
+  # ── Docker socket proxy ───────────────────────────────────────────────────
+  # The backend never touches the raw Docker socket. Instead it talks to this
+  # proxy over TCP, which exposes only the API surface a Docker manager needs
+  # and blocks the dangerous bits (swarm, nodes, tasks, services, secrets,
+  # configs, plugins). This keeps the (root-equivalent) socket out of the
+  # application container.
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: docker-manager-socket-proxy
+    restart: unless-stopped
+    environment:
+      # Resources the manager reads/manages
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      INFO: 1
+      VERSION: 1
+      EVENTS: 1
+      PING: 1
+      DISTRIBUTION: 1
+      # /system/df — read-only disk-usage totals shown on the Dashboard.
+      SYSTEM: 1
+      # Mutations (start/stop/create/remove/build/exec/…) need POST
+      POST: 1
+      EXEC: 1
+      BUILD: 1
+      COMMIT: 1
+      ALLOW_RESTARTS: 1
+      # Explicitly deny the cluster/secret-management surface the app never uses
+      SWARM: 0
+      NODES: 0
+      TASKS: 0
+      SERVICES: 0
+      SECRETS: 0
+      CONFIGS: 0
+      PLUGINS: 0
+    volumes:
+      # Read-only mount of the host socket — only this container can reach it.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: docker-manager-backend
+    restart: unless-stopped
+    depends_on:
+      docker-socket-proxy:
+        condition: service_started
+    environment:
+      PORT: "8080"
+      DB_PATH: "/data/docker-manager.db"
+      STACKS_PATH: "/data/stacks"
+      # Reach the Docker daemon through the socket proxy (never the raw socket).
+      DOCKER_HOST: "tcp://docker-socket-proxy:2375"
+      # Encryption key for secrets at rest (git tokens, stack env). If empty, a
+      # key is generated and persisted to /data/secret.key on first run (it then
+      # lives in the same volume as the data it protects — see BACKUP.md). To
+      # manage it out-of-band, set DOCKYARD_SECRET_KEY in a .env file (base64,
+      # 32 bytes: `openssl rand -base64 32`).
+      DOCKYARD_SECRET_KEY: "${DOCKYARD_SECRET_KEY:-}"
+      # Comma-separated allowed CORS origins. Empty → "*" (safe: auth is
+      # bearer-token, no ambient cookies). Set when fronting with another origin.
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-}"
+      # Volume-backup retention (newest N kept per volume) and the opt-in
+      # scheduler's polling resolution (a schedule still fires at most once per
+      # its configured interval).
+      BACKUP_KEEP: "${BACKUP_KEEP:-10}"
+      BACKUP_SCHEDULE_TICK_SECONDS: "${BACKUP_SCHEDULE_TICK_SECONDS:-300}"
+    volumes:
+      # Persist the SQLite database, stacks, repos and uploaded projects.
+      - backend-data:/data
+      # Volume backups live on their own volume so they can't bloat or threaten
+      # the critical DB volume; the backend auto-discovers this mount by name.
+      - backup-data:/backups
+    security_opt:
+      - no-new-privileges:true
+    # Memory ceiling so a leak can't take down the whole host while unattended.
+    # (Volume backup/restore runs in throw-away helper containers, not here.)
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  registry:
+    image: registry:2
+    container_name: docker-manager-registry
+    restart: unless-stopped
+    ports:
+      # Bind to loopback only: the host Docker daemon still pushes via
+      # localhost:5000, but the unauthenticated registry is not exposed to the
+      # network. The backend reaches it in-cluster as http://registry:5000.
+      - "127.0.0.1:${REGISTRY_PORT:-5000}:5000"
+    volumes:
+      - registry-data:/var/lib/registry
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HTTP_ADDR: ":5000"
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: docker-manager-frontend
+    restart: unless-stopped
+    ports:
+      # Bound to loopback by default (BIND_ADDR=127.0.0.1) so the app is reachable
+      # only from the host machine itself. The app holds the Docker socket (via
+      # the proxy), so it is root-equivalent — do NOT expose it to an untrusted
+      # network. To reach it from other devices on a TRUSTED LAN, set BIND_ADDR=
+      # 0.0.0.0 in a .env file; to expose beyond the LAN, front it with a
+      # hardened reverse proxy + real TLS + auth you control (see README).
+      - "${BIND_ADDR:-127.0.0.1}:${HTTPS_PORT:-443}:443"
+      - "${BIND_ADDR:-127.0.0.1}:${HTTP_PORT:-80}:80"
+    # To use real certificates, mount them over the baked-in self-signed pair:
+    #   volumes:
+    #     - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    healthcheck:
+      # Check the HTTP listener over IPv4 loopback. Using 127.0.0.1 (not
+      # "localhost", which busybox resolves to IPv6 ::1 where nginx isn't bound)
+      # and HTTP (not the self-signed HTTPS) so the status reflects real
+      # availability.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  backend-data:
+  registry-data:
+  backup-data:

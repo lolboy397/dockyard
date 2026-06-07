@@ -1,0 +1,410 @@
+<div class="source-root">
+
+  <!-- ── Left sidebar ─────────────────────────────────────────── -->
+  <aside class="source-sidebar">
+    <div class="source-sidebar-head">
+      <span class="eyebrow">Source</span>
+      <div class="source-sidebar-actions">
+        <button class="btn btn-xs btn-ghost" (click)="openAdd(false)" title="Create local repo">
+          <dy-icon name="plus" [size]="13"></dy-icon>
+        </button>
+        <button class="btn btn-xs btn-ghost" (click)="openAdd(true)" title="Clone remote repo">
+          <dy-icon name="git-branch" [size]="13"></dy-icon>
+        </button>
+        <button class="btn btn-xs btn-ghost" (click)="load()" title="Refresh">
+          <dy-icon name="refresh-cw" [size]="13"></dy-icon>
+        </button>
+      </div>
+    </div>
+
+    @if (loading && repos.length === 0) {
+      <div class="source-empty">Loading…</div>
+    } @else if (repos.length === 0) {
+      <div class="source-empty">
+        <dy-icon name="git-branch" [size]="28"></dy-icon>
+        <p>No repositories</p>
+        <button class="btn btn-sm btn-secondary" (click)="openAdd(false)">Create a local repo</button>
+        <button class="btn btn-sm btn-ghost" (click)="openAdd(true)">Clone a remote repo</button>
+      </div>
+    } @else {
+      <div class="source-repo-list">
+        @for (repo of repos; track repo.id) {
+          <button class="source-repo-item" [class.active]="selectedRepo?.id === repo.id" (click)="selectRepo(repo)">
+            <div class="source-repo-name">{{ repo.name }}</div>
+            <div class="source-repo-meta">
+              <span class="badge badge-idle">{{ repo.branch || '—' }}</span>
+              @if (repo.changed_count > 0) {
+                <span class="badge badge-warn">{{ repo.changed_count }}</span>
+              }
+              @if (repo.ahead_by > 0) {
+                <span class="source-sync-badge">↑{{ repo.ahead_by }}</span>
+              }
+              @if (repo.behind_by > 0) {
+                <span class="source-sync-badge">↓{{ repo.behind_by }}</span>
+              }
+            </div>
+          </button>
+        }
+      </div>
+    }
+  </aside>
+
+  <!-- ── Right detail panel ───────────────────────────────────── -->
+  <main class="source-main">
+    @if (!selectedRepo) {
+      <div class="source-empty source-empty-main">
+        <dy-icon name="git-branch" [size]="40"></dy-icon>
+        <p>Select a repository</p>
+      </div>
+    } @else {
+
+      <!-- Repo header -->
+      <div class="source-repo-head">
+        <div class="source-repo-head-left">
+          <span class="content-title" style="font-size:15px;">{{ selectedRepo.name }}</span>
+          <span class="badge badge-idle">{{ selectedRepo.branch || '—' }}</span>
+          @if (selectedRepo.ahead_by > 0) {
+            <span class="source-sync-badge">↑{{ selectedRepo.ahead_by }}</span>
+          }
+          @if (selectedRepo.behind_by > 0) {
+            <span class="source-sync-badge">↓{{ selectedRepo.behind_by }}</span>
+          }
+        </div>
+        <div class="source-repo-head-right">
+          @if (isManagedRepo(selectedRepo)) {
+            <button class="btn btn-xs btn-ghost clone-btn" (click)="copyCloneUrl()" title="Copy local clone URL">
+              <dy-icon name="copy" [size]="13"></dy-icon>
+              <span class="clone-url-label">{{ cloneUrl }}</span>
+            </button>
+            <span class="divider-v"></span>
+          }
+          @if (hasRemote(selectedRepo)) {
+            <button class="btn btn-xs btn-ghost" (click)="fetchRepo()" [disabled]="busy" title="Fetch">
+              <dy-icon name="download" [size]="13"></dy-icon> Fetch
+            </button>
+            <button class="btn btn-xs btn-ghost" (click)="pullRepo()" [disabled]="busy" title="Pull">
+              <dy-icon name="arrow-down-to-line" [size]="13"></dy-icon> Pull
+            </button>
+            <button class="btn btn-xs btn-ghost" (click)="pushRepo()" [disabled]="busy" title="Push">
+              <dy-icon name="arrow-up-from-line" [size]="13"></dy-icon> Push
+            </button>
+          } @else {
+            <span class="badge badge-idle">local only</span>
+          }
+          <span class="divider-v"></span>
+          <button class="btn btn-xs btn-ghost" (click)="refreshStatus()" title="Refresh status">
+            <dy-icon name="refresh-cw" [size]="13"></dy-icon>
+          </button>
+          <button class="btn btn-xs btn-danger" (click)="removeRepo()" title="Remove from tracking">
+            <dy-icon name="trash-2" [size]="13"></dy-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="dtab-bar">
+        <button class="dtab" [class.active]="tab === 'changes'" (click)="switchTab('changes')">
+          Changes
+          @if (stagedFiles.length + unstagedFiles.length > 0) {
+            <span class="dtab-count">{{ stagedFiles.length + unstagedFiles.length }}</span>
+          }
+        </button>
+        <button class="dtab" [class.active]="tab === 'history'" (click)="switchTab('history')">History</button>
+        <button class="dtab" [class.active]="tab === 'branches'" (click)="switchTab('branches')">Branches</button>
+      </div>
+
+      <!-- ── CHANGES TAB ── -->
+      @if (tab === 'changes') {
+        <div class="changes-layout">
+
+          <!-- File lists + commit area -->
+          <div class="changes-sidebar">
+
+            <div class="changes-sections">
+
+            <!-- Staged files -->
+            <div class="changes-section">
+              <div class="changes-section-head">
+                <span>Staged <span class="dtab-count">{{ stagedFiles.length }}</span></span>
+                @if (stagedFiles.length > 0) {
+                  <button class="btn btn-xs btn-ghost" (click)="unstageAll()">Unstage all</button>
+                }
+              </div>
+              <div class="changes-file-list">
+                @if (stagedFiles.length === 0) {
+                  <div class="changes-hint">No staged changes</div>
+                } @else {
+                  @for (f of stagedFiles; track f.path) {
+                    <div class="changes-file" [class.active]="diffFile?.path === f.path && diffStaged"
+                         (click)="loadDiff(f, true)">
+                      <span class="git-status-badge" [class]="stagedBadgeClass(f.staged)">{{ f.staged === ' ' ? '·' : f.staged }}</span>
+                      <span class="changes-file-path">{{ f.path }}</span>
+                      <button class="changes-file-btn" title="Unstage" (click)="unstage(f); $event.stopPropagation()">
+                        <dy-icon name="minus" [size]="11"></dy-icon>
+                      </button>
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+
+            <!-- Unstaged / untracked files -->
+            <div class="changes-section">
+              <div class="changes-section-head">
+                <span>Unstaged <span class="dtab-count">{{ unstagedFiles.length }}</span></span>
+                @if (unstagedFiles.length > 0) {
+                  <button class="btn btn-xs btn-ghost" (click)="stageAll()">Stage all</button>
+                }
+              </div>
+              <div class="changes-file-list">
+                @if (unstagedFiles.length === 0) {
+                  <div class="changes-hint">Working tree clean</div>
+                } @else {
+                  @for (f of unstagedFiles; track f.path) {
+                    <div class="changes-file" [class.active]="diffFile?.path === f.path && !diffStaged"
+                         (click)="loadDiff(f, false)">
+                      <span class="git-status-badge" [class]="unstagedBadgeClass(f.unstaged)">{{ f.unstaged === ' ' ? '·' : f.unstaged }}</span>
+                      <span class="changes-file-path">{{ f.path }}</span>
+                      <button class="changes-file-btn" title="Stage" (click)="stage(f); $event.stopPropagation()">
+                        <dy-icon name="plus" [size]="11"></dy-icon>
+                      </button>
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+
+            </div><!-- /changes-sections -->
+
+            <!-- Commit area -->
+            <div class="commit-area">
+              <div class="field">
+                <textarea class="input input-sm commit-msg" rows="3"
+                  [(ngModel)]="commitMessage"
+                  placeholder="Commit message…"
+                  (keydown.ctrl.enter)="commit()"
+                  (keydown.meta.enter)="commit()">
+                </textarea>
+              </div>
+              @if (showAuthorFields) {
+                <div class="field-row" style="grid-template-columns:1fr 1fr;">
+                  <div class="field">
+                    <label class="label">Author name</label>
+                    <input class="input input-sm" [(ngModel)]="authorName" placeholder="Your Name" />
+                  </div>
+                  <div class="field">
+                    <label class="label">Author email</label>
+                    <input class="input input-sm" [(ngModel)]="authorEmail" placeholder="you@example.com" />
+                  </div>
+                </div>
+              }
+              <div class="commit-actions">
+                <button class="btn btn-xs btn-ghost" (click)="showAuthorFields = !showAuthorFields" title="Set author">
+                  <dy-icon name="user" [size]="12"></dy-icon>
+                </button>
+                <button class="btn btn-sm btn-primary" style="flex:1;"
+                  [disabled]="!commitMessage.trim() || stagedFiles.length === 0 || committing"
+                  (click)="commit()">
+                  {{ committing ? 'Committing…' : 'Commit' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Diff panel -->
+          <div class="diff-panel">
+            @if (!diffFile) {
+              <div class="diff-empty">
+                <dy-icon name="file-diff" [size]="22"></dy-icon>
+                <span>Select a changed file to view its diff</span>
+              </div>
+            } @else if (diffLoading) {
+              <div class="diff-empty">Loading…</div>
+            } @else if (diffLines.length === 0) {
+              <div class="diff-empty">No changes to display</div>
+            } @else {
+              <div class="diff-file-head">
+                <dy-icon name="file-code" [size]="13"></dy-icon>
+                {{ diffFile.path }}
+                <span class="badge badge-idle">{{ diffStaged ? 'staged' : 'unstaged' }}</span>
+              </div>
+              <div class="diff-content">
+                @for (line of diffLines; track $index) {
+                  <div class="diff-line" [class]="'diff-' + line.type">
+                    <span class="diff-text">{{ line.text }}</span>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+        </div>
+      }
+
+      <!-- ── HISTORY TAB ── -->
+      @if (tab === 'history') {
+        <div class="content-area" style="padding:0;overflow-y:auto;">
+          @if (historyLoading) {
+            <div class="source-empty">Loading history…</div>
+          } @else if (commits.length === 0) {
+            <div class="source-empty">No commits yet</div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Commit</th>
+                  <th>Message</th>
+                  <th>Author</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of commits; track c.hash) {
+                  <tr>
+                    <td><code class="mono" style="font-size:11px;color:var(--accent)">{{ c.short_hash }}</code></td>
+                    <td style="max-width:380px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c.message }}</td>
+                    <td style="white-space:nowrap;">{{ c.author }}</td>
+                    <td style="white-space:nowrap;color:var(--fg-muted);">{{ c.date | date:'MMM d, y HH:mm' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      }
+
+      <!-- ── BRANCHES TAB ── -->
+      @if (tab === 'branches') {
+        <div class="content-area" style="padding:0;overflow-y:auto;">
+          <div class="content-head" style="padding:12px 16px;">
+            <div class="content-title-row">
+              <span class="content-title" style="font-size:13px;">Branches</span>
+            </div>
+            <div class="content-actions">
+              <button class="btn btn-sm btn-primary" (click)="showNewBranch = true">
+                <dy-icon name="plus" [size]="13"></dy-icon> New branch
+              </button>
+            </div>
+          </div>
+
+          @if (branchesLoading) {
+            <div class="source-empty">Loading branches…</div>
+          } @else {
+            <div style="padding:0 16px 16px;">
+              @for (b of localBranches; track b.name) {
+                <div class="branch-item" [class.current]="b.current">
+                  <div class="branch-item-left">
+                    <dy-icon [name]="b.current ? 'check' : 'git-branch'" [size]="13"
+                      [style.color]="b.current ? 'var(--accent)' : 'var(--fg-muted)'"></dy-icon>
+                    <span [style.color]="b.current ? 'var(--fg)' : 'var(--fg-muted)'">{{ b.name }}</span>
+                    @if (b.current) { <span class="badge badge-running" style="font-size:9px;">current</span> }
+                    @if (b.tracking) { <span class="badge badge-idle" style="font-size:9px;">{{ b.tracking }}</span> }
+                  </div>
+                  @if (!b.current) {
+                    <button class="btn btn-xs btn-ghost" (click)="checkout(b.name)">Checkout</button>
+                  }
+                </div>
+              }
+              @if (remoteBranches.length > 0) {
+                <div style="margin-top:16px;">
+                  <div class="eyebrow" style="margin-bottom:8px;">Remote branches</div>
+                  @for (b of remoteBranches; track b.name) {
+                    <div class="branch-item">
+                      <div class="branch-item-left">
+                        <dy-icon name="cloud" [size]="13" style="color:var(--fg-muted)"></dy-icon>
+                        <span style="color:var(--fg-muted);">{{ b.name }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- New branch modal -->
+        @if (showNewBranch) {
+          <app-modal title="New branch" eyebrow="source control" size="sm" (close)="showNewBranch=false">
+            <div class="field">
+              <label class="label">Branch name</label>
+              <input class="input input-sm" [(ngModel)]="newBranchName" placeholder="feature/my-feature"
+                (keydown.enter)="createBranch()" autofocus />
+            </div>
+            <div modal-footer>
+              <button class="btn btn-sm btn-ghost" (click)="showNewBranch=false">Cancel</button>
+              <button class="btn btn-sm btn-primary" [disabled]="!newBranchName.trim() || busy"
+                (click)="createBranch()">Create</button>
+            </div>
+          </app-modal>
+        }
+      }
+
+    }
+  </main>
+</div>
+
+<!-- ── ADD / CLONE MODAL ───────────────────────────────────── -->
+@if (showAddModal) {
+  <app-modal [title]="addCloneMode ? 'Clone repository' : 'Create or add local repository'"
+             eyebrow="source control" (close)="showAddModal=false">
+
+    <div class="field-row" style="grid-template-columns:1fr 1fr;">
+      <div class="field">
+        <label class="label">Name <span style="color:var(--fg-subtle)">(identifier)</span></label>
+        <input class="input input-sm" [(ngModel)]="addForm.name" placeholder="my-project" />
+      </div>
+      <div class="field">
+        <label class="label">Description <span style="color:var(--fg-subtle)">(optional)</span></label>
+        <input class="input input-sm" [(ngModel)]="addForm.description" placeholder="Short description" />
+      </div>
+    </div>
+
+    @if (addCloneMode) {
+      <div class="field">
+        <label class="label">Repository URL</label>
+        <input class="input input-sm" [(ngModel)]="addForm.clone_url"
+          placeholder="https://github.com/user/repo.git" />
+      </div>
+      <div class="field-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field">
+          <label class="label">Username <span style="color:var(--fg-subtle)">(optional)</span></label>
+          <input class="input input-sm" [(ngModel)]="addForm.username" placeholder="username" />
+        </div>
+        <div class="field">
+          <label class="label">Token / Password</label>
+          <input class="input input-sm" type="password" [(ngModel)]="addForm.token" placeholder="ghp_…" />
+        </div>
+      </div>
+    } @else {
+      <div class="field">
+        <label class="label">Existing local path <span style="color:var(--fg-subtle)">(optional)</span></label>
+        <input class="input input-sm" [(ngModel)]="addForm.path"
+          placeholder="Leave blank to create a managed repo in Dockyard" />
+        <div class="changes-hint" style="padding:0;margin-top:4px;">
+          Leave this blank to create a new local repository stored inside Dockyard.
+        </div>
+      </div>
+    }
+
+    <div class="field-row" style="grid-template-columns:1fr 1fr;">
+      <div class="field">
+        <label class="label">Git author name</label>
+        <input class="input input-sm" [(ngModel)]="addForm.author_name" placeholder="Your Name" />
+      </div>
+      <div class="field">
+        <label class="label">Git author email</label>
+        <input class="input input-sm" [(ngModel)]="addForm.author_email" placeholder="you@example.com" />
+      </div>
+    </div>
+
+    <div modal-footer>
+      <button class="btn btn-sm btn-ghost" (click)="showAddModal=false">Cancel</button>
+      <button class="btn btn-sm btn-primary"
+        [disabled]="!addForm.name || (addCloneMode ? !addForm.clone_url : false) || adding"
+        (click)="submitAdd()">
+        {{ adding ? (addCloneMode ? 'Cloning…' : (addForm.path ? 'Adding…' : 'Creating…')) : (addCloneMode ? 'Clone' : (addForm.path ? 'Add existing' : 'Create local repo')) }}
+      </button>
+    </div>
+  </app-modal>
+}
+  

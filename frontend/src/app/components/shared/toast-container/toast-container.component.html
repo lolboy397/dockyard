@@ -1,0 +1,17 @@
+    <div class="toast-container">
+      @for (toast of toasts; track toast.id) {
+        <div class="toast" [class.toast-success]="toast.tone === 'success'"
+             [class.toast-error]="toast.tone === 'error'"
+             [class.toast-info]="toast.tone === 'info'">
+          <dy-icon [name]="iconFor(toast.tone)" [size]="14"
+            [style.color]="colorFor(toast.tone)"></dy-icon>
+          <span class="toast-body">
+            <span class="toast-msg">{{ toast.message }}</span>
+          </span>
+          <button class="icon-btn ghost sm" (click)="svc.dismiss(toast.id)" style="flex-shrink:0;">
+            <dy-icon name="x" [size]="12"></dy-icon>
+          </button>
+        </div>
+      }
+    </div>
+  

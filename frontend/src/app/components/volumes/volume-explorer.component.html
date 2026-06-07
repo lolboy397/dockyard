@@ -1,0 +1,434 @@
+<div class="content-area ve-area">
+  <!-- ══════════════ Header ══════════════ -->
+  <div class="ve-head">
+    <div class="ve-id">
+      <button class="ve-back" (click)="onClose()" title="Back to volumes"><dy-icon name="arrow-left" [size]="15"></dy-icon></button>
+      <div class="ve-crumbs">
+        <span class="ve-crumb-root" (click)="onClose()">Volumes</span>
+        <span class="ve-sep"><dy-icon name="chevron-right" [size]="13"></dy-icon></span>
+        <div class="ve-vol">
+          <dy-icon name="database" [size]="16" color="var(--accent)"></dy-icon>
+          <span class="ve-vol-name">{{ volume.name }}</span>
+          <span class="ve-tag">{{ volume.driver }}</span>
+          <span class="ve-vol-size">{{ overviewSize }}</span>
+          @if (!volume.used) { <span class="badge badge-warn"><span class="badge-dot"></span>Orphaned</span> }
+        </div>
+      </div>
+    </div>
+    <div class="ve-head-actions">
+      <button class="btn" (click)="downloadVolume()" title="Download the whole volume as a .tar archive">
+        <dy-icon name="download" [size]="14"></dy-icon> Download
+      </button>
+      <button class="btn btn-primary" (click)="setTab('backups'); openBackupForm()" title="Create a restorable backup of this volume">
+        <dy-icon name="archive" [size]="14"></dy-icon> Back up
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════ Tabs ══════════════ -->
+  <div class="ve-tabs">
+    <button class="ve-tab" [class.on]="tab === 'files'" (click)="setTab('files')">
+      <dy-icon name="folder-tree" [size]="14"></dy-icon> Files
+      @if (usage) { <span class="ve-tab-count">{{ usage.files }}</span> }
+    </button>
+    <button class="ve-tab" [class.on]="tab === 'overview'" (click)="setTab('overview')">
+      <dy-icon name="info" [size]="14"></dy-icon> Overview
+    </button>
+    <button class="ve-tab" [class.on]="tab === 'backups'" (click)="setTab('backups')">
+      <dy-icon name="archive" [size]="14"></dy-icon> Backups
+      @if (backupsLoaded && backups.length) { <span class="ve-tab-count">{{ backups.length }}</span> }
+    </button>
+  </div>
+
+  <!-- ══════════════ Overview ══════════════ -->
+  @if (tab === 'overview') {
+    <div class="ve-overview">
+      <div class="ve-ov-card span">
+        <div class="ve-stats">
+          <div class="ve-stat"><span class="ve-stat-v">{{ overviewSize }}</span><span class="ve-stat-k">Size on disk</span></div>
+          <div class="ve-stat"><span class="ve-stat-v">{{ usage ? usage.files : '—' }}</span><span class="ve-stat-k">Files</span></div>
+          <div class="ve-stat"><span class="ve-stat-v">{{ usage ? usage.dirs : '—' }}</span><span class="ve-stat-k">Directories</span></div>
+        </div>
+      </div>
+
+      <div class="ve-ov-card">
+        <div class="ve-ov-head"><span class="eyebrow">Storage breakdown</span></div>
+        @if (usageLoading && !usage) {
+          <span class="ve-empty-inline">Calculating…</span>
+        } @else if (breakdownView.length === 0) {
+          <span class="ve-empty-inline">Nothing stored yet.</span>
+        } @else {
+          <div class="ve-bars">
+            @for (b of breakdownView; track b.name) {
+              <div class="ve-bar-row">
+                <div class="ve-bar-name"><dy-icon name="folder" [size]="13" color="var(--fg-muted)"></dy-icon><span>{{ b.name }}</span></div>
+                <div class="ve-bar-track"><span class="ve-bar-fill" [style.width.%]="b.pct" [style.background]="b.tone"></span></div>
+                <span class="ve-bar-val">{{ b.size }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="ve-ov-card">
+        <div class="ve-ov-head"><span class="eyebrow">Details</span></div>
+        <div style="display:grid;grid-template-columns:92px 1fr;row-gap:7px;column-gap:12px;font-size:12px;">
+          <span style="color:var(--fg-subtle)">Driver</span><span class="mono">{{ volume.driver }}</span>
+          <span style="color:var(--fg-subtle)">Mountpoint</span><span class="mono" style="word-break:break-all">{{ volume.mount }}</span>
+          <span style="color:var(--fg-subtle)">Scope</span><span class="mono">local</span>
+          <span style="color:var(--fg-subtle)">Created</span><span class="mono">{{ volume.created }}</span>
+        </div>
+      </div>
+
+      <div class="ve-ov-card">
+        <div class="ve-ov-head">
+          <span class="eyebrow">Mounted by</span>
+          @if (usage && usage.mounts.length > 0) { <span class="mono" style="font-size:11px;color:var(--fg-subtle)">{{ usage.mounts.length }}</span> }
+        </div>
+        @if (usageLoading && !usage) {
+          <span class="ve-empty-inline">Loading…</span>
+        } @else if (!usage || usage.mounts.length === 0) {
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge badge-warn"><span class="badge-dot"></span>Orphaned</span>
+            <span class="ve-empty-inline">Not mounted by any container.</span>
+          </div>
+        } @else {
+          @for (m of usage.mounts; track $index) {
+            <div class="ve-mount-row">
+              <span class="ve-mount-ic"><dy-icon name="box" [size]="14"></dy-icon></span>
+              <div class="ve-mount-main">
+                <div class="ve-mount-name">{{ m.container }}</div>
+                <div class="ve-mount-path">{{ m.path }}</div>
+              </div>
+              <span class="ve-tag">{{ m.mode }}</span>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ══════════════ Files ══════════════ -->
+  @if (tab === 'files') {
+    <div class="ve-files">
+      <!-- Tree -->
+      <aside class="ve-tree">
+        <div class="ve-tree-label">{{ volume.name }}</div>
+        <div class="ve-tnode" [class.cur]="path.length === 0" [style.padding-left.px]="6" (click)="nav([])">
+          <span class="ve-tchev leaf"><dy-icon name="chevron-right" [size]="13"></dy-icon></span>
+          <dy-icon name="hard-drive" [size]="14" [color]="path.length === 0 ? 'var(--accent)' : 'var(--fg-muted)'"></dy-icon>
+          <span class="ve-tname">/ (root)</span>
+        </div>
+        @for (row of treeRows; track row.key) {
+          <div class="ve-tnode" [class.cur]="row.isCur" [style.padding-left.px]="treePad(row.depth)" (click)="treeClick(row)">
+            <span class="ve-tchev" [class.open]="row.isOpen" [class.leaf]="!row.hasKids" (click)="chevronClick(row, $event)">
+              <dy-icon name="chevron-right" [size]="13"></dy-icon>
+            </span>
+            <dy-icon [name]="row.isOpen ? 'folder-open' : 'folder'" [size]="14" [color]="row.isCur ? 'var(--accent)' : 'var(--fg-muted)'"></dy-icon>
+            <span class="ve-tname">{{ row.entry.name }}</span>
+          </div>
+        }
+      </aside>
+
+      <!-- Main -->
+      <div class="ve-main">
+        <div class="ve-toolbar">
+          @if (!q) {
+            <div class="ve-path">
+              <span class="ve-path-seg" [class.cur]="path.length === 0" (click)="nav([])">{{ volume.name }}</span>
+              @for (seg of path; track $index) {
+                <span class="ve-path-slash">/</span>
+                <span class="ve-path-seg" [class.cur]="$index === path.length - 1" (click)="nav(path.slice(0, $index + 1))">{{ seg }}</span>
+              }
+            </div>
+          } @else {
+            <div class="ve-path"><span class="ve-path-seg cur">{{ searching ? 'Searching…' : results.length + ' result' + (results.length !== 1 ? 's' : '') + ' for “' + query + '”' }}</span></div>
+          }
+          <div class="ve-search">
+            <dy-icon name="search" [size]="14" color="var(--fg-subtle)"></dy-icon>
+            <input placeholder="Search this volume…" [(ngModel)]="query" (ngModelChange)="onQueryChange()" />
+            @if (query) { <span class="ve-clear" (click)="clearQuery()"><dy-icon name="x" [size]="13"></dy-icon></span> }
+          </div>
+        </div>
+
+        <div class="ve-list">
+          <div class="ve-list-head">
+            <span>Name</span><span>Size</span><span>Modified</span><span></span>
+          </div>
+
+          <!-- search results -->
+          @if (q) {
+            @for (r of results; track r.path) {
+              <div class="ve-row" [class.sel]="isSelected(pathOf(r))" (click)="rowClick(r)" (contextmenu)="rowMenu($event, r)">
+                <span class="ve-name">
+                  <dy-icon [name]="r.type === 'dir' ? 'folder' : meta(r).icon" [size]="15" [color]="r.type === 'dir' ? 'var(--brand-300)' : 'var(--fg-muted)'"></dy-icon>
+                  <span style="min-width:0">
+                    <span class="ve-fname">{{ r.name }}</span>
+                    @if (r.path && r.path.indexOf('/') >= 0) { <span class="ve-fpath"> · /{{ r.path.slice(0, r.path.lastIndexOf('/')) }}</span> }
+                  </span>
+                </span>
+                <span class="ve-size" [class.dim]="r.type === 'dir'">{{ rowSize(r) }}</span>
+                <span class="ve-mod">{{ formatDate(r.modified) }}</span>
+                <span class="ve-row-go" (click)="rowMenu($event, r); $event.stopPropagation()"><dy-icon [name]="r.type === 'dir' ? 'chevron-right' : 'ellipsis'" [size]="14"></dy-icon></span>
+              </div>
+            }
+            @if (!searching && results.length === 0) {
+              <div class="ve-empty">
+                <dy-icon name="search-x" [size]="26" color="var(--ink-6)"></dy-icon>
+                <span class="eyebrow">No matches</span>
+                <span style="font-size:12px;color:var(--fg-subtle)">Nothing in {{ volume.name }} matches “{{ query }}”.</span>
+              </div>
+            }
+          } @else {
+            <!-- normal listing -->
+            @if (loadingDir && entries.length === 0) {
+              <div class="ve-empty"><span class="eyebrow">Loading…</span></div>
+            } @else if (dirError) {
+              <div class="ve-empty">
+                <dy-icon name="circle-alert" [size]="26" color="var(--ink-6)"></dy-icon>
+                <span class="eyebrow">Could not read folder</span>
+                <span style="font-size:12px;color:var(--fg-subtle)">{{ dirError }}</span>
+              </div>
+            } @else {
+              @for (node of entries; track node.name) {
+                <div class="ve-row" [class.sel]="node.type === 'file' && isSelected(childPath(node.name))"
+                     (click)="rowClick(node)"
+                     (contextmenu)="rowMenu($event, node)">
+                  <span class="ve-name">
+                    <dy-icon [name]="node.type === 'dir' ? 'folder' : meta(node).icon" [size]="15" [color]="node.type === 'dir' ? 'var(--brand-300)' : 'var(--fg-muted)'"></dy-icon>
+                    <span style="min-width:0"><span class="ve-fname">{{ node.name }}</span></span>
+                  </span>
+                  <span class="ve-size" [class.dim]="node.type === 'dir'">{{ rowSize(node) }}</span>
+                  <span class="ve-mod">{{ formatDate(node.modified) }}</span>
+                  <span class="ve-row-go" (click)="rowMenu($event, node); $event.stopPropagation()"><dy-icon [name]="node.type === 'dir' ? 'chevron-right' : 'ellipsis'" [size]="14"></dy-icon></span>
+                </div>
+              }
+              @if (entries.length === 0) {
+                <div class="ve-empty">
+                  <dy-icon name="folder-open" [size]="26" color="var(--ink-6)"></dy-icon>
+                  <span class="eyebrow">Empty folder</span>
+                </div>
+              }
+            }
+          }
+        </div>
+
+        <!-- preview drawer -->
+        @if (sel; as s) {
+          <aside class="ve-preview">
+            <div class="ve-pv-head">
+              <div class="ve-pv-top">
+                <div class="ve-pv-id">
+                  <dy-icon [name]="fileMeta(s.entry).icon" [size]="16" color="var(--fg-muted)"></dy-icon>
+                  <span class="ve-pv-name">{{ s.entry.name }}</span>
+                </div>
+                <button class="ve-pv-close" (click)="closePreview()"><dy-icon name="x" [size]="14"></dy-icon></button>
+              </div>
+              <div class="ve-pv-sub">
+                <span>{{ fileMeta(s.entry).label }}</span>
+                <span class="ve-dot-sep"></span>
+                <span>{{ formatBytes(s.entry.size) }}</span>
+                <span class="ve-dot-sep"></span>
+                <span>{{ formatDate(s.entry.modified) }}</span>
+              </div>
+              <div class="ve-pv-actions">
+                <button class="btn btn-sm" (click)="downloadSelected()"><dy-icon name="download" [size]="12"></dy-icon> Download</button>
+                <button class="btn btn-sm btn-ghost" (click)="copySelectedPath()"><dy-icon name="copy" [size]="12"></dy-icon> Copy path</button>
+              </div>
+            </div>
+
+            @if (previewLoading) {
+              <div class="ve-pv-body"><div class="ve-nopv"><span class="eyebrow">Loading…</span></div></div>
+            } @else if (previewError) {
+              <div class="ve-pv-body"><div class="ve-nopv">
+                <dy-icon name="circle-alert" [size]="28"></dy-icon>
+                <div class="ve-nopv-t">Preview unavailable</div>
+                <div class="ve-nopv-b">{{ previewError }}</div>
+              </div></div>
+            } @else if (imageUrl) {
+              <div class="ve-pv-body">
+                <div class="ve-pv-pad">
+                  <div class="ve-img-ph">
+                    <img [src]="imageUrl" (load)="onImgLoad($event)" alt="{{ s.entry.name }}" style="max-width:100%;max-height:320px;border-radius:6px;object-fit:contain;" />
+                  </div>
+                </div>
+                <div class="ve-meta">
+                  <span class="ve-meta-k">Dimensions</span><span class="ve-meta-v">{{ imgDims || '—' }}</span>
+                  <span class="ve-meta-k">Path</span><span class="ve-meta-v">/{{ s.path.join('/') }}</span>
+                </div>
+              </div>
+            } @else if (preview && isText() && preview.content !== '') {
+              <div class="ve-pv-body">
+                <div class="ve-code">
+                  @for (ln of lines(preview.content); track $index) {
+                    <div class="ve-cline">
+                      <span class="ve-ln">{{ $index + 1 }}</span>
+                      <span class="ve-ltext">@if (ln === '') {&nbsp;} @else if (isComment(ln)) {<span class="cm">{{ ln }}</span>} @else {{{ ln }}}</span>
+                    </div>
+                  }
+                </div>
+                @if (preview.truncated) {
+                  <div class="ve-empty-inline" style="padding:8px 12px;">Preview truncated — download the file to see the rest.</div>
+                }
+              </div>
+            } @else if (preview && isText() && preview.content === '') {
+              <div class="ve-pv-body">
+                <div class="ve-nopv">
+                  <dy-icon name="file" [size]="28"></dy-icon>
+                  <div class="ve-nopv-t">Empty file</div>
+                  <div class="ve-nopv-b">This file is 0 bytes.</div>
+                </div>
+              </div>
+            } @else {
+              <div class="ve-pv-body">
+                <div class="ve-nopv">
+                  <dy-icon [name]="fileMeta(s.entry).icon" [size]="30"></dy-icon>
+                  <div class="ve-nopv-t">No inline preview</div>
+                  <div class="ve-nopv-b">{{ fileMeta(s.entry).label }} files can be downloaded but not previewed inline.</div>
+                </div>
+                <div class="ve-meta">
+                  <span class="ve-meta-k">Type</span><span class="ve-meta-v">{{ fileMeta(s.entry).label }}</span>
+                  <span class="ve-meta-k">Size</span><span class="ve-meta-v">{{ formatBytes(s.entry.size) }}</span>
+                  <span class="ve-meta-k">Path</span><span class="ve-meta-v">/{{ s.path.join('/') }}</span>
+                </div>
+              </div>
+            }
+          </aside>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ══════════════ Backups ══════════════ -->
+  @if (tab === 'backups') {
+    <div class="ve-overview">
+      <!-- Automatic-backup schedule (opt-in) -->
+      <div class="ve-ov-card span">
+        <div class="ve-ov-head">
+          <span class="eyebrow">Automatic backups</span>
+          @if (schedule?.enabled) {
+            <span class="badge badge-running" style="font-size:9px;"><span class="badge-dot"></span>on</span>
+          }
+        </div>
+        @if (!backupsConfigured) {
+          <div class="ve-empty-inline" style="color:var(--warn-400)">Backup storage isn’t configured on the server.</div>
+        } @else {
+          <p style="font-size:12px;color:var(--fg-muted);margin:0 0 10px;">
+            Opt in to scheduled backups for this volume — they run in the background on the server (no browser needed).
+          </p>
+          <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" [(ngModel)]="scheduleForm.enabled" /> Enabled
+            </label>
+            <div class="field" style="margin:0;">
+              <label class="label">Frequency</label>
+              <select class="input input-sm" [(ngModel)]="scheduleForm.interval_hours" [disabled]="!scheduleForm.enabled" style="width:160px;">
+                <option [ngValue]="6">Every 6 hours</option>
+                <option [ngValue]="12">Every 12 hours</option>
+                <option [ngValue]="24">Daily</option>
+                <option [ngValue]="72">Every 3 days</option>
+                <option [ngValue]="168">Weekly</option>
+              </select>
+            </div>
+            <div class="field" style="margin:0;">
+              <label class="label">Keep</label>
+              <input class="input input-sm" type="number" min="1" max="100" [(ngModel)]="scheduleForm.keep" [disabled]="!scheduleForm.enabled" style="width:80px;" />
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;" [style.opacity]="scheduleForm.enabled ? 1 : 0.5">
+              <input type="checkbox" [(ngModel)]="scheduleForm.stop_container" [disabled]="!scheduleForm.enabled" /> Stop container (consistent)
+            </label>
+            <button class="btn btn-sm btn-primary" (click)="saveSchedule()" [disabled]="savingSchedule">
+              <dy-icon name="save" [size]="12"></dy-icon> {{ savingSchedule ? 'Saving…' : 'Save schedule' }}
+            </button>
+          </div>
+          @if (schedule?.enabled) {
+            <div class="ve-empty-inline" style="margin-top:8px;">Last run: {{ scheduleLastRun() }}</div>
+          }
+        }
+      </div>
+
+      <div class="ve-ov-card span">
+        <div class="ve-ov-head">
+          <span class="eyebrow">Backups</span>
+          <button class="btn btn-sm btn-primary" (click)="openBackupForm()" [disabled]="!backupsConfigured || creatingBackup">
+            <dy-icon name="archive" [size]="12"></dy-icon> {{ creatingBackup ? 'Backing up…' : 'Create backup' }}
+          </button>
+        </div>
+        <p style="font-size:12px;color:var(--fg-muted);margin:0 0 4px;">
+          Point-in-time gzipped archives of this volume, stored on the server. Restoring stops the container,
+          erases current contents, and replaces them with the chosen backup. The newest 10 are kept.
+        </p>
+
+        @if (!backupsConfigured) {
+          <div class="ve-empty-inline" style="color:var(--warn-400)">
+            Backup storage isn’t configured on the server (no <span class="mono">/backups</span> volume).
+          </div>
+        } @else if (backupsLoading && !backupsLoaded) {
+          <div class="ve-empty-inline">Loading…</div>
+        } @else if (backups.length === 0) {
+          <div class="ve-empty">
+            <dy-icon name="archive" [size]="26" color="var(--ink-6)"></dy-icon>
+            <span class="eyebrow">No backups yet</span>
+            <span style="font-size:12px;color:var(--fg-subtle)">Create one to capture this volume’s current state.</span>
+          </div>
+        } @else {
+          <div class="gtable" style="margin-top:8px;">
+            <div class="gtable-head" style="grid-template-columns:1.4fr 90px 110px 1fr auto;">
+              <span>Created</span><span>Size</span><span>Type</span><span>Note</span><span style="text-align:right;">Actions</span>
+            </div>
+            @for (b of backups; track b.id) {
+              <div class="gtable-row" style="grid-template-columns:1.4fr 90px 110px 1fr auto;align-items:center;">
+                <span class="mono" style="font-size:12px;">{{ formatBackupDate(b) }}</span>
+                <span class="mono" style="font-size:11px;color:var(--fg-muted);">{{ formatBytes(b.size_bytes) }}</span>
+                <span>
+                  @if (b.consistent) {
+                    <span class="badge badge-running" style="font-size:9px;"><span class="badge-dot"></span>consistent</span>
+                  } @else {
+                    <span class="badge badge-warn" style="font-size:9px;"><span class="badge-dot"></span>hot copy</span>
+                  }
+                </span>
+                <span style="font-size:12px;color:var(--fg-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ b.note || '—' }}</span>
+                <span style="display:flex;justify-content:flex-end;gap:4px;">
+                  <button class="btn btn-sm btn-secondary" (click)="restoreBackup(b)" [disabled]="busyBackupId !== null">
+                    <dy-icon name="rotate-ccw" [size]="12"></dy-icon> {{ busyBackupId === b.id ? 'Working…' : 'Restore' }}
+                  </button>
+                  <button class="icon-btn sm ghost" (click)="downloadBackup(b)" title="Download archive" [disabled]="busyBackupId !== null">
+                    <dy-icon name="download" [size]="14"></dy-icon>
+                  </button>
+                  <button class="icon-btn sm ghost" (click)="deleteBackup(b)" title="Delete backup" [disabled]="busyBackupId !== null">
+                    <dy-icon name="trash-2" [size]="14"></dy-icon>
+                  </button>
+                </span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Create-backup modal -->
+  @if (showBackupForm) {
+    <app-modal title="Create backup" [eyebrow]="volume.name" (close)="showBackupForm = false">
+      <div class="field">
+        <label class="label">Note (optional)</label>
+        <input class="input input-sm" [(ngModel)]="backupNote" placeholder="e.g. before upgrade" />
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;cursor:pointer;font-size:13px;">
+        <input type="checkbox" [(ngModel)]="backupStop" style="margin-top:2px;" />
+        <span>
+          Stop the container while backing up
+          <span style="display:block;font-size:11px;color:var(--fg-muted);margin-top:2px;">
+            Recommended for databases — guarantees a consistent copy. Leave unchecked for a live (“hot”) copy that avoids downtime but may be inconsistent.
+          </span>
+        </span>
+      </label>
+      <div modal-footer>
+        <button class="btn btn-sm btn-ghost" (click)="showBackupForm = false" [disabled]="creatingBackup">Cancel</button>
+        <button class="btn btn-sm btn-primary" (click)="createBackup()" [disabled]="creatingBackup">
+          <dy-icon name="archive" [size]="12"></dy-icon> {{ creatingBackup ? 'Backing up…' : 'Create backup' }}
+        </button>
+      </div>
+    </app-modal>
+  }
+</div>

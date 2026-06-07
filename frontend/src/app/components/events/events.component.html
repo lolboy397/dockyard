@@ -1,0 +1,84 @@
+<div class="content-area">
+  <div class="content-head">
+    <div class="content-title-row">
+      <div>
+        <div class="eyebrow" style="margin-bottom:2px;">real-time &middot; all sources</div>
+        <h2 class="content-title">Events</h2>
+      </div>
+      <span class="content-count">{{ filtered.length }}</span>
+    </div>
+    <div class="content-actions">
+      @if (live) {
+        <span class="live-badge">
+          <span class="live-dot"></span>
+          live
+        </span>
+      }
+      <button class="btn btn-sm btn-ghost" (click)="toggleLive()">
+        <dy-icon [name]="live ? 'pause' : 'play'" [size]="13"></dy-icon>
+        {{ live ? 'Pause' : 'Resume' }}
+      </button>
+      <button class="btn btn-sm btn-ghost" (click)="events=[];filter()">
+        <dy-icon name="trash-2" [size]="13"></dy-icon> Clear
+      </button>
+      <button class="icon-btn" (click)="load()">
+        <dy-icon name="refresh-cw" [size]="14"></dy-icon>
+      </button>
+    </div>
+  </div>
+
+  <div class="content-toolbar">
+    <div class="pills">
+      <button class="pill" [class.on]="eventFilter==='all'" (click)="setFilter('all')">
+        All <span class="pill-count">{{ events.length }}</span>
+      </button>
+      <button class="pill" [class.on]="eventFilter==='container'" (click)="setFilter('container')">
+        Containers <span class="pill-count">{{ countByType('container') }}</span>
+      </button>
+      <button class="pill" [class.on]="eventFilter==='image'" (click)="setFilter('image')">
+        Images <span class="pill-count">{{ countByType('image') }}</span>
+      </button>
+      <button class="pill" [class.on]="eventFilter==='project'" (click)="setFilter('project')">
+        Projects <span class="pill-count">{{ countByType('project') }}</span>
+      </button>
+      <button class="pill" [class.on]="eventFilter==='network'" (click)="setFilter('network')">
+        Networks <span class="pill-count">{{ countByType('network') }}</span>
+      </button>
+      <button class="pill" [class.on]="eventFilter==='error'" (click)="setFilter('error')">
+        Errors <span class="pill-count">{{ countByType('error') }}</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="events-list">
+    @if (displayed.length === 0) {
+      <div class="events-empty">No events yet</div>
+    }
+    @for (e of displayed; track e.id) {
+      <div class="event-row">
+        <span class="event-ts">{{ e.created_at | date:'HH:mm:ss' }}</span>
+        <span [class]="'event-rail event-rail-' + eventTone(e)">
+          <dy-icon [name]="eventIcon(e)" [size]="12"></dy-icon>
+        </span>
+        <span class="event-type">{{ formatKind(e.kind) }}</span>
+        <span class="event-obj">
+          @if (e.object_name) {
+            <span class="obj-type">{{ e.object_type }}</span> {{ e.object_name }}
+          } @else if (e.container_id) {
+            <span class="obj-type">container</span> {{ e.container_id.slice(0, 12) }}
+          } @else if (e.image) {
+            <span class="obj-type">image</span> {{ e.image }}
+          } @else {
+            <span class="obj-type">{{ e.object_type || '—' }}</span>
+          }
+        </span>
+        @if (e.message) {
+          <span class="event-note">{{ e.message }}</span>
+        } @else {
+          <span class="event-note"></span>
+        }
+        <span class="event-by">{{ e.actor || 'engine' }}</span>
+      </div>
+    }
+  </div>
+</div>

@@ -1,0 +1,139 @@
+    <div class="content-area">
+      <div class="content-head">
+        <div class="content-title-row">
+          <h2 class="content-title">Topology</h2>
+          <span class="content-count mono">{{ counts().con }} containers · {{ counts().net }} networks · {{ counts().vol }} volumes</span>
+        </div>
+        <div class="content-actions">
+          <button class="btn btn-sm btn-secondary" (click)="load()">
+            <dy-icon name="refresh-cw" [size]="13"></dy-icon> Refresh
+          </button>
+        </div>
+      </div>
+
+      <div class="topo-toolbar">
+        <div class="topo-chips">
+          <span class="topo-chip"><dy-dot tone="running"></dy-dot> <b>{{ health().running }}</b> running</span>
+          <span class="topo-chip"><dy-dot tone="danger"></dy-dot> <b>{{ health().stopped }}</b> stopped</span>
+          <span class="topo-chip"><dy-icon name="layers" [size]="12"></dy-icon> <b>{{ lanes().length }}</b> projects</span>
+        </div>
+        <div class="topo-search">
+          <dy-icon name="search" [size]="13"></dy-icon>
+          <input placeholder="Filter nodes…" [value]="search()" (input)="onSearch($event)" />
+        </div>
+        <button class="btn btn-sm" [class.btn-secondary]="hideStopped()" (click)="toggleHideStopped()">
+          <dy-icon [name]="hideStopped() ? 'eye-off' : 'eye'" [size]="13"></dy-icon>
+          {{ hideStopped() ? 'Stopped hidden' : 'Show all' }}
+        </button>
+        <span class="topo-grow"></span>
+        <div class="legend">
+          <span class="ln"><span class="swatch" style="border-color:var(--info-400)"></span>network</span>
+          <span class="ln"><span class="swatch" style="border-color:var(--warn-400)"></span>volume</span>
+        </div>
+        <div class="zoom-grp">
+          <button (click)="zoomBy(0.83)" title="Zoom out"><dy-icon name="minus" [size]="14"></dy-icon></button>
+          <span class="zoom-lvl">{{ (scale() * 100) | number:'1.0-0' }}%</span>
+          <button (click)="zoomBy(1.2)" title="Zoom in"><dy-icon name="plus" [size]="14"></dy-icon></button>
+          <button (click)="fitView()" title="Fit to view"><dy-icon name="maximize" [size]="13"></dy-icon></button>
+        </div>
+      </div>
+
+      @if (loading()) {
+        <div class="topo-empty">Building topology…</div>
+      } @else if (nodes().length === 0) {
+        <div class="topo-empty">No containers, networks or volumes match the current filter.</div>
+      } @else {
+        <div #viewport class="topo-viewport" [class.panning]="panning"
+             (mousedown)="onPanStart($event)" (wheel)="onWheel($event)"
+             (touchstart)="onTouchStart($event)" (touchmove)="onTouchMove($event)" (touchend)="onTouchEnd($event)">
+          <div class="topo-canvas" [style.transform]="canvasTransform()">
+
+            <svg class="edges" [attr.width]="canvasW()" [attr.height]="canvasH()">
+              <defs>
+                <marker id="arrow-net" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                  <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--info-400)"/>
+                </marker>
+                <marker id="arrow-vol" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                  <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--warn-400)"/>
+                </marker>
+              </defs>
+              @for (e of edges(); track e.id) {
+                <path [attr.d]="e.d" fill="none"
+                      [attr.stroke]="e.kind === 'net' ? 'var(--info-400)' : 'var(--warn-400)'"
+                      [attr.stroke-width]="edgeActive(e) ? 2 : 1.25"
+                      [attr.opacity]="edgeActive(e) ? 0.95 : (hoverId() ? 0.08 : 0.55)"
+                      [attr.marker-end]="e.kind === 'net' ? 'url(#arrow-net)' : 'url(#arrow-vol)'"/>
+              }
+            </svg>
+
+            <div class="col-head" [style.left.px]="netX" [style.top.px]="18">Networks</div>
+            <div class="col-head" [style.left.px]="laneX + 4" [style.top.px]="18">Services</div>
+            <div class="col-head" [style.left.px]="volX" [style.top.px]="18">Volumes</div>
+
+            @for (lane of lanes(); track lane.project) {
+              <div class="lane" [style.left.px]="lane.x" [style.top.px]="lane.y"
+                   [style.width.px]="lane.w" [style.height.px]="lane.h">
+                <div class="lane-head">
+                  <dy-icon name="box" [size]="13" color="var(--fg-muted)"></dy-icon>
+                  <span class="l-name">{{ lane.project }}</span>
+                  <span class="lane-count">{{ lane.running }}/{{ lane.total }}</span>
+                </div>
+              </div>
+            }
+
+            @for (n of nodes(); track n.id) {
+              <div class="node-card"
+                   [class.dim]="isDimmed(n.id)"
+                   [class.sel]="selected()?.id === n.id"
+                   [style.left.px]="n.x" [style.top.px]="n.y"
+                   [style.width.px]="n.w" [style.height.px]="n.h"
+                   [style.border-left-color]="accent(n)"
+                   (mouseenter)="hoverId.set(n.id)" (mouseleave)="hoverId.set(null)"
+                   (click)="select(n, $event)">
+                <div class="nc-top">
+                  @if (n.kind === 'container') {
+                    <dy-dot [tone]="dotTone(n.state)" [size]="8"></dy-dot>
+                  } @else {
+                    <dy-icon class="nc-ico" [name]="n.kind === 'network' ? 'network' : 'database'" [size]="13"></dy-icon>
+                  }
+                  <span class="nc-title">{{ n.label }}</span>
+                </div>
+                @if (n.kind === 'container') {
+                  <div class="nc-meta">
+                    <span class="m"><dy-icon name="cpu" [size]="11"></dy-icon> {{ cpuOf(n.cid) }}</span>
+                    <span class="m"><dy-icon name="memory-stick" [size]="11"></dy-icon> {{ memOf(n.cid) }}</span>
+                  </div>
+                  @if (n.ports) { <div class="nc-ports">{{ n.ports }}</div> }
+                } @else {
+                  <div class="nc-sub">{{ n.sub }}</div>
+                }
+              </div>
+            }
+          </div>
+
+          @if (selected(); as s) {
+          <div class="detail">
+          <div class="detail-head">
+            @if (s.kind === 'container') { <dy-dot [tone]="dotTone(s.state)" [size]="9"></dy-dot> }
+            @else { <dy-icon [name]="s.kind === 'network' ? 'network' : 'database'" [size]="15"></dy-icon> }
+            <h3>{{ s.label }}</h3>
+            <button class="x-btn" (click)="selected.set(null)"><dy-icon name="x" [size]="15"></dy-icon></button>
+          </div>
+          <div class="detail-body">
+            @for (row of detailRows(s); track row.k) {
+              <div class="row"><span class="k">{{ row.k }}</span><span class="v">{{ row.v }}</span></div>
+            }
+          </div>
+          @if (s.kind === 'container') {
+            <div class="detail-foot">
+              <button class="btn btn-sm btn-secondary" style="width:100%" (click)="openContainers()">
+                <dy-icon name="external-link" [size]="13"></dy-icon> Open in Containers
+              </button>
+            </div>
+          }
+          </div>
+          }
+        </div>
+      }
+    </div>
+  

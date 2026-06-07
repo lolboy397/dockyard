@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Illustrations</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg); display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+  .item img { display: block; width: 100%; height: 200px; object-fit: cover; }
+  .cap { padding: 8px 12px; font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-muted); border-top: 1px solid var(--border-subtle); }
+</style>
+</head>
+<body>
+  <div class="item">
+    <img src="../assets/illustration-containers.svg" alt="Isometric containers"/>
+    <div class="cap">isometric · containers · mono cyan</div>
+  </div>
+  <div class="item">
+    <img src="../assets/illustration-network.svg" alt="Network graph"/>
+    <div class="cap">node graph · network topology</div>
+  </div>
+</body>
+</html>

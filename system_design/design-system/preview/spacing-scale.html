@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Spacing scale</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 20px; background: var(--bg); display: flex; flex-direction: column; gap: 6px; }
+  .row { display: grid; grid-template-columns: 60px 1fr; gap: 12px; align-items: center; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); }
+  .bar { height: 10px; background: var(--accent); border-radius: 2px; }
+  .meta { display: inline-block; margin-left: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); vertical-align: middle; }
+</style>
+</head>
+<body>
+  <div class="row"><span class="lbl">s-1 · 4</span><div><span class="bar" style="width:4px; display:inline-block; vertical-align:middle"></span><span class="meta">tight icon gap</span></div></div>
+  <div class="row"><span class="lbl">s-2 · 8</span><div><span class="bar" style="width:8px; display:inline-block; vertical-align:middle"></span><span class="meta">dense rows</span></div></div>
+  <div class="row"><span class="lbl">s-3 · 12</span><div><span class="bar" style="width:12px; display:inline-block; vertical-align:middle"></span><span class="meta">button padding-x</span></div></div>
+  <div class="row"><span class="lbl">s-4 · 16</span><div><span class="bar" style="width:16px; display:inline-block; vertical-align:middle"></span><span class="meta">card padding</span></div></div>
+  <div class="row"><span class="lbl">s-6 · 24</span><div><span class="bar" style="width:24px; display:inline-block; vertical-align:middle"></span><span class="meta">section gap</span></div></div>
+  <div class="row"><span class="lbl">s-8 · 32</span><div><span class="bar" style="width:32px; display:inline-block; vertical-align:middle"></span><span class="meta">card group gap</span></div></div>
+  <div class="row"><span class="lbl">s-12 · 48</span><div><span class="bar" style="width:48px; display:inline-block; vertical-align:middle"></span><span class="meta">marketing module</span></div></div>
+  <div class="row"><span class="lbl">s-20 · 80</span><div><span class="bar" style="width:80px; display:inline-block; vertical-align:middle"></span><span class="meta">hero · section</span></div></div>
+</body>
+</html>

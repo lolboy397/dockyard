@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Display & headings</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 20px 24px; background: var(--bg); }
+  .row { display: grid; grid-template-columns: 80px 1fr; gap: 16px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
+  .row:last-child { border-bottom: 0; }
+  .meta { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); }
+  .display { font-size: 56px; line-height: 1.05; }
+  h1, h2, h3 { margin: 0; }
+</style>
+</head>
+<body>
+  <div class="row"><span class="meta">Display 56</span><span class="display" style="font-family:var(--font-display); font-weight:600; letter-spacing:-0.02em; color:var(--fg)">Ship anything</span></div>
+  <div class="row"><span class="meta">H1 · 48</span><h1>Manage containers</h1></div>
+  <div class="row"><span class="meta">H2 · 28</span><h2>Running services</h2></div>
+  <div class="row"><span class="meta">H3 · 18</span><h3>Recent activity</h3></div>
+</body>
+</html>

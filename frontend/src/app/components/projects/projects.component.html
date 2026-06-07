@@ -1,0 +1,1030 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     ROOT LAYOUT
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="projects-shell" [class.proj-selected]="!!selected">
+
+  <!-- ──────────────────────────────────────────────────────── LEFT PANEL -->
+  <aside class="proj-list-panel">
+
+    <!-- header -->
+    <div class="panel-header">
+      <div class="panel-header-top">
+        <div class="panel-title-group">
+          <span class="panel-title">Projects</span>
+          <span class="panel-count">{{ runningCount }} running · {{ projects.length }} total</span>
+        </div>
+        <button class="btn-new" (click)="openUpload()">
+          <dy-icon name="upload" [size]="13"></dy-icon> New
+        </button>
+      </div>
+
+      <!-- search -->
+      <div class="search-box">
+        <dy-icon name="search" [size]="14" class="search-icon"></dy-icon>
+        <input
+          class="search-input"
+          type="text"
+          placeholder="Search projects…"
+          [(ngModel)]="searchQuery"
+        />
+        @if (searchQuery) {
+          <button class="search-clear" (click)="searchQuery = ''">
+            <dy-icon name="x" [size]="12"></dy-icon>
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- list -->
+    <div class="proj-list" *ngIf="!loading">
+      @for (proj of filteredProjects(); track proj.id) {
+        <button
+          class="proj-item"
+          [class.on]="selected?.id === proj.id"
+          (click)="selectProject(proj)"
+          (contextmenu)="projectMenu($event, proj)"
+        >
+          <span class="proj-dot proj-dot-{{ proj.status }}"></span>
+          <div class="proj-item-main">
+            <div class="proj-item-top">
+              <span class="proj-item-name">{{ proj.name }}</span>
+              <span class="proj-type-tag" [class.compose]="proj.type === 'compose'">
+                <dy-icon [name]="typeIcon(proj.type)" [size]="10"></dy-icon>
+                {{ proj.type === 'compose' ? 'Compose' : 'Dockerfile' }}
+              </span>
+            </div>
+            @if (proj.description) {
+              <div class="proj-item-desc">{{ proj.description }}</div>
+            }
+            <div class="proj-item-meta mono">
+              @if (proj.branch) {
+                <span><dy-icon name="git-branch" [size]="10"></dy-icon> {{ proj.branch }}</span>
+              }
+              <span>{{ relativeTime(proj.updated_at) }}</span>
+            </div>
+          </div>
+        </button>
+      }
+      @if (filteredProjects().length === 0 && !loading) {
+        <div class="proj-empty">
+          @if (searchQuery) {
+            No projects match "{{ searchQuery }}".
+          } @else {
+            No projects yet.
+          }
+        </div>
+      }
+    </div>
+
+    @if (loading) {
+      <div class="list-loading">
+        <dy-icon name="loader" [size]="20" class="spin"></dy-icon>
+      </div>
+    }
+    <button class="proj-upload-cta" (click)="openUpload()">
+      <dy-icon name="upload-cloud" [size]="16"></dy-icon>
+      <span>Drop a folder or .zip to deploy</span>
+    </button>
+  </aside>
+
+  <!-- ──────────────────────────────────────────────────────── DETAIL PANEL -->
+  <main class="proj-detail-panel">
+
+    @if (!selected) {
+      <!-- empty state -->
+      <div class="detail-empty">
+        <dy-icon name="rocket" [size]="48" class="empty-rocket"></dy-icon>
+        <p class="empty-title">Select a project</p>
+        <p class="empty-sub">Choose a project from the list, or create a new one.</p>
+        <button class="btn-primary" (click)="openUpload()">
+          <dy-icon name="plus" [size]="14"></dy-icon> New Project
+        </button>
+      </div>
+    } @else {
+      <!-- ── detail header ─────────────────────────────────────── -->
+      <div class="proj-detail-head">
+        <button class="proj-back" (click)="selected = null" aria-label="Back to projects">
+          <dy-icon name="arrow-left" [size]="18"></dy-icon>
+        </button>
+        <div class="proj-detail-titles">
+          <div class="proj-detail-eyebrow eyebrow">{{ selected.type }} project · {{ selected.branch || 'main' }}</div>
+          <div class="proj-detail-title">
+            <span>{{ selected.name }}</span>
+            <span class="proj-status-chip" [class]="'chip-' + selected.status">
+              <span class="proj-dot" [class]="'proj-dot-' + selected.status" style="width:7px;height:7px;flex-shrink:0"></span>
+              {{ statusLabel(selected.status) }}
+            </span>
+          </div>
+          @if (selected.description) {
+            <div class="proj-detail-desc">{{ selected.description }}</div>
+          }
+        </div>
+
+        <!-- adaptive action bar -->
+        <div class="action-bar">
+          @if (building) {
+            <div class="build-inline">
+              <span class="build-inline-track">
+                <span class="build-inline-fill"
+                  [class.indeterminate]="!buildTotal"
+                  [style.width.%]="buildTotal ? (buildStep / buildTotal * 100) : 100"
+                ></span>
+              </span>
+              <span class="mono build-inline-pct">{{ buildTotal ? (buildStep + ' / ' + buildTotal) : 'Building…' }}</span>
+            </div>
+            <button class="btn-sm" (click)="stopProject()">
+              <dy-icon name="x" [size]="13"></dy-icon>Cancel
+            </button>
+          } @else if (selected.status === 'running') {
+            <button class="btn-sm" [disabled]="stopping" (click)="restartProject()">
+              <dy-icon name="rotate-ccw" [size]="13"></dy-icon>Restart
+            </button>
+            <button class="btn-sm" [disabled]="stopping" (click)="stopProject()">
+              <dy-icon name="square" [size]="13"></dy-icon>{{ stopping ? 'Stopping…' : 'Stop' }}
+            </button>
+            @if (firstPort) {
+              <button class="btn-sm accent" (click)="openFirstPort()">
+                <dy-icon name="external-link" [size]="13"></dy-icon>Open :{{ firstPort }}
+              </button>
+            }
+          } @else if (selected.status === 'failed') {
+            <button class="btn-sm ghost" (click)="switchTab('logs')">
+              <dy-icon name="scroll-text" [size]="13"></dy-icon>View logs
+            </button>
+            <button class="btn-sm accent" (click)="buildProject()">
+              <dy-icon name="rotate-ccw" [size]="13"></dy-icon>Retry build
+            </button>
+          } @else {
+            <button class="btn-sm" [disabled]="running || building" (click)="buildProject()">
+              <dy-icon name="hammer" [size]="13"></dy-icon>{{ isBuilt ? 'Rebuild' : 'Build' }}
+            </button>
+            @if (isBuilt) {
+              <button class="btn-sm accent" [disabled]="running" (click)="runProject()">
+                <dy-icon name="play" [size]="13"></dy-icon>{{ running ? 'Starting…' : 'Run' }}
+              </button>
+            }
+          }
+
+          <!-- ··· more menu (always visible) -->
+          <div class="more-menu-wrap">
+            <button class="btn-sm icon-only ghost more-menu-btn"
+              [class.active]="moreMenuOpen"
+              (click)="$event.stopPropagation(); moreMenuOpen = !moreMenuOpen"
+              title="More options">
+              <dy-icon name="ellipsis" [size]="14"></dy-icon>
+            </button>
+            @if (moreMenuOpen) {
+              <div class="more-menu-dropdown" (click)="$event.stopPropagation()">
+                <button class="more-menu-item danger" (click)="deleteProject(); moreMenuOpen = false">
+                  <dy-icon name="trash-2" [size]="13"></dy-icon>Delete project
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- port conflict banner -->
+      @if (portConflictBanner) {
+        <div class="port-conflict">
+          <dy-icon name="triangle-alert" [size]="16" style="flex:none; color:var(--danger-400)"></dy-icon>
+          <div class="port-conflict-text">
+            <div class="port-conflict-title">Port {{ portConflictPort }} is already in use</div>
+            <div class="port-conflict-sub">Remap the host port to continue, or stop the conflicting container.</div>
+          </div>
+          <div class="port-conflict-form">
+            <span class="mono port-arrow">host</span>
+            <input class="port-input mono" type="number" [(ngModel)]="portConflictNewPort" [placeholder]="portConflictPort" />
+            <span class="mono port-arrow">→ {{ portConflictPort }}</span>
+            <button class="btn-sm accent" (click)="remapAndRebuild()">
+              <dy-icon name="check" [size]="12"></dy-icon>Remap &amp; build
+            </button>
+          </div>
+          <button class="banner-close" (click)="portConflictBanner = false">
+            <dy-icon name="x" [size]="14"></dy-icon>
+          </button>
+        </div>
+      }
+
+      <!-- ── tab bar ──────────────────────────────────────────── -->
+      <div class="proj-tabs">
+        <button class="proj-tab" [class.on]="tab === 'overview'" (click)="switchTab('overview')">
+          <dy-icon name="layout-dashboard" [size]="13"></dy-icon>Overview
+        </button>
+        <button class="proj-tab" [class.on]="tab === 'logs'" (click)="switchTab('logs')">
+          <dy-icon name="scroll-text" [size]="13"></dy-icon>Logs
+          @if (lineCount(buildLog) > 0) {
+            <span class="proj-tab-count">{{ lineCount(buildLog) }}</span>
+          }
+        </button>
+        <button class="proj-tab" [class.on]="tab === 'files'" (click)="switchTab('files')">
+          <dy-icon name="folder-open" [size]="13"></dy-icon>Files
+        </button>
+        <button class="proj-tab" [class.on]="tab === 'source'" (click)="switchTab('source')">
+          <dy-icon name="git-branch" [size]="13"></dy-icon>Source
+          @if (selected.repo_id) {
+            <span class="tab-badge active-dot"></span>
+          }
+        </button>
+      </div>
+
+      <!-- ── tab content ──────────────────────────────────────── -->
+      <div class="tab-content">
+
+        <!-- ─── OVERVIEW ─────────────────────────────────────── -->
+        @if (tab === 'overview') {
+          <div class="proj-overview">
+
+            <!-- 6-cell stats grid -->
+            <div class="proj-ov-grid">
+              <div class="ov-stat">
+                <div class="ov-stat-label">Status</div>
+                <div class="ov-stat-value">
+                  <span class="ov-status">
+                    <span class="proj-dot proj-dot-{{ selected.status }}"></span>
+                    {{ statusLabel(selected.status) }}
+                  </span>
+                </div>
+              </div>
+              <div class="ov-stat">
+                <div class="ov-stat-label">Image</div>
+                <div class="ov-stat-value mono">{{ selected.image_tag || '—' }}</div>
+              </div>
+              <div class="ov-stat">
+                <div class="ov-stat-label">Size</div>
+                <div class="ov-stat-value mono">{{ overviewImageSize || '—' }}</div>
+              </div>
+              <div class="ov-stat">
+                <div class="ov-stat-label">CPU</div>
+                <div class="ov-stat-value mono">{{ overviewCpu || '—' }}</div>
+              </div>
+              <div class="ov-stat">
+                <div class="ov-stat-label">Memory</div>
+                <div class="ov-stat-value mono">{{ overviewMemory || '—' }}</div>
+              </div>
+              <div class="ov-stat">
+                <div class="ov-stat-label">Last deploy</div>
+                <div class="ov-stat-value mono">{{ relativeTime(selected.updated_at) || '—' }}</div>
+              </div>
+            </div>
+
+            <!-- Port mappings -->
+            <section class="dsection">
+              <div class="dsection-head">
+                <span class="eyebrow">Port mappings</span>
+              </div>
+              @if (parsedPorts().length > 0) {
+                <div class="port-list">
+                  @for (p of parsedPorts(); track p.host) {
+                    <div class="port-row">
+                      <span class="mono port-host">0.0.0.0:{{ p.host }}</span>
+                      <dy-icon name="arrow-right" [size]="13" style="color:var(--fg-subtle)"></dy-icon>
+                      <span class="mono port-target">{{ p.container }}/tcp</span>
+                      @if (selected.status === 'running') {
+                        <button class="port-open" (click)="openPort(p.host)">Open ↗</button>
+                      }
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="proj-none mono">No published ports</div>
+              }
+            </section>
+
+            <!-- Detected configuration -->
+            <section class="dsection">
+              <div class="dsection-head">
+                <span class="eyebrow">Detected configuration</span>
+              </div>
+              <div class="detect-grid">
+                <div class="detect-item">
+                  <dy-icon [name]="typeIcon(selected.type)" [size]="16" style="color:var(--accent);flex-shrink:0"></dy-icon>
+                  <div>
+                    <div class="detect-k">Build source</div>
+                    <div class="detect-v mono">{{ selected.type === 'compose' ? 'compose.yml' : 'Dockerfile' }}</div>
+                  </div>
+                </div>
+                <div class="detect-item">
+                  <dy-icon name="git-branch" [size]="16" style="color:var(--accent);flex-shrink:0"></dy-icon>
+                  <div>
+                    <div class="detect-k">Tracking branch</div>
+                    <div class="detect-v mono">{{ selected.branch || 'main' }}</div>
+                  </div>
+                </div>
+                <div class="detect-item">
+                  <dy-icon name="layers" [size]="16" style="color:var(--accent);flex-shrink:0"></dy-icon>
+                  <div>
+                    <div class="detect-k">Image tag</div>
+                    <div class="detect-v mono">{{ selected.image_tag || '—' }}</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        }
+
+        <!-- ─── LOGS ──────────────────────────────────────────── -->
+        @if (tab === 'logs') {
+          <div class="logs-tab">
+            <div class="logs-tab-toolbar">
+              <div class="pills sm">
+                <button class="pill" [class.on]="logTab === 'build'" (click)="logTab = 'build'">
+                  Build log
+                  @if (buildLog) { <span class="pill-count">{{ lineCount(buildLog) }}</span> }
+                </button>
+                <button class="pill" [class.on]="logTab === 'run'" (click)="logTab = 'run'">
+                  Run log
+                  @if (runLog) { <span class="pill-count">{{ lineCount(runLog) }}</span> }
+                </button>
+              </div>
+              <div class="logs-tab-actions">
+                @if (logTab === 'build' && building) {
+                  <span class="logs-live mono">
+                    <span class="proj-dot proj-dot-building" style="width:7px;height:7px"></span>
+                    building…
+                  </span>
+                }
+                @if (logTab === 'run' && running) {
+                  <span class="logs-live mono">
+                    <span class="proj-dot proj-dot-running" style="width:7px;height:7px"></span>
+                    live
+                  </span>
+                }
+                <button class="icon-btn ghost sm" (click)="downloadLog()" title="Download log">
+                  <dy-icon name="download" [size]="13"></dy-icon>
+                </button>
+                <button class="icon-btn ghost sm" [class.on]="logWrap" (click)="logWrap = !logWrap" title="Toggle line wrap">
+                  <dy-icon name="wrap-text" [size]="13"></dy-icon>
+                </button>
+              </div>
+            </div>
+            <div class="log-viewer-wrap">
+              @if (logTab === 'build') {
+                <app-log-viewer
+                  [logs]="buildLog"
+                  [live]="building"
+                  [autoScroll]="building"
+                ></app-log-viewer>
+              } @else {
+                <app-log-viewer
+                  [logs]="runLog"
+                  [live]="running"
+                  [autoScroll]="running"
+                ></app-log-viewer>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- ─── FILES ─────────────────────────────────────────── -->
+        @if (tab === 'files') {
+          <div class="files-tab">
+            <div class="files-toolbar">
+              <div class="files-search">
+                <dy-icon name="search" [size]="13" style="color:var(--fg-muted);flex:none"></dy-icon>
+                <input type="text" placeholder="Find file…" [(ngModel)]="fileSearchQuery" />
+              </div>
+              <span class="mono files-meta">{{ selected!.type === 'compose' ? 'compose.yml' : 'Dockerfile' }} detected · {{ flatFileCount(fileTree) }} files</span>
+            </div>
+            <div class="files-body">
+              <!-- left: tree -->
+              <div class="files-tree">
+                @if (filesLoading) {
+                  <div class="tree-loading">
+                    <dy-icon name="loader" [size]="16" class="spin"></dy-icon>
+                  </div>
+                } @else {
+                  <ng-container *ngTemplateOutlet="treeNodes; context: { $implicit: filteredFileTree(), prefix: '', depth: 0 }"></ng-container>
+                }
+              </div>
+              <!-- right: preview -->
+              <div class="files-preview">
+                @if (!previewPath) {
+                  <div class="preview-empty">
+                    <dy-icon name="file-text" [size]="32"></dy-icon>
+                    <span>Select a file to preview</span>
+                  </div>
+                } @else {
+                  <div class="files-preview-head">
+                    <dy-icon name="file-code" [size]="13" style="color:var(--accent);flex:none"></dy-icon>
+                    <span class="mono">{{ previewFileName }}</span>
+                    <span class="files-preview-spacer"></span>
+                    <button class="icon-btn ghost sm" (click)="copyPreviewContent()" title="Copy">
+                      <dy-icon name="copy" [size]="12"></dy-icon>
+                    </button>
+                  </div>
+                  <div class="files-preview-body">
+                    @if (previewLoading) {
+                      <div class="preview-loading">
+                        <dy-icon name="loader" [size]="16" class="spin"></dy-icon>
+                      </div>
+                    } @else {
+                      <pre class="files-code">{{ previewContent }}</pre>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ─── SOURCE ────────────────────────────────────────── -->
+        @if (tab === 'source') {
+          <div class="source-pane">
+
+            @if (!selected.repo_id) {
+              <!-- no repo linked -->
+              <div class="source-empty">
+                <dy-icon name="git-branch" [size]="40"></dy-icon>
+                <p class="empty-title">No git repository</p>
+                <p class="empty-sub">Initialise a local git repo to track changes and build history.</p>
+                <button class="btn-primary" [disabled]="gitLoading" (click)="initRepo()">
+                  <dy-icon name="git-merge" [size]="14"></dy-icon>
+                  {{ gitLoading ? 'Initialising…' : 'Init Repository' }}
+                </button>
+              </div>
+            } @else if (gitLoading && !linkedRepo) {
+              <div class="source-loading">
+                <dy-icon name="loader" [size]="20" class="spin"></dy-icon>
+              </div>
+            } @else {
+
+              <!-- deploy on push -->
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin-bottom:12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-md);">
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                  <span style="font-size:13px;font-weight:var(--fw-med);color:var(--fg-default);display:flex;align-items:center;gap:6px;">
+                    <dy-icon name="zap" [size]="13"></dy-icon> Deploy on push
+                  </span>
+                  <span style="font-size:11px;color:var(--fg-subtle);">Rebuild &amp; run automatically when you push to this repo.</span>
+                </div>
+                <button class="btn btn-sm" (click)="toggleDeployOnPush()" [disabled]="dopLoading">
+                  <dy-icon [name]="deployOnPush ? 'toggle-right' : 'toggle-left'" [size]="14"
+                           [style.color]="deployOnPush ? 'var(--running-400)' : 'var(--fg-disabled)'"></dy-icon>
+                  {{ deployOnPush ? 'On' : 'Off' }}
+                </button>
+              </div>
+
+              <!-- branch bar -->
+              <div class="source-topbar">
+                <div class="branch-picker-wrap">
+                  <button
+                    class="branch-btn"
+                    (click)="$event.stopPropagation(); branchPickerOpen = !branchPickerOpen"
+                  >
+                    <dy-icon name="git-branch" [size]="13"></dy-icon>
+                    {{ currentBranch() }}
+                    <dy-icon name="chevron-down" [size]="12"></dy-icon>
+                  </button>
+                  @if (branchPickerOpen) {
+                    <div class="branch-dropdown">
+                      @for (b of branches; track b.name) {
+                        <button
+                          class="branch-option"
+                          [class.current]="b.current"
+                          [disabled]="b.current"
+                          (click)="branchPickerSelect(b)"
+                        >
+                          <dy-icon name="git-branch" [size]="12"></dy-icon>
+                          {{ b.name }}
+                          @if (b.current) { <span class="branch-current-label">current</span> }
+                        </button>
+                      }
+                      <div class="branch-divider"></div>
+                      <button class="branch-option new-branch-btn" (click)="promptNewBranch()">
+                        <dy-icon name="plus" [size]="12"></dy-icon>New branch…
+                      </button>
+                    </div>
+                  }
+                </div>
+
+                <!-- git actions -->
+                <div class="source-actions">
+                  <button class="btn-xs" [disabled]="gitLoading" (click)="gitPull()" title="Pull">
+                    <dy-icon name="download" [size]="12"></dy-icon>Pull
+                  </button>
+                  <button class="btn-xs" [disabled]="gitLoading" (click)="gitPush()" title="Push">
+                    <dy-icon name="upload" [size]="12"></dy-icon>Push
+                  </button>
+                </div>
+              </div>
+
+              <!-- two-column: changes | history -->
+              <div class="source-columns">
+
+                <!-- changes -->
+                <div class="source-col">
+                  <div class="source-col-header">
+                    <span class="col-title">Changes</span>
+                    @if (gitFiles.length > 0) {
+                      <span class="col-badge">{{ gitFiles.length }}</span>
+                    }
+                    <button class="icon-btn-sm ms-auto" (click)="loadGitStatus()" title="Refresh">
+                      <dy-icon name="refresh-cw" [size]="12"></dy-icon>
+                    </button>
+                  </div>
+
+                  @if (gitFiles.length === 0) {
+                    <div class="source-col-empty">Clean working tree</div>
+                  } @else {
+                    <div class="git-file-list">
+                      @for (f of gitFiles; track f.path) {
+                        <button
+                          class="git-file-row"
+                          [class.selected]="diffFile?.path === f.path"
+                          (click)="loadDiff(f)"
+                        >
+                          <span class="git-status" [class]="'gs-' + gitStatusClass(f)">{{ gitStatusLabel(f) }}</span>
+                          <span class="git-file-path">{{ f.path }}</span>
+                        </button>
+                      }
+                    </div>
+
+                    <!-- commit form -->
+                    <div class="commit-form">
+                      <div class="commit-author">
+                        <input
+                          class="commit-input author-input"
+                          type="text"
+                          placeholder="Name"
+                          [(ngModel)]="gitAuthorName"
+                          (blur)="saveGitIdentity()"
+                        />
+                        <input
+                          class="commit-input author-input"
+                          type="text"
+                          placeholder="Email"
+                          [(ngModel)]="gitAuthorEmail"
+                          (blur)="saveGitIdentity()"
+                        />
+                      </div>
+                      <div class="commit-row-input">
+                        <input
+                          class="commit-input"
+                          type="text"
+                          placeholder="Commit message…"
+                          [(ngModel)]="commitMsg"
+                        />
+                        <button
+                          class="btn-xs accent"
+                          [disabled]="!commitMsg.trim() || gitLoading"
+                          (click)="gitCommit()"
+                        >
+                          Commit
+                        </button>
+                      </div>
+                    </div>
+                  }
+
+                  <!-- diff viewer -->
+                  @if (diffFile) {
+                    <div class="diff-viewer">
+                      <div class="diff-header">
+                        <span class="diff-path">{{ diffFile.path }}</span>
+                        <button class="icon-btn-sm" (click)="diffFile = null; diffLines = []">
+                          <dy-icon name="x" [size]="12"></dy-icon>
+                        </button>
+                      </div>
+                      <div class="diff-body">
+                        @for (line of diffLines; track $index) {
+                          <div class="diff-line" [class]="'dl-' + line.type">
+                            <span class="diff-text">{{ line.text }}</span>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <!-- history -->
+                <div class="source-col">
+                  <div class="source-col-header">
+                    <span class="col-title">History</span>
+                    <button class="icon-btn-sm ms-auto" (click)="loadGitHistory()" title="Refresh">
+                      <dy-icon name="refresh-cw" [size]="12"></dy-icon>
+                    </button>
+                  </div>
+                  @if (historyLoading) {
+                    <div class="source-col-empty">
+                      <dy-icon name="loader" [size]="14" class="spin"></dy-icon>
+                    </div>
+                  } @else if (commits.length === 0) {
+                    <div class="source-col-empty">No commits yet</div>
+                  } @else {
+                    <div class="commit-list">
+                      @for (c of commits; track c.hash) {
+                        <div class="commit-row">
+                          <span class="commit-hash mono">{{ c.hash | slice:0:7 }}</span>
+                          <span class="commit-message">{{ c.message }}</span>
+                          <span class="commit-date">{{ relativeTime(c.date) }}</span>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+
+              </div><!-- /source-columns -->
+            }
+          </div>
+        }
+
+      </div><!-- /tab-content -->
+    }
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     FILE TREE TEMPLATE
+══════════════════════════════════════════════════════════════════════════ -->
+<ng-template #treeNodes let-nodes let-prefix="prefix" let-depth="depth">
+  @for (node of nodes; track node.name) {
+    @if (node.type === 'dir') {
+      <button class="tree-row tree-dir" [style.paddingLeft.px]="10 + depth * 16" (click)="toggleNode(node)">
+        <dy-icon name="chevron-right" [size]="12" class="tree-chev" [class.open]="expandedNodes.has(node)"></dy-icon>
+        <dy-icon [name]="expandedNodes.has(node) ? 'folder-open' : 'folder'" [size]="14" style="color:var(--accent);flex:none"></dy-icon>
+        <span class="tree-name">{{ node.name }}</span>
+      </button>
+      @if (expandedNodes.has(node) && node.children) {
+        <ng-container *ngTemplateOutlet="treeNodes; context: { $implicit: node.children, prefix: (prefix ? prefix + '/' + node.name : node.name), depth: depth + 1 }"></ng-container>
+      }
+    } @else {
+      <button
+        class="tree-row tree-file"
+        [class.is-key]="isKeyFile(node.name)"
+        [class.selected]="previewPath === (prefix ? prefix + '/' + node.name : node.name)"
+        [style.paddingLeft.px]="10 + depth * 16"
+        (click)="selectFileNode(prefix ? prefix + '/' + node.name : node.name)"
+      >
+        <span class="tree-chev-spacer"></span>
+        <dy-icon name="file-text" [size]="13" [style.color]="isKeyFile(node.name) ? 'var(--accent)' : 'var(--fg-muted)'" style="flex:none"></dy-icon>
+        <span class="tree-name">{{ node.name }}</span>
+        @if (node.lines) {
+          <span class="tree-lines mono">{{ node.lines }}</span>
+        }
+      </button>
+    }
+  }
+</ng-template>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     UPLOAD MODAL
+══════════════════════════════════════════════════════════════════════════ -->
+@if (showUpload) {
+  <div class="modal-backdrop" (click)="closeUpload()">
+    <div class="upload-modal" (click)="$event.stopPropagation()">
+
+      <!-- header -->
+      <div class="modal-head">
+        <div class="modal-title">
+          <dy-icon name="upload-cloud" [size]="16" style="color:var(--accent)"></dy-icon>
+          <span>New project</span>
+          <div class="modal-steps">
+            <span class="mstep" [class.on]="uploadStep === 1" [class.done]="uploadStep > 1">1 · Upload</span>
+            <span class="mstep-line"></span>
+            <span class="mstep" [class.on]="uploadStep === 2">2 · Configure</span>
+          </div>
+        </div>
+        <button class="icon-btn" (click)="closeUpload()">
+          <dy-icon name="x" [size]="15"></dy-icon>
+        </button>
+      </div>
+
+      <!-- ── STEP 1 ──────────────────────────────────────────── -->
+      @if (uploadStep === 1) {
+        <div class="modal-body">
+
+          <!-- hidden file inputs always present -->
+          <input #folderInput type="file" webkitdirectory multiple (change)="onFolderSelect($event)" hidden />
+          <input #zipInput type="file" accept=".zip" (change)="onZipSelect($event)" hidden />
+
+          <!-- ── empty state ── -->
+          @if (uploadEntries.length === 0 && !uploadFile && !uploadPending && !uploadProcessing) {
+            <div
+              class="dropzone"
+              [class.dragging]="dragOver"
+              (dragover)="$event.preventDefault(); dragOver = true"
+              (dragleave)="dragOver = false"
+              (drop)="onDrop($event)"
+              (click)="openFolderPicker()"
+            >
+              <div class="dropzone-icon">
+                <dy-icon name="upload-cloud" [size]="32" style="color:var(--accent)"></dy-icon>
+              </div>
+              <div class="dropzone-title">Drop a folder or .zip archive</div>
+              <div class="dropzone-sub">or <span class="dropzone-link" (click)="$event.stopPropagation(); openFolderPicker()">browse your computer</span></div>
+              <div class="dropzone-hint mono">Dockyard auto-detects Dockerfile and Compose projects</div>
+            </div>
+
+            <div class="dropzone-accepts">
+              <span class="accept-chip"><dy-icon name="file-code" [size]="12"></dy-icon> Dockerfile</span>
+              <span class="accept-chip"><dy-icon name="boxes" [size]="12"></dy-icon> docker-compose.yml</span>
+              <span class="accept-chip"><dy-icon name="folder" [size]="12"></dy-icon> Source folder</span>
+              <span class="accept-chip" style="cursor:pointer" (click)="$event.stopPropagation(); zipInput.click()"><dy-icon name="archive" [size]="12"></dy-icon> .zip / .tar.gz</span>
+            </div>
+          }
+
+          <!-- ── processing state ── -->
+          @if (uploadPending || uploadProcessing) {
+            <div class="upload-processing">
+              <span class="upload-spinner"></span>
+              <span class="upload-processing-label">{{ uploadPending ? 'Waiting for confirmation…' : 'Reading files…' }}</span>
+            </div>
+          }
+
+          <!-- ── files loaded state ── -->
+          @if ((uploadEntries.length > 0 || uploadFile) && !uploadPending && !uploadProcessing) {
+            <div class="upload-summary">
+
+              <!-- summary header -->
+              <div class="upload-summary-head">
+                <div class="upload-summary-icon">
+                  @if (uploadFile) {
+                    <dy-icon name="archive" [size]="22" style="color:var(--accent)"></dy-icon>
+                  } @else {
+                    <dy-icon name="folder" [size]="22" style="color:var(--accent)"></dy-icon>
+                  }
+                </div>
+                <div class="upload-summary-info">
+                  <span class="upload-summary-name">{{ uploadFolderName }}</span>
+                  <span class="upload-summary-meta">
+                    @if (uploadFile) {
+                      ZIP archive · {{ (uploadFile.size / 1024 / 1024).toFixed(1) }} MB
+                    } @else {
+                      {{ uploadEntries.length }} file{{ uploadEntries.length === 1 ? '' : 's' }}
+                      @if (uploadSkippedCount > 0) { · <span class="skipped-note">{{ uploadSkippedCount }} skipped</span> }
+                    }
+                  </span>
+                </div>
+                @if (detectedProjectType !== 'unknown') {
+                  <span class="upload-type-badge">
+                    <dy-icon [name]="detectedProjectType === 'compose' ? 'boxes' : 'file-code'" [size]="11"></dy-icon>
+                    {{ detectedProjectType === 'compose' ? 'Compose' : 'Dockerfile' }}
+                  </span>
+                }
+                <button class="btn-sm" style="margin-left:auto" (click)="clearUpload(); openFolderPicker()">Change</button>
+              </div>
+
+              <!-- key files row -->
+              @if (keyFilesFound.length > 0) {
+                <div class="upload-summary-keys">
+                  <span class="upload-summary-section-label">Key files</span>
+                  <div class="keyfiles">
+                    @for (f of keyFilesFound; track f) {
+                      <span class="keyfile">
+                        <dy-icon name="file-code" [size]="11" style="color:var(--accent)"></dy-icon> {{ f }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+
+              <!-- file tree preview -->
+              @if (uploadPreviewTree.length > 0) {
+                <div class="upload-summary-tree">
+                  <span class="upload-summary-section-label">Preview</span>
+                  <div class="preview-tree">
+                    <ng-container *ngTemplateOutlet="uploadTreeNodes; context: { $implicit: uploadPreviewTree, depth: 0 }"></ng-container>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+        </div>
+
+        <div class="modal-foot">
+          <span style="flex:1"></span>
+          <button class="btn-sm" (click)="closeUpload()">Cancel</button>
+          <button class="btn-sm accent" [disabled]="uploadEntries.length === 0 && !uploadFile" (click)="advanceUpload()">Continue →</button>
+        </div>
+      }
+
+      <!-- ── STEP 2 ──────────────────────────────────────────── -->
+      @if (uploadStep === 2) {
+        <div class="modal-body modal-body-2">
+
+          <!-- left: detection + tree preview -->
+          <div class="preview-left">
+            <div class="detect-banner">
+              <dy-icon [name]="detectedProjectType === 'compose' ? 'boxes' : 'file-code'" [size]="16" style="color:var(--accent)"></dy-icon>
+              <div>
+                <div class="detect-banner-title">
+                  {{ detectedProjectType === 'compose' ? 'Compose' : detectedProjectType === 'dockerfile' ? 'Dockerfile' : 'Project' }} detected
+                </div>
+                <div class="detect-banner-sub mono">{{ uploadFolderName }} · {{ uploadEntries.length || 1 }} files</div>
+              </div>
+              <span class="detect-badge">Ready</span>
+            </div>
+
+            @if (keyFilesFound.length > 0) {
+              <div class="preview-section">
+                <div class="preview-label">Key files</div>
+                <div class="keyfiles">
+                  @for (f of keyFilesFound; track f) {
+                    <span class="keyfile">
+                      <dy-icon name="file-code" [size]="12" style="color:var(--accent)"></dy-icon> {{ f }}
+                    </span>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (uploadPreviewTree.length > 0) {
+              <div class="preview-section">
+                <div class="preview-label">Source tree</div>
+                <div class="preview-tree">
+                  <ng-container *ngTemplateOutlet="uploadTreeNodes; context: { $implicit: uploadPreviewTree, depth: 0 }"></ng-container>
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- right: form -->
+          <div class="preview-right">
+            <div class="form-field">
+              <label class="form-label">Project name</label>
+              <input class="form-input" [class.error]="nameError" type="text" [(ngModel)]="uploadForm.name" placeholder="my-project" />
+              @if (nameError) { <span class="form-error">{{ nameError }}</span> }
+            </div>
+            <div class="form-field">
+              <label class="form-label">Description</label>
+              <input class="form-input" type="text" [(ngModel)]="uploadForm.description" placeholder="What does this project do?" />
+            </div>
+            <div class="form-field">
+              <label class="form-label">
+                Port mappings
+                @if (detectedPorts.length > 0) {
+                  <span class="port-detect-hint">
+                    <dy-icon name="zap" [size]="10"></dy-icon>
+                    {{ detectedPorts.length }} auto-detected from {{ detectedProjectType === 'compose' ? 'docker-compose.yml' : 'Dockerfile' }}
+                  </span>
+                }
+              </label>
+              <div class="port-mappings">
+                @for (row of uploadPortRows; track $index; let i = $index) {
+                  <div class="port-map-row">
+                    <input class="form-input mono" placeholder="host" [(ngModel)]="row.host" />
+                    <dy-icon name="arrow-right" [size]="13" style="color:var(--fg-subtle)"></dy-icon>
+                    <input class="form-input mono" placeholder="container" [(ngModel)]="row.container" />
+                    <button class="icon-btn" (click)="removeUploadPortRow(i)">
+                      <dy-icon name="x" [size]="12"></dy-icon>
+                    </button>
+                  </div>
+                }
+                <button class="add-port" (click)="addUploadPortRow()">
+                  <dy-icon name="plus" [size]="12"></dy-icon> Add port mapping
+                </button>
+              </div>
+            </div>
+
+            @if (uploading) {
+              <div class="upload-progress">
+                <div class="progress-bar">
+                  <div class="progress-fill" [style.width.%]="uploadProgress"></div>
+                </div>
+                <span class="progress-label">{{ uploadProgress }}%</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="modal-foot">
+          <button class="btn-sm" (click)="uploadStep = 1">
+            <dy-icon name="arrow-left" [size]="13"></dy-icon> Back
+          </button>
+          <span style="flex:1"></span>
+          <button class="btn-sm" (click)="closeUpload()">Cancel</button>
+          <button class="btn-sm accent" [disabled]="uploading" (click)="submitUpload()">
+            <dy-icon name="hammer" [size]="13"></dy-icon> {{ uploading ? 'Creating…' : 'Create & build' }}
+          </button>
+        </div>
+      }
+
+    </div>
+  </div>
+
+  <!-- upload tree template -->
+  <ng-template #uploadTreeNodes let-nodes let-depth="depth">
+    @for (node of nodes; track node.name) {
+      <div
+        class="up-tree-row"
+        [class.up-tree-dir]="node.type === 'dir'"
+        [class.is-key]="isKeyFile(node.name)"
+        [style.padding-left.px]="depth * 14 + 8"
+      >
+        @if (node.type === 'dir') {
+          <dy-icon name="folder" [size]="13" style="color:var(--accent)"></dy-icon>
+        } @else {
+          <dy-icon name="file-text" [size]="12" [style.color]="isKeyFile(node.name) ? 'var(--accent)' : 'var(--fg-muted)'"></dy-icon>
+        }
+        <span class="up-tree-name" [class.up-key]="isKeyFile(node.name)">{{ node.name }}</span>
+      </div>
+      @if (node.type === 'dir' && node.children) {
+        <ng-container *ngTemplateOutlet="uploadTreeNodes; context: { $implicit: node.children, depth: depth + 1 }"></ng-container>
+      }
+    }
+  </ng-template>
+}
+
+<!-- new branch modal -->
+@if (newBranchOpen) {
+  <div class="modal-backdrop" (click)="newBranchOpen = false">
+    <div class="upload-modal" style="width:440px" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div class="modal-title">
+          <dy-icon name="git-branch" [size]="16" style="color:var(--accent)"></dy-icon>
+          <span>New branch</span>
+        </div>
+        <button class="icon-btn" (click)="newBranchOpen = false">
+          <dy-icon name="x" [size]="15"></dy-icon>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label class="form-label">Branch name</label>
+          <input class="form-input mono" type="text" [(ngModel)]="newBranchName"
+                 placeholder="feature/my-branch" autofocus
+                 (keyup.enter)="submitNewBranch()" />
+          <span style="font-size:11px;color:var(--fg-subtle);">
+            Created from <b>{{ currentBranch() }}</b> and checked out.
+          </span>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span style="flex:1"></span>
+        <button class="btn-sm" (click)="newBranchOpen = false">Cancel</button>
+        <button class="btn-sm accent" [disabled]="!newBranchName.trim()" (click)="submitNewBranch()">
+          <dy-icon name="git-branch" [size]="13"></dy-icon> Create branch
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     DELETE PROGRESS MODAL
+══════════════════════════════════════════════════════════════════════════ -->
+@if (deleting) {
+  <app-modal
+    [title]="deleteDone ? 'Project deleted' : deleteError ? 'Deletion failed' : 'Deleting ' + deleteProjectName"
+    size="sm"
+    (close)="closeDeleteModal()">
+
+    <div class="del-progress">
+      <!-- progress bar -->
+      <div class="del-bar">
+        <div class="del-bar-fill"
+             [class.done]="deleteDone"
+             [class.error]="!!deleteError"
+             [style.width.%]="deleteProgressPct"></div>
+      </div>
+      <div class="del-bar-meta mono">
+        @if (deleteError) {
+          Failed
+        } @else if (deleteDone) {
+          Done · {{ deleteSteps.length }} step{{ deleteSteps.length === 1 ? '' : 's' }}
+        } @else {
+          {{ deleteDoneCount }} / {{ deleteSteps.length || '…' }}
+        }
+      </div>
+
+      <!-- step checklist -->
+      <div class="del-steps">
+        @for (s of deleteSteps; track s.key) {
+          <div class="del-step" [class]="'st-' + s.state">
+            <span class="del-step-ico">
+              @if (s.state === 'running') {
+                <dy-icon name="loader" [size]="14" class="spin"></dy-icon>
+              } @else if (s.state === 'done') {
+                <dy-icon name="check" [size]="14"></dy-icon>
+              } @else if (s.state === 'failed') {
+                <dy-icon name="x" [size]="14"></dy-icon>
+              } @else {
+                <span class="del-step-dot"></span>
+              }
+            </span>
+            <span class="del-step-label">{{ s.label }}</span>
+          </div>
+        }
+        @if (deleteSteps.length === 0 && !deleteError) {
+          <div class="del-step st-running">
+            <span class="del-step-ico"><dy-icon name="loader" [size]="14" class="spin"></dy-icon></span>
+            <span class="del-step-label">Preparing teardown…</span>
+          </div>
+        }
+      </div>
+
+      @if (deleteError) {
+        <div class="del-error mono">{{ deleteError }}</div>
+      }
+    </div>
+
+    <div modal-footer>
+      @if (deleteDone || deleteError) {
+        <button class="btn btn-sm btn-primary" (click)="closeDeleteModal()">Close</button>
+      } @else {
+        <span class="del-foot-hint mono">Working… this can take a moment</span>
+      }
+    </div>
+  </app-modal>
+}

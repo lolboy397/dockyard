@@ -1,0 +1,63 @@
+    @if (done) {
+      <div class="login fade-up">
+        <div class="login-card" style="text-align:center;">
+          <div class="login-brand">
+            <span class="finish-mark" style="margin-bottom:4px;"><dy-icon name="check" [size]="28" [strokeWidth]="2.5"></dy-icon></span>
+          </div>
+          <div class="login-title">Signed in</div>
+          <div class="login-sub">Welcome back, {{ username }}. Loading your dashboard…</div>
+          <div class="finish-bar" style="margin:22px auto 4px;"><div class="finish-bar-fill"></div></div>
+        </div>
+      </div>
+    } @else {
+      <div class="login fade-up">
+        <div class="login-card">
+          <div class="login-brand">
+            <dy-brand size="lg"></dy-brand>
+            <div style="text-align:center;">
+              <div class="login-title">Sign in</div>
+              <div class="login-sub">Authenticate to manage this instance.</div>
+            </div>
+          </div>
+
+          <div class="login-form">
+            <dy-field label="Username">
+              <dy-text-input [value]="username" (valueChange)="username = $event; error = null"
+                placeholder="admin" icon="user" [mono]="true" [autoFocus]="!knownUser" (enter)="submit()"></dy-text-input>
+            </dy-field>
+
+            <dy-field label="Password" [error]="error">
+              <dy-password-input [value]="password" (valueChange)="password = $event; error = null"
+                placeholder="Enter your password" [err]="!!error" [autoFocus]="!!knownUser" (enter)="submit()"></dy-password-input>
+            </dy-field>
+
+            <div class="login-row-between">
+              <dy-check-row [on]="remember" (toggled)="remember = !remember">Keep me signed in</dy-check-row>
+              <span class="login-link">Forgot password?</span>
+            </div>
+
+            <dy-btn variant="primary" [block]="true" [icon]="loading ? null : 'log-in'" [loading]="loading"
+              (clicked)="submit()" [disabled]="!canSubmit">
+              {{ loading ? 'Signing in…' : 'Sign in' }}
+            </dy-btn>
+          </div>
+
+          <div class="login-foot">
+            <span class="eyebrow-dot"></span>
+            <span>localhost:9443</span>
+            <span class="sep">·</span>
+            <span>engine {{ engineVersion }}</span>
+            <span class="sep">·</span>
+            <span>v{{ appVersion }}</span>
+          </div>
+        </div>
+
+        <div style="text-align:center;margin-top:16px;">
+          <span style="font-size:12px;color:var(--fg-subtle);">
+            Self-hosted Dockyard.
+            <span class="login-link" style="margin-left:5px;">Switch instance</span>
+          </span>
+        </div>
+      </div>
+    }
+  

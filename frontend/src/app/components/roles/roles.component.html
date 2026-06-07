@@ -1,0 +1,226 @@
+@if (!auth.isAdmin()) {
+  <div class="content-area">
+    <div class="empty-state" style="margin:auto;text-align:center;color:var(--fg-subtle);padding:64px;">
+      <dy-icon name="lock" [size]="22"></dy-icon>
+      <p>Role management is available to admins only.</p>
+    </div>
+  </div>
+} @else {
+<div class="body" [class.no-detail]="!selectedId">
+
+  <!-- ════════════════════ LEFT · Roles table ════════════════════ -->
+  <div class="content-area">
+    <div class="content-head">
+      <div class="content-title-row">
+        <h2 class="content-title">Roles</h2>
+        <span class="content-count mono">{{ filtered.length }} of {{ roles().length }}</span>
+      </div>
+      <div class="content-actions">
+        <button class="btn btn-ghost" (click)="load()"><dy-icon name="refresh-cw" [size]="14"></dy-icon> Refresh</button>
+        <span class="divider-v"></span>
+        <button class="btn btn-primary" (click)="openCreate()"><dy-icon name="plus" [size]="14"></dy-icon> New role</button>
+      </div>
+    </div>
+
+    <div class="content-toolbar">
+      <div class="pills">
+        @for (f of filters; track f.id) {
+          <button class="pill" [class.on]="filter === f.id" (click)="filter = f.id">
+            {{ f.label }}<span class="pill-count">{{ counts[f.id] }}</span>
+          </button>
+        }
+      </div>
+      <div class="toolbar-meta mono">{{ counts.system }} system · {{ counts.custom }} custom</div>
+    </div>
+
+    @if (loading()) {
+      <div class="empty-state" style="padding:48px;text-align:center;color:var(--fg-subtle);">Loading roles…</div>
+    } @else {
+      <div class="gtable roles-table">
+        <div class="gtable-head" [style.grid-template-columns]="roleCols">
+          <span>Role</span>
+          <span>Users</span>
+          <span>Access level</span>
+          <span></span>
+        </div>
+        @for (r of filtered; track r.id) {
+          <div class="gtable-row roles-row" [class.sel]="selectedId === r.id"
+               [style.grid-template-columns]="roleCols" (click)="select(r.id)">
+            <span class="role-list-name">
+              <span class="role-ic" [class.owner]="r.id === 'owner'" [class.custom]="r.type === 'custom'">
+                <dy-icon [name]="r.icon" [size]="15"></dy-icon>
+              </span>
+              <span class="role-list-text">
+                <span class="role-list-title">{{ r.name }}</span>
+                <span class="mini-tag">{{ r.type }}</span>
+              </span>
+            </span>
+            <span class="mono" [style.color]="r.members ? 'var(--fg-default)' : 'var(--fg-subtle)'">{{ r.members }}</span>
+            <span class="access-level">{{ r.level }}</span>
+            <span></span>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- ════════════════════ RIGHT · Role detail ════════════════════ -->
+  @if (selectedId) {
+    <div class="detail admin-detail">
+      @if (detail(); as role) {
+        <div class="detail-head">
+          <div class="detail-id">
+            <span class="role-ic lg" [class.owner]="role.id === 'owner'" [class.custom]="role.type === 'custom'">
+              <dy-icon [name]="role.icon" [size]="20"></dy-icon>
+            </span>
+            <div class="member-text">
+              <span class="detail-eyebrow">{{ role.type }} role</span>
+              <span class="detail-title">{{ role.name }}</span>
+              <span class="detail-sub mono">{{ role.members }} user{{ role.members === 1 ? '' : 's' }}</span>
+            </div>
+          </div>
+          <div class="detail-head-actions">
+            <button class="icon-btn ghost sm" (click)="closeDetail()"><dy-icon name="x" [size]="14"></dy-icon></button>
+          </div>
+        </div>
+
+        <div class="detail-body">
+          <div class="dbody">
+            <p class="role-detail-desc">{{ role.description }}</p>
+
+            <div class="dsection">
+              <span class="eyebrow">Permissions</span>
+              <div class="caps">
+                @for (g of catalogue()?.groups || []; track g.group) {
+                  <div class="cap-group">
+                    <div class="cap-group-label">{{ g.group }}</div>
+                    @for (row of g.rows; track row.key) {
+                      <div class="cap-row">
+                        <span class="cap-name">{{ row.label }}</span>
+                        <span class="cap-val {{ capState(role, row.key).cls }}">
+                          @if (capState(role, row.key).icon) { <dy-icon [name]="capState(role, row.key).icon!" [size]="12"></dy-icon> }
+                          {{ capState(role, row.key).label }}
+                        </span>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+
+            <div class="dsection">
+              <div class="dsection-head">
+                <span class="eyebrow">Users</span>
+                <span class="toolbar-meta mono">{{ members(role).length }}</span>
+              </div>
+              @if (members(role).length > 0) {
+                <div class="role-members">
+                  @for (m of members(role); track m.id) {
+                    <div class="rm-row">
+                      <span class="uavatar" [class.is-owner]="m.role === 'owner'">{{ initials(m) }}</span>
+                      <span class="member-text">
+                        <span class="member-name">{{ m.full_name || m.username }}</span>
+                        <span class="member-email mono">{{ m.email || '@' + m.username }}</span>
+                      </span>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <div class="role-empty">No users assigned yet.</div>
+              }
+            </div>
+          </div>
+        </div>
+      } @else {
+        <div class="empty-state" style="padding:48px;text-align:center;color:var(--fg-subtle);">Loading role…</div>
+      }
+    </div>
+  }
+</div>
+
+<!-- ════════════════════ Create role · modal ════════════════════ -->
+@if (creating) {
+  <div class="amodal-backdrop" (mousedown)="closeCreate()">
+    <div class="amodal amodal-lg" (mousedown)="$event.stopPropagation()">
+      <div class="amodal-head">
+        <span class="role-ic custom"><dy-icon [name]="crIcon" [size]="16"></dy-icon></span>
+        <div class="amodal-title-wrap">
+          <span class="amodal-eyebrow">New role</span>
+          <div class="amodal-title">{{ crName.trim() || 'Untitled role' }}</div>
+          <div class="amodal-sub mono">custom role</div>
+        </div>
+        <button class="icon-btn ghost sm" (click)="closeCreate()"><dy-icon name="x" [size]="14"></dy-icon></button>
+      </div>
+
+      <div class="amodal-body">
+        <!-- DETAILS -->
+        <div class="form-section">
+          <div class="field">
+            <span class="form-label">Role name</span>
+            <input class="text-input" placeholder="e.g. On-call SRE" [(ngModel)]="crName" />
+          </div>
+          <div class="field">
+            <span class="form-label">Description</span>
+            <textarea class="text-input" placeholder="What can people with this role do?" [(ngModel)]="crDesc" rows="2"></textarea>
+          </div>
+          <div class="field">
+            <span class="form-label">Icon</span>
+            <div class="icon-pick">
+              @for (ic of CR_ICONS; track ic) {
+                <button type="button" class="icon-opt" [class.on]="crIcon === ic" (click)="crIcon = ic">
+                  <dy-icon [name]="ic" [size]="16"></dy-icon>
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- TEMPLATE -->
+        <div class="form-section">
+          <span class="form-label">Start from</span>
+          <div class="tmpl-row">
+            <button type="button" class="tmpl-chip" [class.on]="crBase === 'none'" (click)="pickBase('none')">
+              <dy-icon name="circle-dashed" [size]="13"></dy-icon>Blank
+            </button>
+            @for (t of templates; track t.id) {
+              <button type="button" class="tmpl-chip" [class.on]="crBase === t.id" (click)="pickBase(t.id)">
+                <dy-icon [name]="t.icon" [size]="13"></dy-icon>{{ t.name }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- PERMISSIONS -->
+        <div class="form-section">
+          <span class="form-label">Permissions</span>
+          <div class="caps">
+            @for (g of catalogue()?.groups || []; track g.group) {
+              <div class="cap-group">
+                <div class="cap-group-label">{{ g.group }}</div>
+                @for (row of g.rows; track row.key) {
+                  <div class="cap-edit-row">
+                    <span class="cap-edit-name">{{ row.label }}</span>
+                    <div class="seg seg-perm">
+                      @for (st of catalogue()?.states || []; track st.value) {
+                        <button type="button" class="seg-opt" [class.on]="crCaps[row.key] === st.value" [class.accent]="crCaps[row.key] === st.value && st.value === 'all'" (click)="setCap(row.key, st.value)">{{ st.label }}</button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="amodal-foot">
+        <span class="foot-hint mono">creates a custom role · 0 users</span>
+        <div class="foot-right">
+          <button class="btn btn-ghost" (click)="closeCreate()">Cancel</button>
+          <button class="btn btn-primary" [class.is-disabled]="!crValid || saving" (click)="createRole()"><dy-icon name="check" [size]="14"></dy-icon> {{ saving ? 'Creating…' : 'Create role' }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+}

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Body & micro</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 20px 24px; background: var(--bg); }
+  .row { display: grid; grid-template-columns: 90px 1fr; gap: 16px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
+  .row:last-child { border-bottom: 0; }
+  .meta { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); }
+  .lg { font-size: 16px; line-height: 24px; color: var(--fg); }
+  .md { font-size: 14px; line-height: 22px; color: var(--fg-default); }
+  .sm { font-size: 12px; line-height: 18px; color: var(--fg-muted); }
+  .xs { font-size: 11px; line-height: 16px; color: var(--fg-subtle); }
+</style>
+</head>
+<body>
+  <div class="row"><span class="meta">Lead · 16</span><span class="lg">Built for teams running real containers at real scale.</span></div>
+  <div class="row"><span class="meta">Body · 14</span><span class="md">Dockyard streams logs, mounts volumes, and surfaces every exit code, in one window.</span></div>
+  <div class="row"><span class="meta">Caption · 12</span><span class="sm">Tip: press <kbd>⌘K</kbd> anywhere to open the command palette.</span></div>
+  <div class="row"><span class="meta">Micro · 11</span><span class="xs">last updated 3m ago · build 2026.05.24-a31f</span></div>
+</body>
+</html>

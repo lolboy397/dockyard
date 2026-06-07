@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Iconography</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { margin: 0; padding: 20px; background: var(--bg); }
+  .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-sm); }
+  .item svg { width: 20px; height: 20px; color: var(--fg-default); stroke-width: 1.5; }
+  .item .n { font-family: var(--font-mono); font-size: 10px; color: var(--fg-subtle); }
+  .item.accent svg { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="grid">
+    <div class="item accent"><i data-lucide="box"></i><span class="n">container</span></div>
+    <div class="item"><i data-lucide="layers"></i><span class="n">image</span></div>
+    <div class="item"><i data-lucide="database"></i><span class="n">volume</span></div>
+    <div class="item"><i data-lucide="network"></i><span class="n">network</span></div>
+    <div class="item"><i data-lucide="cloud"></i><span class="n">registry</span></div>
+    <div class="item"><i data-lucide="boxes"></i><span class="n">stack</span></div>
+    <div class="item"><i data-lucide="terminal"></i><span class="n">shell</span></div>
+    <div class="item"><i data-lucide="scroll-text"></i><span class="n">logs</span></div>
+    <div class="item"><i data-lucide="hammer"></i><span class="n">build</span></div>
+    <div class="item"><i data-lucide="download"></i><span class="n">pull</span></div>
+    <div class="item"><i data-lucide="upload"></i><span class="n">push</span></div>
+    <div class="item"><i data-lucide="play"></i><span class="n">start</span></div>
+    <div class="item"><i data-lucide="square"></i><span class="n">stop</span></div>
+    <div class="item"><i data-lucide="rotate-ccw"></i><span class="n">restart</span></div>
+    <div class="item"><i data-lucide="settings"></i><span class="n">settings</span></div>
+    <div class="item"><i data-lucide="search"></i><span class="n">search</span></div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Cards & banners</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg); display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px; }
+  .card .top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-muted); }
+  .title { font-size: 15px; font-weight: 600; color: var(--fg); margin-top: 4px; }
+  .stat { font-family: var(--font-mono); font-size: 28px; font-weight: 500; letter-spacing: -0.01em; color: var(--fg); margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .stat .unit { font-size: 14px; color: var(--fg-muted); margin-left: 4px; }
+  .meta { font-size: 12px; color: var(--fg-muted); margin-top: 6px; }
+  .meta .up { color: var(--running-400); }
+  .meta .down { color: var(--danger-400); }
+  .sparkline { width: 70px; height: 28px; }
+  .banner { display: flex; gap: 12px; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid; }
+  .banner .ic { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+  .b-info { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.30); color: var(--fg); }
+  .b-info .ic { color: var(--info-400); }
+  .b-warn { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.30); color: var(--fg); }
+  .b-warn .ic { color: var(--warn-400); }
+  .b-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .b-body { font-size: 12px; color: var(--fg-muted); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="top">
+      <div><span class="eyebrow">Containers</span><div class="title">Running now</div></div>
+      <svg class="sparkline" viewBox="0 0 70 28" fill="none" stroke="#22D3EE" stroke-width="1.5"><polyline points="0,20 10,16 20,18 30,12 40,14 50,8 60,10 70,4"/></svg>
+    </div>
+    <div class="stat">12<span class="unit">/ 14</span></div>
+    <div class="meta"><span class="up">▲ 2</span> since last hour</div>
+  </div>
+  <div class="card">
+    <div class="top">
+      <div><span class="eyebrow">Memory</span><div class="title">In use</div></div>
+      <svg class="sparkline" viewBox="0 0 70 28" fill="none" stroke="#22D3EE" stroke-width="1.5"><polyline points="0,8 10,12 20,10 30,14 40,18 50,16 60,20 70,18"/></svg>
+    </div>
+    <div class="stat">8.4<span class="unit">GB</span></div>
+    <div class="meta">of 16 GB available · 52%</div>
+  </div>
+  <div class="banner b-info" style="grid-column: 1 / -1">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <div><div class="b-title">Engine update available — 26.1.4 → 26.2.0</div><div class="b-body">Includes security patches and BuildKit performance improvements. Restart engine to apply.</div></div>
+  </div>
+  <div class="banner b-warn" style="grid-column: 1 / -1">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div><div class="b-title">Disk usage is 89% — 218 GB of 244 GB used</div><div class="b-body">Run <span class="mono" style="color:var(--accent)">docker system prune</span> or remove unused images to free space.</div></div>
+  </div>
+</body>
+</html>

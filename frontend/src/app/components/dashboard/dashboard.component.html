@@ -1,0 +1,232 @@
+<div class="dash">
+
+  <!-- ── Header band ──────────────────────────────────────────────────── -->
+  <div class="dash-header">
+    <div class="dash-header-left">
+      <div class="dash-env">
+        <dy-dot tone="running" [size]="9"></dy-dot>
+        <span class="dash-env-name mono">{{ info?.Name || 'local' }}</span>
+        <span class="dash-env-region">{{ info?.OperatingSystem }} · {{ info?.NCPU }} cores</span>
+      </div>
+      <h1 class="dash-h1">{{ headline }}</h1>
+    </div>
+    <div class="dash-clock">
+      <div class="dash-time mono">{{ time }}</div>
+      <div class="dash-date">{{ date }}</div>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="dash-loading">connecting…</div>
+  } @else {
+
+    <!-- ── KPI row ──────────────────────────────────────────────────────── -->
+    <div class="dash-kpis">
+
+      <!-- CONTAINERS -->
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-ic" style="color:var(--running-400)">
+            <dy-icon name="box" [size]="16"></dy-icon>
+          </span>
+          <span class="kpi-label">Containers</span>
+        </div>
+        <div class="kpi-value mono">{{ info?.ContainersRunning ?? 0 }}</div>
+        <div class="kpi-sub">of {{ info?.Containers ?? 0 }} total</div>
+      </div>
+
+      <!-- PROJECTS -->
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-ic" style="color:var(--accent)">
+            <dy-icon name="rocket" [size]="16"></dy-icon>
+          </span>
+          <span class="kpi-label">Projects</span>
+        </div>
+        <div class="kpi-value mono">{{ projects.length }}</div>
+        <div class="kpi-sub">{{ projectsBuilding }} building · {{ projectsFailed }} failed</div>
+      </div>
+
+      <!-- IMAGES -->
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-ic" style="color:var(--info-400)">
+            <dy-icon name="layers" [size]="16"></dy-icon>
+          </span>
+          <span class="kpi-label">Images</span>
+        </div>
+        <div class="kpi-value mono">{{ info?.Images ?? 0 }}</div>
+        <div class="kpi-sub">{{ formatGB(totalImageSize) }} total</div>
+      </div>
+
+      <!-- EVENTS TODAY -->
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-ic" style="color:var(--running-400)">
+            <dy-icon name="git-commit-horizontal" [size]="16"></dy-icon>
+          </span>
+          <span class="kpi-label">Events today</span>
+        </div>
+        <div class="kpi-value mono">{{ deploysToday }}</div>
+        <div class="kpi-sub">{{ successRate }}% success rate</div>
+      </div>
+
+    </div>
+
+    <!-- ── Main 12-col grid ─────────────────────────────────────────────── -->
+    <div class="dash-grid">
+
+      <!-- HOST RESOURCES — span-4 -->
+      <div class="dash-card span-4">
+        <div class="dash-card-head">
+          <span class="eyebrow">Host resources</span>
+          <span class="dim mono">live · 5s</span>
+        </div>
+        <div class="rings">
+
+          <!-- CPU ring -->
+          <div class="ring">
+            <svg [attr.width]="88" [attr.height]="88">
+              <circle cx="44" cy="44" [attr.r]="ringR" fill="none" stroke="var(--bg-inset)" stroke-width="6"/>
+              <circle cx="44" cy="44" [attr.r]="ringR" fill="none" stroke="#22D3EE" stroke-width="6"
+                stroke-linecap="round"
+                [attr.stroke-dasharray]="ringC"
+                [attr.stroke-dashoffset]="ringOffset(cpuPct)"
+                transform="rotate(-90 44 44)"/>
+            </svg>
+            <div class="ring-center">
+              <div class="ring-value mono">{{ cpuPct | number:'1.0-0' }}%</div>
+              <div class="ring-label">CPU</div>
+            </div>
+          </div>
+
+          <!-- Memory ring -->
+          <div class="ring">
+            <svg [attr.width]="88" [attr.height]="88">
+              <circle cx="44" cy="44" [attr.r]="ringR" fill="none" stroke="var(--bg-inset)" stroke-width="6"/>
+              <circle cx="44" cy="44" [attr.r]="ringR" fill="none" stroke="#34D399" stroke-width="6"
+                stroke-linecap="round"
+                [attr.stroke-dasharray]="ringC"
+                [attr.stroke-dashoffset]="ringOffset(memPct)"
+                transform="rotate(-90 44 44)"/>
+            </svg>
+            <div class="ring-center">
+              <div class="ring-value mono">{{ memUsedGB }}G</div>
+              <div class="ring-label">Memory</div>
+            </div>
+          </div>
+
+          <!-- Disk ring -->
+          <div class="ring">
+            <svg [attr.width]="88" [attr.height]="88">
+              <circle cx="44" cy="44" [attr.r]="ringR" fill="none" stroke="var(--bg-inset)" stroke-width="6"/>
+              <circle cx="44" cy="44" [attr.r]="ringR" fill="none" stroke="#FBBF24" stroke-width="6"
+                stroke-linecap="round"
+                [attr.stroke-dasharray]="ringC"
+                [attr.stroke-dashoffset]="ringOffset(diskPct)"
+                transform="rotate(-90 44 44)"/>
+            </svg>
+            <div class="ring-center">
+              <div class="ring-value mono">{{ diskPct | number:'1.0-0' }}%</div>
+              <div class="ring-label">Disk</div>
+            </div>
+          </div>
+
+        </div>
+        <div class="res-foot mono">
+          <span>{{ info?.NCPU }} cores</span>
+          <span>{{ formatGB(info?.MemTotal) }} RAM</span>
+          <span>{{ formatGB(hostStats?.disk_total) }} SSD</span>
+        </div>
+      </div>
+
+      <!-- HOST LOAD (live) — span-8 -->
+      <div class="dash-card span-8">
+        <div class="dash-card-head">
+          <span class="eyebrow">Host load · live</span>
+          <div class="legend">
+            <span class="leg-it"><span class="leg-dot" style="background:#22D3EE"></span>CPU %</span>
+            <span class="leg-it"><span class="leg-dot" style="background:#34D399"></span>Memory %</span>
+          </div>
+        </div>
+        <div class="dual-chart">
+          @if (cpuHistory.length < 2) {
+            <div class="dash-empty" style="height:120px;display:flex;align-items:center;justify-content:center;">Collecting live samples…</div>
+          } @else {
+            <svg viewBox="0 0 480 120" preserveAspectRatio="none" style="width:100%;height:120px;display:block">
+              <polygon [attr.points]="pctPoly(cpuHistory)" fill="#22D3EE" opacity="0.07"/>
+              <polyline [attr.points]="pctPoints(cpuHistory)" fill="none" stroke="#22D3EE" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+              <polygon [attr.points]="pctPoly(memHistory)" fill="#34D399" opacity="0.07"/>
+              <polyline [attr.points]="pctPoints(memHistory)" fill="none" stroke="#34D399" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+            </svg>
+          }
+        </div>
+      </div>
+
+      <!-- PROJECTS — span-7 -->
+      <div class="dash-card span-7">
+        <div class="dash-card-head">
+          <span class="eyebrow">Projects</span>
+          <span class="dim mono">{{ projectsRunning }} running · {{ projects.length }} total</span>
+        </div>
+        @if (dashProjects.length === 0) {
+          <div class="dash-empty">No projects configured</div>
+        } @else {
+          <div class="dash-proj-grid">
+            @for (p of dashProjects; track p.id) {
+              <div class="dash-proj" [ngClass]="projCardClass(p.status)">
+                <div class="dash-proj-top">
+                  <dy-dot [tone]="projTone(p.status)" [size]="9"></dy-dot>
+                  <span class="dash-proj-name">{{ p.name }}</span>
+                  <dy-icon [name]="p.type === 'compose' ? 'boxes' : 'file-code'" [size]="12" style="color:var(--fg-subtle);flex:none"></dy-icon>
+                </div>
+                <div class="dash-proj-meta mono">
+                  @if (p.status === 'running') {
+                    <span style="color:var(--running-400)">running</span>
+                  } @else if (p.status === 'building') {
+                    <span class="amber">building…</span>
+                  } @else if (p.status === 'failed') {
+                    <span class="red">failed</span>
+                  } @else {
+                    <span>{{ timeAgo(p.updated_at) }}</span>
+                  }
+                  @if (projPort(p)) {
+                    <span class="dash-proj-port">:{{ projPort(p) }}</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- LIVE ACTIVITY — span-5 -->
+      <div class="dash-card span-5">
+        <div class="dash-card-head">
+          <span class="eyebrow">Live activity</span>
+          <span class="live-pulse">
+            <dy-dot tone="running" [size]="6"></dy-dot>
+            live
+          </span>
+        </div>
+        <div class="dash-activity">
+          @if (activityEvents.length === 0) {
+            <div class="dash-empty">No recent activity</div>
+          }
+          @for (e of activityEvents; track e.id) {
+            <div class="dash-act-row">
+              <span class="dash-act-time mono">{{ formatActTime(e.created_at) }}</span>
+              <span class="dash-act-ic" [ngClass]="'dash-act-' + actTone(e.kind)">
+                <dy-icon [name]="actIcon(e.kind)" [size]="11"></dy-icon>
+              </span>
+              <span class="dash-act-text">{{ actLabel(e) }}</span>
+              <span class="dash-act-who mono">{{ e.actor || '—' }}</span>
+            </div>
+          }
+        </div>
+      </div>
+
+    </div>
+  }
+
+</div>

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Status colors</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 16px; background: var(--bg); }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .item { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 110px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+  .label { font-size: 12px; font-weight: 600; color: var(--fg); }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--r-xs); font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; font-weight: 500; }
+  .hex { font-family: var(--font-mono); font-size: 10px; color: var(--fg-subtle); margin-top: auto; }
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="item">
+    <div class="row"><span class="dot" style="background:#34D399"></span><span class="label">running</span></div>
+    <div><span class="badge" style="background:rgba(16,185,129,0.12); color:#34D399">● running</span></div>
+    <span class="hex">#10B981</span>
+  </div>
+  <div class="item">
+    <div class="row"><span class="dot" style="background:#FBBF24"></span><span class="label">warn</span></div>
+    <div><span class="badge" style="background:rgba(245,158,11,0.12); color:#FBBF24">● paused</span></div>
+    <span class="hex">#F59E0B</span>
+  </div>
+  <div class="item">
+    <div class="row"><span class="dot" style="background:#F87171"></span><span class="label">danger</span></div>
+    <div><span class="badge" style="background:rgba(239,68,68,0.12); color:#F87171">● error</span></div>
+    <span class="hex">#EF4444</span>
+  </div>
+  <div class="item">
+    <div class="row"><span class="dot" style="background:#60A5FA"></span><span class="label">info</span></div>
+    <div><span class="badge" style="background:rgba(59,130,246,0.12); color:#60A5FA">● syncing</span></div>
+    <span class="hex">#3B82F6</span>
+  </div>
+  <div class="item">
+    <div class="row"><span class="dot" style="background:#94A3B8"></span><span class="label">idle</span></div>
+    <div><span class="badge" style="background:rgba(148,163,184,0.10); color:#94A3B8">● exited</span></div>
+    <span class="hex">#94A3B8</span>
+  </div>
+</div>
+</body>
+</html>

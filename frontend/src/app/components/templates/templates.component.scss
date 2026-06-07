@@ -1,0 +1,13 @@
+    .tpl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; padding:0 20px 32px; }
+    .tpl-card { display:flex; flex-direction:column; gap:10px; padding:16px; background:var(--bg-elevated);
+      border:1px solid var(--border); border-radius:var(--r-lg); transition:border-color var(--t-fast), transform var(--t-fast); }
+    .tpl-card:hover { border-color:var(--border-strong); }
+    .tpl-top { display:flex; align-items:center; gap:10px; }
+    .tpl-ic { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px;
+      border-radius:var(--r-md); background:var(--accent-soft); color:var(--accent); flex:0 0 auto; }
+    .tpl-name { font-size:14px; font-weight:var(--fw-semi); color:var(--fg-default); }
+    .tpl-cat { font-size:10px; text-transform:uppercase; letter-spacing:var(--tracking-caps); color:var(--fg-subtle); }
+    .tpl-desc { font-size:12px; color:var(--fg-muted); line-height:1.5; flex:1; }
+    .tpl-foot { display:flex; align-items:center; justify-content:space-between; margin-top:4px; }
+    .tpl-svc { font-size:11px; color:var(--fg-subtle); }
+  

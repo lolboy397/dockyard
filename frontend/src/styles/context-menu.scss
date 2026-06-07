@@ -1,0 +1,160 @@
+/* =========================================================================
+   CONTEXT MENU
+   Right-click menu used across Containers, Projects, Volumes, Images,
+   Networks and Stacks. 1:1 port of the design-system context-menu.css —
+   built on the shared menu tokens (see preview/comp-menu.html).
+   ========================================================================= */
+
+/* ----- layer + backdrop ------------------------------------------------- */
+.cm-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+}
+
+/* ----- menu surface ----------------------------------------------------- */
+.cm {
+  position: fixed;
+  min-width: 216px;
+  max-width: 280px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  padding: 4px;
+  box-shadow: var(--sh-3);
+  z-index: 901;
+  transform-origin: var(--cm-origin, top left);
+  animation: cm-in 130ms var(--ease-out);
+}
+@keyframes cm-in {
+  from { transform: scale(0.96) translateY(-2px); }
+  to   { transform: scale(1) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm { animation: none; }
+}
+
+/* ----- header (target identity) ---------------------------------------- */
+.cm-header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px 8px;
+  margin: 2px 2px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.cm-header .cm-h-ic {
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none;
+  border-radius: var(--r-sm);
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+}
+.cm-header .cm-h-main { min-width: 0; line-height: 1.2; }
+.cm-header .cm-h-name {
+  display: block;
+  font-size: 13px; font-weight: 500; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cm-header .cm-h-meta {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px; color: var(--fg-subtle);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ----- section label ---------------------------------------------------- */
+.cm-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  font-weight: var(--fw-med);
+  padding: 7px 10px 4px;
+}
+
+/* ----- item ------------------------------------------------------------- */
+.cm-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--fg-default);
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.cm-item .cm-ic {
+  width: 15px; height: 15px;
+  flex: none;
+  color: var(--fg-muted);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.cm-item .cm-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cm-item .cm-text b { font-weight: 500; color: var(--fg); }
+
+/* trailing slot: shortcut / submenu chevron / check */
+.cm-item .cm-k {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--fg-subtle);
+  letter-spacing: 0.02em;
+}
+.cm-item .cm-chev { margin-left: auto; color: var(--fg-subtle); display: inline-flex; }
+.cm-item .cm-check { margin-left: auto; color: var(--accent); display: inline-flex; }
+.cm-item .cm-check.off { color: transparent; }
+
+/* hover / keyboard-active */
+.cm-item:not(.disabled):hover,
+.cm-item.active {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.cm-item:not(.disabled):hover .cm-ic,
+.cm-item.active .cm-ic { color: var(--fg-default); }
+
+/* danger */
+.cm-item.danger { color: var(--danger-400); }
+.cm-item.danger .cm-ic { color: var(--danger-400); }
+.cm-item.danger:not(.disabled):hover,
+.cm-item.danger.active { background: var(--danger-bg); color: var(--danger-400); }
+.cm-item.danger:not(.disabled):hover .cm-ic,
+.cm-item.danger.active .cm-ic { color: var(--danger-400); }
+
+/* accent (primary action, e.g. View) */
+.cm-item.accent .cm-ic { color: var(--accent); }
+
+/* disabled */
+.cm-item.disabled {
+  color: var(--fg-disabled);
+  cursor: default;
+}
+.cm-item.disabled .cm-ic { color: var(--fg-disabled); }
+.cm-item.disabled .cm-k { color: var(--fg-disabled); }
+
+/* separator */
+.cm-sep {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 6px;
+}
+
+/* submenu */
+.cm-sub {
+  position: fixed;
+  min-width: 180px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  padding: 4px;
+  box-shadow: var(--sh-3);
+  z-index: 902;
+  animation: cm-in 110ms var(--ease-out);
+}

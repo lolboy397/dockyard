@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Badges & status</title>
+<link rel="stylesheet" href="../colors_and_type.css"/>
+<style>
+  body { margin: 0; padding: 22px; background: var(--bg); display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); width: 80px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 3px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+  .dot { width: 6px; height: 6px; border-radius: 999px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--bg-raised); border: 1px solid var(--border); color: var(--fg-default); font-size: 12px; font-weight: 500; }
+  .tag { display: inline-flex; padding: 2px 6px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px; color: var(--fg-muted); background: var(--bg-raised); border: 1px solid var(--border-subtle); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <span class="lbl">Status</span>
+    <span class="badge" style="background:rgba(16,185,129,0.12); color:#34D399"><span class="dot" style="background:#34D399"></span>Running</span>
+    <span class="badge" style="background:rgba(245,158,11,0.12); color:#FBBF24"><span class="dot" style="background:#FBBF24"></span>Paused</span>
+    <span class="badge" style="background:rgba(239,68,68,0.12); color:#F87171"><span class="dot" style="background:#F87171"></span>Crashed</span>
+    <span class="badge" style="background:rgba(148,163,184,0.10); color:#94A3B8"><span class="dot" style="background:#94A3B8"></span>Exited</span>
+    <span class="badge" style="background:rgba(59,130,246,0.12); color:#60A5FA"><span class="dot" style="background:#60A5FA"></span>Pulling</span>
+  </div>
+  <div class="row">
+    <span class="lbl">Chips</span>
+    <span class="chip"><span class="dot" style="background:var(--accent)"></span>production</span>
+    <span class="chip">staging</span>
+    <span class="chip">us-east-1</span>
+    <span class="chip" style="background: var(--accent-soft); border-color: var(--accent); color: var(--accent)">+ tag</span>
+  </div>
+  <div class="row">
+    <span class="lbl">Tags · meta</span>
+    <span class="tag">image:nginx:1.27</span>
+    <span class="tag">network:bridge</span>
+    <span class="tag">volume:pgdata</span>
+    <span class="tag">:8080→80</span>
+  </div>
+</body>
+</html>
