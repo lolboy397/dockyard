@@ -17,6 +17,16 @@ const encPrefix = "enc:"
 
 var encKey []byte
 
+// secretKeyExternal is true when the at-rest key came from $DOCKYARD_SECRET_KEY
+// (managed out-of-band) rather than the generated /data/secret.key file. The
+// application-backup engine uses this to decide whether secret.key must be
+// included in the archive.
+var secretKeyExternal bool
+
+// SecretKeyExternal reports whether the encryption key is supplied via the
+// environment (so it is NOT stored in the data volume and need not be archived).
+func SecretKeyExternal() bool { return secretKeyExternal }
+
 // initSecretKey loads the at-rest encryption key from $DOCKYARD_SECRET_KEY
 // (base64, 32 bytes) or a key persisted next to the database, generating and
 // persisting one on first run. If no key can be established, secrets are stored
@@ -25,6 +35,7 @@ func initSecretKey(dbPath string) {
 	if v := strings.TrimSpace(os.Getenv("DOCKYARD_SECRET_KEY")); v != "" {
 		if k, err := base64.StdEncoding.DecodeString(v); err == nil && len(k) == 32 {
 			encKey = k
+			secretKeyExternal = true
 			log.Println("[secrets] at-rest encryption key loaded from $DOCKYARD_SECRET_KEY")
 			return
 		}

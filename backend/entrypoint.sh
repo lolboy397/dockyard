@@ -17,7 +17,7 @@ APP_GID=10001
 export HOME=/home/app
 
 if [ "$(id -u)" = "0" ]; then
-    for d in /data /backups; do
+    for d in /data /backups /host-backups; do
         if [ -d "$d" ] && [ ! -e "$d/.dockyard-owner" ]; then
             echo "[entrypoint] taking ownership of $d for uid ${APP_UID} (one-time)..."
             chown -R "${APP_UID}:${APP_GID}" "$d" 2>/dev/null || true

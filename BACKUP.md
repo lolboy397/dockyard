@@ -19,9 +19,31 @@ In-app **volume backups** (below) are stored separately in the **`backup-data`**
 volume (`/backups`), so they never bloat or threaten `backend-data`. They are
 regenerable, so they're lower priority to back up than `backend-data`.
 
+## Application backup (in-app — recommended)
+
+The easiest way to protect `backend-data` is the built-in **Application backup**
+(admin only): **Backups** in the sidebar, or `POST /api/v1/system/backups`.
+
+- It takes a **transactionally-consistent database snapshot** (`VACUUM INTO` — no
+  downtime, no torn WAL copy) and bundles it with `stacks/`, `repos/`, `projects/`
+  and the encryption key into one `.tar.gz`.
+- The archive is written to a **host directory** (the `/host-backups` bind mount,
+  set by `BACKUP_HOST_DIR`, default `./backups`) so it **survives loss of the
+  Docker volumes**. Point `BACKUP_HOST_DIR` at an external disk / NAS for true
+  off-host durability.
+- Turn on **automatic backups** (daily/weekly/…) from the same page; they run on
+  the server with no browser open, with retention (newest *N* kept).
+- **`secret.key` handling:** the archive includes `secret.key` *unless* you manage
+  the key out-of-band via `DOCKYARD_SECRET_KEY` (in which case it is excluded, and
+  you back the key up separately). An archive that includes the key can decrypt all
+  your secrets — store it securely.
+
+> Restore is intentionally a **host-side** operation (you can't hot-restore the
+> live database the app is running on) — see [Restore an application backup](#restore-an-application-backup).
+
 ## Back up
 
-Stop-free snapshot of the entire volume:
+The manual equivalent of the above — a stop-free snapshot of the entire volume:
 
 ```bash
 docker run --rm \
@@ -45,6 +67,26 @@ docker run --rm \
   alpine sh -c "rm -rf /data/* && tar xzf /backup/dockyard-backup.tgz -C /data"
 docker compose start backend
 ```
+
+### Restore an application backup
+
+An **Application backup** archive (`dockyard-app-<timestamp>-<withkey|nokey>.tar.gz`,
+downloaded from the Backups page or taken from `BACKUP_HOST_DIR`) unpacks directly
+into `backend-data`: it contains `docker-manager.db` at the top level, plus
+`stacks/`, `repos/`, `projects/` and (for `-withkey` archives) `secret.key`.
+
+```bash
+docker compose stop backend
+docker run --rm \
+  -v docker-manager_backend-data:/data \
+  -v "$PWD":/backup \
+  alpine sh -c "rm -rf /data/* && tar xzf /backup/dockyard-app-<timestamp>-withkey.tar.gz -C /data"
+docker compose start backend
+```
+
+For a `-nokey` archive (key managed via `DOCKYARD_SECRET_KEY`), make sure the
+**same** `DOCKYARD_SECRET_KEY` is set before starting, or previously-encrypted
+secrets won't decrypt.
 
 ## In-app volume backup / restore (UI)
 

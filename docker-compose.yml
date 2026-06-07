@@ -83,6 +83,10 @@ services:
       # Volume backups live on their own volume so they can't bloat or threaten
       # the critical DB volume; the backend auto-discovers this mount by name.
       - backup-data:/backups
+      # Application backups land on a HOST directory (bind mount) so they survive
+      # loss of the Docker volumes. Point BACKUP_HOST_DIR at an external disk/NAS
+      # for off-host durability. The dir is chowned to the app uid on first run.
+      - ${BACKUP_HOST_DIR:-./backups}:/host-backups
     security_opt:
       - no-new-privileges:true
     # Memory ceiling so a leak can't take down the whole host while unattended.

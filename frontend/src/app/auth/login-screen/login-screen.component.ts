@@ -37,7 +37,7 @@ export class LoginScreenComponent implements OnInit {
   get canSubmit(): boolean { return !!this.username.trim() && this.password.length > 0; }
 
   get engineVersion(): string { return this.auth.status()?.engine_version || '26.1.4'; }
-  get appVersion(): string { return this.auth.status()?.app_version || '2.1.0'; }
+  get appVersion(): string { return this.auth.status()?.app_version || '0.0.1'; }
 
   submit(): void {
     if (!this.canSubmit || this.loading) return;

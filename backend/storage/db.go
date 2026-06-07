@@ -99,6 +99,9 @@ func Open(path string) (*DB, error) {
 	if err := db.migrateV22(); err != nil {
 		return nil, fmt.Errorf("migrateV22: %w", err)
 	}
+	if err := db.migrateV23(); err != nil {
+		return nil, fmt.Errorf("migrateV23: %w", err)
+	}
 	initSecretKey(path)
 	return db, nil
 }

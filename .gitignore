@@ -22,6 +22,8 @@ coverage.txt
 
 # ── Runtime data volumes ──────────────────────────────────────
 /data/
+# Default host directory for application backups (BACKUP_HOST_DIR)
+/backups/
 
 # ── Node / Angular (frontend has its own .gitignore too) ──────
 node_modules/

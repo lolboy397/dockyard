@@ -46,6 +46,21 @@ export interface StackDeploy {
   created_at: string;
 }
 
+export interface AppBackup {
+  name: string;
+  size_bytes: number;
+  created_at: string;
+  secret_included: boolean;
+}
+
+export interface AppBackupSchedule {
+  enabled: boolean;
+  interval_hours: number;
+  keep: number;
+  last_run_at: string | null;
+  updated_at: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DockerService {
   private base = '/api/v1';
@@ -310,6 +325,35 @@ export class DockerService {
     Observable<{ configured: boolean; schedule: BackupSchedule }> {
     return this.http.put<{ configured: boolean; schedule: BackupSchedule }>(
       `${this.base}/volumes/${encodeURIComponent(name)}/backup-schedule`, body);
+  }
+
+  // ---- Application (system) backup -------------------------------------------
+  listAppBackups(): Observable<{ configured: boolean; key_external: boolean; backups: AppBackup[] }> {
+    return this.http.get<{ configured: boolean; key_external: boolean; backups: AppBackup[] }>(
+      `${this.base}/system/backups`);
+  }
+
+  createAppBackup(): Observable<AppBackup> {
+    return this.http.post<AppBackup>(`${this.base}/system/backups`, null);
+  }
+
+  deleteAppBackup(name: string): Observable<{ status: string }> {
+    return this.http.delete<{ status: string }>(`${this.base}/system/backups/${encodeURIComponent(name)}`);
+  }
+
+  downloadAppBackup(name: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${this.base}/system/backups/${encodeURIComponent(name)}/download`, {
+      responseType: 'blob', observe: 'response',
+    });
+  }
+
+  getAppBackupSchedule(): Observable<{ configured: boolean; schedule: AppBackupSchedule }> {
+    return this.http.get<{ configured: boolean; schedule: AppBackupSchedule }>(`${this.base}/system/backup-schedule`);
+  }
+
+  setAppBackupSchedule(body: { enabled: boolean; interval_hours: number; keep: number }):
+    Observable<{ configured: boolean; schedule: AppBackupSchedule }> {
+    return this.http.put<{ configured: boolean; schedule: AppBackupSchedule }>(`${this.base}/system/backup-schedule`, body);
   }
 
   // ---- Events ----------------------------------------------------------------

@@ -342,14 +342,16 @@ func (s *BackupService) Restore(vol string, id int64) error {
 
 // ---- scheduler --------------------------------------------------------------
 
-// RunScheduler runs the opt-in automatic-backup loop until ctx is cancelled.
+// RunScheduler runs the opt-in automatic-backup loop until ctx is cancelled. It
+// drives both per-volume schedules (needs /backups) and the application backup
+// (needs /host-backups); it starts if either destination is available.
 func (s *BackupService) RunScheduler(ctx context.Context) {
-	if !s.Configured() {
-		log.Println("[backup] scheduler disabled: no /backups volume mounted")
+	if !s.Configured() && !s.AppBackupConfigured() {
+		log.Println("[backup] scheduler disabled: neither /backups nor /host-backups mounted")
 		return
 	}
 	tick := backupScheduleTick()
-	log.Printf("[backup] scheduler started (tick %s)", tick)
+	log.Printf("[backup] scheduler started (tick %s; volumes=%t app=%t)", tick, s.Configured(), s.AppBackupConfigured())
 	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
 	for {
@@ -358,7 +360,10 @@ func (s *BackupService) RunScheduler(ctx context.Context) {
 			log.Println("[backup] scheduler stopped")
 			return
 		case <-ticker.C:
-			s.runDueSchedules()
+			if s.Configured() {
+				s.runDueSchedules()
+			}
+			s.runDueAppBackup()
 		}
 	}
 }

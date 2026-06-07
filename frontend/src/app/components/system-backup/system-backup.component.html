@@ -1,0 +1,134 @@
+<div class="content-area">
+  <div class="content-head">
+    <div class="content-title-row">
+      <div>
+        <div class="eyebrow" style="margin-bottom:2px;">Dockyard's own data &middot; database + secrets + stacks / repos / projects</div>
+        <h2 class="content-title">Application backup</h2>
+      </div>
+      <div class="content-actions">
+        <button class="icon-btn" (click)="load()" title="Refresh"><dy-icon name="refresh-cw" [size]="14"></dy-icon></button>
+        <button class="btn btn-sm btn-primary" (click)="createNow()" [disabled]="!configured || creating || !auth.isAdmin()">
+          <dy-icon name="database" [size]="13"></dy-icon> {{ creating ? 'Backing up…' : 'Back up now' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  @if (!auth.isAdmin()) {
+    <div class="sb-note warn">Application backups are restricted to administrators.</div>
+  } @else {
+
+    @if (!configured && !loading) {
+      <div class="sb-note warn">
+        The host backup directory isn’t mounted. Add a <span class="mono">/host-backups</span> bind mount to the backend
+        (set <span class="mono">BACKUP_HOST_DIR</span> in your <span class="mono">.env</span>) and restart.
+      </div>
+    }
+
+    <!-- Automatic backups -->
+    <div class="sb-card">
+      <div class="sb-card-head">
+        <span class="eyebrow">Automatic backups</span>
+        @if (schedule?.enabled) {
+          <span class="badge badge-running" style="font-size:9px;"><span class="badge-dot"></span>on</span>
+        }
+      </div>
+      <p class="sb-muted">
+        Opt in to scheduled application backups — they run in the background on the server (no browser needed) and are
+        ideal for an unattended 24/7 host.
+      </p>
+      <div class="sb-form-row">
+        <label class="sb-check">
+          <input type="checkbox" [(ngModel)]="scheduleForm.enabled" [disabled]="!configured" /> Enabled
+        </label>
+        <div class="field" style="margin:0;">
+          <label class="label">Frequency</label>
+          <select class="input input-sm" [(ngModel)]="scheduleForm.interval_hours"
+                  [disabled]="!scheduleForm.enabled || !configured" style="width:160px;">
+            @for (iv of intervals; track iv.value) {
+              <option [ngValue]="iv.value">{{ iv.label }}</option>
+            }
+          </select>
+        </div>
+        <div class="field" style="margin:0;">
+          <label class="label">Keep</label>
+          <input class="input input-sm" type="number" min="1" max="100" [(ngModel)]="scheduleForm.keep"
+                 [disabled]="!scheduleForm.enabled || !configured" style="width:80px;" />
+        </div>
+        <button class="btn btn-sm btn-primary" (click)="saveSchedule()" [disabled]="savingSchedule || !configured">
+          <dy-icon name="save" [size]="12"></dy-icon> {{ savingSchedule ? 'Saving…' : 'Save schedule' }}
+        </button>
+      </div>
+      @if (schedule?.enabled) {
+        <div class="sb-muted" style="margin-top:8px;">Last run: {{ scheduleLastRun() }}</div>
+      }
+    </div>
+
+    <!-- Backups list -->
+    <div class="sb-card">
+      <div class="sb-card-head"><span class="eyebrow">Backups</span></div>
+      <p class="sb-muted">
+        Each backup is a consistent database snapshot bundled with your stacks, repos, projects and (unless managed
+        out-of-band) the encryption key, written to the host backup directory so it survives loss of the Docker volumes.
+      </p>
+
+      @if (loading) {
+        <div class="sb-empty">Loading…</div>
+      } @else if (backups.length === 0) {
+        <div class="sb-empty">
+          <dy-icon name="database" [size]="26" color="var(--ink-6)"></dy-icon>
+          <span class="eyebrow">No backups yet</span>
+          <span class="sb-muted">Create one to capture Dockyard’s current state.</span>
+        </div>
+      } @else {
+        <div class="gtable">
+          <div class="gtable-head" style="grid-template-columns:1.7fr 190px 90px 120px auto;">
+            <span>File</span><span>Created</span><span>Size</span><span>Contains</span><span style="text-align:right;">Actions</span>
+          </div>
+          @for (b of backups; track b.name) {
+            <div class="gtable-row" style="grid-template-columns:1.7fr 190px 90px 120px auto;align-items:center;">
+              <span class="mono sb-name">{{ b.name }}</span>
+              <span style="font-size:12px;color:var(--fg-muted);">{{ formatDate(b.created_at) }}</span>
+              <span class="mono" style="font-size:11px;color:var(--fg-muted);">{{ formatBytes(b.size_bytes) }}</span>
+              <span>
+                @if (b.secret_included) {
+                  <span class="badge badge-warn" style="font-size:9px;"><span class="badge-dot"></span>incl. key</span>
+                } @else {
+                  <span class="badge" style="font-size:9px;">no key</span>
+                }
+              </span>
+              <span style="display:flex;justify-content:flex-end;gap:4px;">
+                <button class="icon-btn sm ghost" (click)="download(b)" title="Download archive" [disabled]="busyName !== null">
+                  <dy-icon name="download" [size]="14"></dy-icon>
+                </button>
+                <button class="icon-btn sm ghost" (click)="remove(b)" title="Delete backup" [disabled]="busyName !== null">
+                  <dy-icon name="trash-2" [size]="14"></dy-icon>
+                </button>
+              </span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Restore & key guidance -->
+    <div class="sb-card">
+      <div class="sb-card-head"><span class="eyebrow">Restoring &amp; the encryption key</span></div>
+      <ul class="sb-list">
+        <li>Backups are written to the host directory set by <span class="mono">BACKUP_HOST_DIR</span> (default
+          <span class="mono">./backups</span>). Point it at an external disk or NAS for true off-host durability.</li>
+        <li><strong>Restore</strong> is a host-side procedure (you can’t hot-restore the live database): stop the stack,
+          replace the <span class="mono">backend-data</span> volume contents with the archive, then start again —
+          see <span class="mono">BACKUP.md</span>.</li>
+        @if (keyExternal) {
+          <li>Your encryption key comes from <span class="mono">DOCKYARD_SECRET_KEY</span>, so it is
+            <strong>excluded</strong> from these archives. Keep that key backed up separately.</li>
+        } @else {
+          <li>These archives <strong>include</strong> <span class="mono">secret.key</span> — anyone with the archive can
+            decrypt your secrets, so store them securely. Set <span class="mono">DOCKYARD_SECRET_KEY</span> to manage the
+            key out-of-band and keep it out of the archive.</li>
+        }
+      </ul>
+    </div>
+  }
+</div>

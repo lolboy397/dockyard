@@ -9,7 +9,7 @@ Status legend: ✅ done (verified in code) · 🚧 in progress · ⬜ planned.
 This file is the single source of truth for status. `HANDOFF.md` covers how to
 build/run/test and the design system; it points here for status.
 
-App version: **2.1.0**. Branch: **`auth`** (PR target: `main`).
+App version: **0.0.1**. Branch: **`main`**.
 
 ## Production readiness at a glance
 

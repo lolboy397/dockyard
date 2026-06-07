@@ -103,6 +103,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 	auth := handlers.NewAuthHandlers(db, cli)
 	roles := handlers.NewRoleHandlers(db)
 	alerts := handlers.NewAlertHandlers(db)
+	appBackups := handlers.NewAppBackupHandlers(bk, db)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Bound request bodies before handlers read them (memory-exhaustion guard).
@@ -146,6 +147,15 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		r.Get("/system/df", system.DiskUsage)
 		r.Get("/system/host-stats", system.HostStats)
 		r.Get("/system/metrics-history", system.MetricsHistory)
+
+		// Application (system) backup — admin-only, enforced in the handlers.
+		// Static routes registered before the parameterised {name} routes.
+		r.Get("/system/backups", appBackups.List)
+		r.Post("/system/backups", appBackups.Create)
+		r.Get("/system/backup-schedule", appBackups.GetSchedule)
+		r.Put("/system/backup-schedule", appBackups.SetSchedule)
+		r.Get("/system/backups/{name}/download", appBackups.Download)
+		r.Delete("/system/backups/{name}", appBackups.Delete)
 
 		// Containers
 		r.Get("/containers", containers.List)
