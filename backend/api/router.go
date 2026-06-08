@@ -150,6 +150,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 
 		// Application (system) backup — admin-only, enforced in the handlers.
 		// Static routes registered before the parameterised {name} routes.
+		r.Get("/system/backups/overview", appBackups.Overview)
 		r.Get("/system/backups", appBackups.List)
 		r.Post("/system/backups", appBackups.Create)
 		r.Get("/system/backup-schedule", appBackups.GetSchedule)
@@ -212,6 +213,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		// Opt-in automatic-backup schedule
 		r.Get("/volumes/{name}/backup-schedule", volumes.GetBackupSchedule)
 		r.Put("/volumes/{name}/backup-schedule", volumes.SetBackupSchedule)
+		r.Delete("/volumes/{name}/backup-schedule", volumes.DeleteSchedule)
 		r.Get("/volumes/{name}", volumes.Inspect)
 		r.Delete("/volumes/{name}", volumes.Remove)
 

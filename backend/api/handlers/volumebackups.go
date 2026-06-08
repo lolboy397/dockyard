@@ -65,8 +65,20 @@ func (h *VolumeHandlers) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, errMsg("backup not found"))
 		return
 	}
-	if err := h.backup.Restore(name, id); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+	// Optional body: restore into a different (new) volume instead of in place.
+	var body struct {
+		TargetVolume string `json:"target_volume"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	target := strings.TrimSpace(body.TargetVolume)
+	var rerr error
+	if target != "" && target != name {
+		rerr = h.backup.RestoreInto(id, target, true) // create the new volume if missing
+	} else {
+		rerr = h.backup.Restore(name, id)
+	}
+	if rerr != nil {
+		writeError(w, http.StatusInternalServerError, rerr)
 		return
 	}
 	writeJSON(w, map[string]string{"status": "restored"})
@@ -134,6 +146,16 @@ func (h *VolumeHandlers) DownloadBackup(w http.ResponseWriter, r *http.Request) 
 }
 
 // ---- schedule ---------------------------------------------------------------
+
+// DeleteSchedule removes a volume's automatic-backup policy entirely.
+func (h *VolumeHandlers) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if err := h.db.DeleteBackupSchedule(name); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, map[string]string{"status": "deleted"})
+}
 
 // GetBackupSchedule returns a volume's automatic-backup policy (a disabled
 // default when none is configured).

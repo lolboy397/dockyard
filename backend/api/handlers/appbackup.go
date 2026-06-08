@@ -17,6 +17,7 @@ import (
 
 	"docker-manager/backend/storage"
 
+	"github.com/docker/docker/api/types/volume"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -441,6 +442,227 @@ func (h *AppBackupHandlers) GetSchedule(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, map[string]any{"configured": h.svc.AppBackupConfigured(), "schedule": sc})
+}
+
+// ---- unified overview (powers the Backups page) -----------------------------
+
+type bkpDest struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Icon  string `json:"icon"`
+	Bytes int64  `json:"bytes"`
+}
+
+type bkpPolicy struct {
+	ID            string `json:"id"`
+	Kind          string `json:"kind"` // "volume" | "app"
+	Target        string `json:"target"`
+	Icon          string `json:"icon"`
+	Type          string `json:"type"`
+	Cadence       string `json:"cadence"`
+	Dest          string `json:"dest"`
+	Retention     string `json:"retention"`
+	Next          string `json:"next"`
+	Enabled       bool   `json:"enabled"`
+	IntervalHours int    `json:"interval_hours"`
+	Keep          int    `json:"keep"`
+	StopContainer bool   `json:"stop_container"`
+}
+
+type bkpHistory struct {
+	ID         string    `json:"id"`
+	Kind       string    `json:"kind"` // "volume" | "app"
+	Target     string    `json:"target"`
+	Type       string    `json:"type"`
+	SizeBytes  int64     `json:"size_bytes"`
+	Dest       string    `json:"dest"`
+	StartedAt  time.Time `json:"started_at"`
+	Status     string    `json:"status"`
+	VolumeName string    `json:"volume_name,omitempty"`
+	BackupID   int64     `json:"backup_id,omitempty"`
+	Name       string    `json:"name,omitempty"` // app archive filename
+}
+
+type bkpStats struct {
+	ProtectedVolumes    int        `json:"protected_volumes"`
+	TotalVolumes        int        `json:"total_volumes"`
+	StorageBytes        int64      `json:"storage_bytes"`
+	LastBackupAt        *time.Time `json:"last_backup_at"`
+	LastBackupTarget    string     `json:"last_backup_target"`
+	NextScheduledAt     *time.Time `json:"next_scheduled_at"`
+	NextScheduledTarget string     `json:"next_scheduled_target"`
+}
+
+type bkpOverview struct {
+	Configured   bool         `json:"configured"`
+	KeyExternal  bool         `json:"key_external"`
+	Stats        bkpStats     `json:"stats"`
+	Destinations []bkpDest    `json:"destinations"`
+	Policies     []bkpPolicy  `json:"policies"`
+	Recent       []bkpHistory `json:"recent"`
+}
+
+// Overview aggregates the real state behind the Backups page: per-volume
+// schedules + backups and the application backup, mapped onto policies, a storage
+// breakdown, headline stats, and a unified recent-runs list.
+func (h *AppBackupHandlers) Overview(w http.ResponseWriter, r *http.Request) {
+	if !h.guard(w, r) {
+		return
+	}
+	ctx := r.Context()
+	ov := bkpOverview{
+		Configured:   h.svc.AppBackupConfigured(),
+		KeyExternal:  storage.SecretKeyExternal(),
+		Destinations: []bkpDest{},
+		Policies:     []bkpPolicy{},
+		Recent:       []bkpHistory{},
+	}
+
+	var hostBytes, volBytes int64
+	var lastAt, nextAt *time.Time
+	var lastTarget, nextTarget string
+	considerLast := func(t time.Time, target string) {
+		if lastAt == nil || t.After(*lastAt) {
+			tt := t
+			lastAt, lastTarget = &tt, target
+		}
+	}
+	considerNext := func(t time.Time, target string) {
+		if nextAt == nil || t.Before(*nextAt) {
+			tt := t
+			nextAt, nextTarget = &tt, target
+		}
+	}
+
+	// Application backup policy (always listed first) + its archives.
+	appSc, _ := h.db.GetAppBackupSchedule()
+	appNext := "Paused"
+	if appSc.Enabled {
+		nt := nextRunTime(appSc.LastRunAt, appSc.IntervalHours)
+		appNext = relFuture(nt)
+		considerNext(nt, "Application")
+	}
+	ov.Policies = append(ov.Policies, bkpPolicy{
+		ID: "app", Kind: "app", Target: "Application", Icon: "box",
+		Type: "Full", Cadence: cadenceLabel(appSc.IntervalHours), Dest: "Host directory",
+		Retention: fmt.Sprintf("keep %d", appSc.Keep), Next: appNext, Enabled: appSc.Enabled,
+		IntervalHours: appSc.IntervalHours, Keep: appSc.Keep,
+	})
+	for _, ab := range h.svc.ListAppBackups() {
+		hostBytes += ab.SizeBytes
+		considerLast(ab.CreatedAt, "Application")
+		ov.Recent = append(ov.Recent, bkpHistory{
+			ID: ab.Name, Kind: "app", Target: "Application",
+			Type:      ifStr(ab.SecretIncluded, "Full + key", "Full"),
+			SizeBytes: ab.SizeBytes, Dest: "Host directory", StartedAt: ab.CreatedAt,
+			Status: "Completed", Name: ab.Name,
+		})
+	}
+
+	// Volumes: schedules → policies, backups → history + storage.
+	vols, _ := h.svc.docker.VolumeList(ctx, volume.ListOptions{})
+	total, protected := 0, 0
+	for _, v := range vols.Volumes {
+		total++
+		prot := false
+		if sc, _ := h.db.GetBackupSchedule(v.Name); sc != nil {
+			next := "Paused"
+			if sc.Enabled {
+				prot = true
+				nt := nextRunTime(sc.LastRunAt, sc.IntervalHours)
+				next = relFuture(nt)
+				considerNext(nt, v.Name)
+			}
+			ov.Policies = append(ov.Policies, bkpPolicy{
+				ID: "vol:" + v.Name, Kind: "volume", Target: v.Name, Icon: "database",
+				Type:    ifStr(sc.StopContainer, "Consistent", "Hot copy"),
+				Cadence: cadenceLabel(sc.IntervalHours), Dest: "Backup volume",
+				Retention: fmt.Sprintf("keep %d", sc.Keep), Next: next, Enabled: sc.Enabled,
+				IntervalHours: sc.IntervalHours, Keep: sc.Keep, StopContainer: sc.StopContainer,
+			})
+		}
+		bks, _ := h.db.ListVolumeBackups(v.Name)
+		if len(bks) > 0 {
+			prot = true
+		}
+		for _, b := range bks {
+			volBytes += b.SizeBytes
+			considerLast(b.CreatedAt, v.Name)
+			ov.Recent = append(ov.Recent, bkpHistory{
+				ID: fmt.Sprintf("v%d", b.ID), Kind: "volume", Target: v.Name,
+				Type:      ifStr(b.Consistent, "Consistent", "Hot copy"),
+				SizeBytes: b.SizeBytes, Dest: "Backup volume", StartedAt: b.CreatedAt,
+				Status: "Completed", VolumeName: v.Name, BackupID: b.ID,
+			})
+		}
+		if prot {
+			protected++
+		}
+	}
+
+	ov.Stats = bkpStats{
+		ProtectedVolumes: protected, TotalVolumes: total, StorageBytes: hostBytes + volBytes,
+		LastBackupAt: lastAt, LastBackupTarget: lastTarget,
+		NextScheduledAt: nextAt, NextScheduledTarget: nextTarget,
+	}
+	ov.Destinations = []bkpDest{
+		{ID: "host", Label: "Host directory", Icon: "hard-drive", Bytes: hostBytes},
+		{ID: "volume", Label: "Backup volume", Icon: "database", Bytes: volBytes},
+	}
+	sort.Slice(ov.Recent, func(i, j int) bool { return ov.Recent[i].StartedAt.After(ov.Recent[j].StartedAt) })
+	if len(ov.Recent) > 50 {
+		ov.Recent = ov.Recent[:50]
+	}
+	writeJSON(w, ov)
+}
+
+func ifStr(cond bool, yes, no string) string {
+	if cond {
+		return yes
+	}
+	return no
+}
+
+func cadenceLabel(h int) string {
+	switch {
+	case h <= 1:
+		return "Hourly"
+	case h == 24:
+		return "Daily"
+	case h == 168:
+		return "Weekly"
+	case h == 72:
+		return "Every 3 days"
+	case h%24 == 0:
+		return fmt.Sprintf("Every %d days", h/24)
+	default:
+		return fmt.Sprintf("Every %dh", h)
+	}
+}
+
+func nextRunTime(last *time.Time, intervalH int) time.Time {
+	iv := time.Duration(intervalH) * time.Hour
+	if iv < time.Hour {
+		iv = 24 * time.Hour
+	}
+	if last == nil {
+		return time.Now()
+	}
+	return last.Add(iv)
+}
+
+func relFuture(t time.Time) string {
+	d := time.Until(t)
+	if d <= 0 {
+		return "due now"
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("in %dm", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("in %dh %dm", int(d.Hours()), int(d.Minutes())%60)
+	}
+	return fmt.Sprintf("in %dd", int(d.Hours())/24)
 }
 
 // SetSchedule creates or updates the automatic application-backup policy.

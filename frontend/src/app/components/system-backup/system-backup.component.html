@@ -1,134 +1,424 @@
 <div class="content-area">
+  <!-- ── page head ── -->
   <div class="content-head">
     <div class="content-title-row">
-      <div>
-        <div class="eyebrow" style="margin-bottom:2px;">Dockyard's own data &middot; database + secrets + stacks / repos / projects</div>
-        <h2 class="content-title">Application backup</h2>
-      </div>
-      <div class="content-actions">
-        <button class="icon-btn" (click)="load()" title="Refresh"><dy-icon name="refresh-cw" [size]="14"></dy-icon></button>
-        <button class="btn btn-sm btn-primary" (click)="createNow()" [disabled]="!configured || creating || !auth.isAdmin()">
-          <dy-icon name="database" [size]="13"></dy-icon> {{ creating ? 'Backing up…' : 'Back up now' }}
-        </button>
-      </div>
+      <h2 class="content-title">Backups</h2>
+      <span class="content-count">{{ recent.length }}</span>
     </div>
+    @if (auth.isAdmin()) {
+      <div class="content-actions">
+        <button class="btn btn-sm btn-ghost" (click)="openRestoreLatest()"><dy-icon name="rotate-ccw" [size]="13"></dy-icon> Restore…</button>
+        <button class="btn btn-sm btn-ghost" (click)="openSettings()"><dy-icon name="settings" [size]="13"></dy-icon> Settings</button>
+        <span class="divider-v"></span>
+        <button class="btn btn-sm btn-secondary" (click)="openNew()"><dy-icon name="calendar-plus" [size]="13"></dy-icon> New policy</button>
+        <button class="btn btn-sm btn-primary" (click)="runAppBackup()"><dy-icon name="play" [size]="13"></dy-icon> Run backup now</button>
+      </div>
+    }
   </div>
 
   @if (!auth.isAdmin()) {
-    <div class="sb-note warn">Application backups are restricted to administrators.</div>
+    <div class="bkp-note warn">Backups are restricted to administrators.</div>
   } @else {
-
-    @if (!configured && !loading) {
-      <div class="sb-note warn">
-        The host backup directory isn’t mounted. Add a <span class="mono">/host-backups</span> bind mount to the backend
-        (set <span class="mono">BACKUP_HOST_DIR</span> in your <span class="mono">.env</span>) and restart.
-      </div>
-    }
-
-    <!-- Automatic backups -->
-    <div class="sb-card">
-      <div class="sb-card-head">
-        <span class="eyebrow">Automatic backups</span>
-        @if (schedule?.enabled) {
-          <span class="badge badge-running" style="font-size:9px;"><span class="badge-dot"></span>on</span>
-        }
-      </div>
-      <p class="sb-muted">
-        Opt in to scheduled application backups — they run in the background on the server (no browser needed) and are
-        ideal for an unattended 24/7 host.
-      </p>
-      <div class="sb-form-row">
-        <label class="sb-check">
-          <input type="checkbox" [(ngModel)]="scheduleForm.enabled" [disabled]="!configured" /> Enabled
-        </label>
-        <div class="field" style="margin:0;">
-          <label class="label">Frequency</label>
-          <select class="input input-sm" [(ngModel)]="scheduleForm.interval_hours"
-                  [disabled]="!scheduleForm.enabled || !configured" style="width:160px;">
-            @for (iv of intervals; track iv.value) {
-              <option [ngValue]="iv.value">{{ iv.label }}</option>
-            }
-          </select>
+    <div class="bkp-scroll">
+      <!-- ── overview ── -->
+      <section>
+        <div class="section-band">
+          <span class="eyebrow">Overview</span>
+          <span class="band-meta mono">
+            @if (stats?.last_backup_at) { last backup {{ relPast(stats?.last_backup_at) }} · } {{ formatBytes(stats?.storage_bytes) }} stored
+          </span>
         </div>
-        <div class="field" style="margin:0;">
-          <label class="label">Keep</label>
-          <input class="input input-sm" type="number" min="1" max="100" [(ngModel)]="scheduleForm.keep"
-                 [disabled]="!scheduleForm.enabled || !configured" style="width:80px;" />
-        </div>
-        <button class="btn btn-sm btn-primary" (click)="saveSchedule()" [disabled]="savingSchedule || !configured">
-          <dy-icon name="save" [size]="12"></dy-icon> {{ savingSchedule ? 'Saving…' : 'Save schedule' }}
-        </button>
-      </div>
-      @if (schedule?.enabled) {
-        <div class="sb-muted" style="margin-top:8px;">Last run: {{ scheduleLastRun() }}</div>
-      }
-    </div>
-
-    <!-- Backups list -->
-    <div class="sb-card">
-      <div class="sb-card-head"><span class="eyebrow">Backups</span></div>
-      <p class="sb-muted">
-        Each backup is a consistent database snapshot bundled with your stacks, repos, projects and (unless managed
-        out-of-band) the encryption key, written to the host backup directory so it survives loss of the Docker volumes.
-      </p>
-
-      @if (loading) {
-        <div class="sb-empty">Loading…</div>
-      } @else if (backups.length === 0) {
-        <div class="sb-empty">
-          <dy-icon name="database" [size]="26" color="var(--ink-6)"></dy-icon>
-          <span class="eyebrow">No backups yet</span>
-          <span class="sb-muted">Create one to capture Dockyard’s current state.</span>
-        </div>
-      } @else {
-        <div class="gtable">
-          <div class="gtable-head" style="grid-template-columns:1.7fr 190px 90px 120px auto;">
-            <span>File</span><span>Created</span><span>Size</span><span>Contains</span><span style="text-align:right;">Actions</span>
+        <div class="bkp-stats">
+          <div class="bkp-stat">
+            <span class="bkp-stat-ic" style="color:#34D399"><dy-icon name="shield-check" [size]="16"></dy-icon></span>
+            <span class="bkp-stat-label">Protected volumes</span>
+            <span class="bkp-stat-value mono">{{ stats?.protected_volumes || 0 }} <span class="bkp-stat-of">/ {{ stats?.total_volumes || 0 }}</span></span>
+            <span class="bkp-stat-sub">{{ (stats?.total_volumes || 0) - (stats?.protected_volumes || 0) }} unprotected</span>
           </div>
-          @for (b of backups; track b.name) {
-            <div class="gtable-row" style="grid-template-columns:1.7fr 190px 90px 120px auto;align-items:center;">
-              <span class="mono sb-name">{{ b.name }}</span>
-              <span style="font-size:12px;color:var(--fg-muted);">{{ formatDate(b.created_at) }}</span>
-              <span class="mono" style="font-size:11px;color:var(--fg-muted);">{{ formatBytes(b.size_bytes) }}</span>
-              <span>
-                @if (b.secret_included) {
-                  <span class="badge badge-warn" style="font-size:9px;"><span class="badge-dot"></span>incl. key</span>
-                } @else {
-                  <span class="badge" style="font-size:9px;">no key</span>
-                }
+          <div class="bkp-stat">
+            <span class="bkp-stat-ic" style="color:#22D3EE"><dy-icon name="database" [size]="16"></dy-icon></span>
+            <span class="bkp-stat-label">Storage used</span>
+            <span class="bkp-stat-value mono">{{ formatBytes(stats?.storage_bytes) }}</span>
+            <span class="bkp-stat-sub">across {{ legendDests.length }} destinations</span>
+          </div>
+          <div class="bkp-stat">
+            <span class="bkp-stat-ic" style="color:#34D399"><dy-icon name="circle-check" [size]="16"></dy-icon></span>
+            <span class="bkp-stat-label">Last backup</span>
+            <span class="bkp-stat-value mono">{{ stats?.last_backup_at ? relPast(stats?.last_backup_at) : 'never' }}</span>
+            <span class="bkp-stat-sub">
+              @if (stats?.last_backup_target) { <dy-dot tone="running"></dy-dot> {{ stats?.last_backup_target }} · success }
+              @else { no backups yet }
+            </span>
+          </div>
+          <div class="bkp-stat">
+            <span class="bkp-stat-ic" style="color:var(--accent)"><dy-icon name="clock" [size]="16"></dy-icon></span>
+            <span class="bkp-stat-label">Next scheduled</span>
+            <span class="bkp-stat-value mono">{{ stats?.next_scheduled_at ? relFuture(stats?.next_scheduled_at) : '—' }}</span>
+            <span class="bkp-stat-sub">{{ stats?.next_scheduled_target || 'nothing scheduled' }}</span>
+          </div>
+        </div>
+
+        <div class="bkp-storage">
+          <div class="bkp-storage-bar">
+            @for (d of destSegments; track d.id) {
+              <span class="bkp-storage-seg" [style.width.%]="d.pct" [style.background]="segColor(d.id)" [title]="d.label + ' · ' + formatBytes(d.bytes)"></span>
+            }
+            @if (destSegments.length === 0) { <span class="bkp-storage-empty">no backups yet</span> }
+          </div>
+          <div class="bkp-legend">
+            @for (d of legendDests; track d.id) {
+              <span class="bkp-leg">
+                <span class="bkp-leg-dot" [style.background]="segColor(d.id)"></span>
+                <dy-icon [name]="d.icon" [size]="12" color="var(--fg-subtle)"></dy-icon>
+                <span class="bkp-leg-label">{{ d.label }}</span>
+                <span class="bkp-leg-size mono">{{ formatBytes(d.bytes) }}</span>
               </span>
-              <span style="display:flex;justify-content:flex-end;gap:4px;">
-                <button class="icon-btn sm ghost" (click)="download(b)" title="Download archive" [disabled]="busyName !== null">
-                  <dy-icon name="download" [size]="14"></dy-icon>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- ── policies ── -->
+      <section>
+        <div class="section-band">
+          <span class="eyebrow">Backup policies</span>
+          <span class="band-meta mono">{{ activeCount }} active · {{ policies.length - activeCount }} paused</span>
+        </div>
+        <div class="bkp-policies">
+          @for (p of policies; track p.id) {
+            <div class="bkp-policy" [class.off]="!p.enabled" (contextmenu)="policyMenu($event, p)">
+              <div class="bkp-policy-top">
+                <span class="bkp-policy-ic"><dy-icon [name]="p.icon" [size]="15"></dy-icon></span>
+                <span class="bkp-policy-name">{{ p.target }}</span>
+                <span class="bkp-type">{{ p.type }}</span>
+                <button class="switch" [class.on]="p.enabled" [disabled]="busy === p.id"
+                        (click)="togglePolicy(p)" [attr.aria-pressed]="p.enabled"
+                        [title]="p.enabled ? 'Pause policy' : 'Enable policy'"></button>
+              </div>
+              <div class="bkp-policy-grid mono">
+                <span class="bkp-kv"><span class="dim">when</span> {{ p.cadence }}</span>
+                <span class="bkp-kv"><span class="dim">to</span> {{ p.dest }}</span>
+                <span class="bkp-kv"><span class="dim">keep</span> {{ p.retention }}</span>
+                <span class="bkp-kv" [class.next-on]="p.enabled"><span class="dim">next</span> {{ p.next }}</span>
+              </div>
+            </div>
+          }
+          @if (policies.length === 0 && !loading) {
+            <div class="bkp-note">No policies yet — create one with <b>New policy</b>.</div>
+          }
+        </div>
+      </section>
+
+      <!-- ── history ── -->
+      <section>
+        <div class="section-band">
+          <span class="eyebrow">Recent backups</span>
+          <span class="band-meta mono">{{ recent.length }} runs</span>
+        </div>
+        <div class="content-toolbar">
+          <div class="pills sm">
+            <button class="pill" [class.on]="filter==='all'" (click)="filter='all'">All <span class="pill-count">{{ recent.length }}</span></button>
+            <button class="pill" [class.on]="filter==='completed'" (click)="filter='completed'">Completed <span class="pill-count">{{ countStatus('Completed') }}</span></button>
+            <button class="pill" [class.on]="filter==='running'" (click)="filter='running'">Running <span class="pill-count">{{ countStatus('Running') }}</span></button>
+            <button class="pill" [class.on]="filter==='failed'" (click)="filter='failed'">Failed <span class="pill-count">{{ countStatus('Failed') }}</span></button>
+          </div>
+          <span class="toolbar-meta">{{ recent.length }} runs</span>
+        </div>
+
+        @if (loading) {
+          <div class="bkp-empty">Loading…</div>
+        } @else if (rows.length === 0) {
+          <div class="bkp-empty">
+            <dy-icon name="archive" [size]="26" color="var(--ink-6)"></dy-icon>
+            <span class="eyebrow">No backups</span>
+            <span class="bkp-help">Run a backup or create a policy to populate history.</span>
+          </div>
+        } @else {
+          <div class="gtable" style="margin:0;">
+            <div class="gtable-head" style="grid-template-columns:1.6fr 120px 90px 1.2fr 110px 120px 36px;">
+              <span>Backup</span><span>Type</span><span>Size</span><span>Destination</span><span>Started</span><span>Status</span><span></span>
+            </div>
+            @for (b of rows; track b.id) {
+              <div class="gtable-row" style="grid-template-columns:1.6fr 120px 90px 1.2fr 110px 120px 36px;align-items:center;" (contextmenu)="rowMenu($event, b)">
+                <span class="col-name">
+                  <dy-icon name="archive" [size]="14" color="var(--fg-muted)"></dy-icon>
+                  <span class="row-name">{{ b.target }}</span>
+                  <span class="row-id mono">{{ b.id }}</span>
+                </span>
+                <span><span class="bkp-type">{{ b.type }}</span></span>
+                <span class="mono">{{ b.size_bytes ? formatBytes(b.size_bytes) : '—' }}</span>
+                <span class="mono" style="color:var(--fg-muted);">{{ b.dest }}</span>
+                <span class="mono" style="color:var(--fg-subtle);">{{ relPast(b.started_at) }}</span>
+                <span>
+                  <span class="badge" [class.badge-running]="b.status==='Completed'" [class.badge-info]="b.status==='Running'" [class.badge-danger]="b.status==='Failed'">
+                    <span class="badge-dot"></span>{{ b.status }}
+                  </span>
+                </span>
+                <span (click)="$event.stopPropagation()">
+                  <button class="icon-btn ghost sm" (click)="rowMenu($event, b)"><dy-icon name="ellipsis" [size]="14"></dy-icon></button>
+                </span>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    </div>
+  }
+</div>
+
+<!-- ════════════════ NEW POLICY ════════════════ -->
+@if (showNew) {
+  <div class="modal-backdrop" (click)="showNew=false">
+    <div class="modal modal-lg bkp-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div class="modal-title">
+          <dy-icon name="calendar-plus" [size]="16" color="var(--accent)"></dy-icon>
+          <span>Backup policy</span>
+          <div class="modal-steps">
+            <span class="mstep" [class.on]="np.step===1" [class.done]="np.step>1">1 · Source</span>
+            <span class="mstep-line"></span>
+            <span class="mstep" [class.on]="np.step===2">2 · Schedule</span>
+          </div>
+        </div>
+        <button class="icon-btn ghost" (click)="showNew=false"><dy-icon name="x" [size]="15"></dy-icon></button>
+      </div>
+
+      @if (np.step===1) {
+        <div class="modal-body">
+          <div class="bkp-fld">
+            <span class="form-label">What to back up</span>
+            <div class="bkp-pick">
+              @for (t of targets; track t.id) {
+                <button type="button" class="bkp-pick-row" [class.on]="np.target===t.id" (click)="np.target=t.id">
+                  <span class="bkp-radio" [class.on]="np.target===t.id"></span>
+                  <span class="bkp-pick-ic"><dy-icon [name]="t.icon" [size]="14"></dy-icon></span>
+                  <span class="bkp-pick-name">{{ t.name }}</span>
+                  <span class="bkp-pick-meta mono">{{ t.meta }}</span>
                 </button>
-                <button class="icon-btn sm ghost" (click)="remove(b)" title="Delete backup" [disabled]="busyName !== null">
-                  <dy-icon name="trash-2" [size]="14"></dy-icon>
-                </button>
-              </span>
+              }
+            </div>
+          </div>
+
+          @if (!npIsApp) {
+            <div class="bkp-fld">
+              <span class="form-label">Backup type</span>
+              <div class="bkp-seg">
+                <button type="button" class="bkp-seg-opt" [class.on]="np.type==='Consistent'" [class.accent]="np.type==='Consistent'" (click)="np.type='Consistent'">Consistent</button>
+                <button type="button" class="bkp-seg-opt" [class.on]="np.type==='Hot copy'" [class.accent]="np.type==='Hot copy'" (click)="np.type='Hot copy'">Hot copy</button>
+              </div>
+              <span class="bkp-help">{{ np.type==='Consistent' ? 'Stops the consuming container during the backup for a crash-consistent copy.' : 'Backs up live with no downtime; may be inconsistent for active databases.' }}</span>
+            </div>
+          } @else {
+            <div class="bkp-fld">
+              <span class="form-label">Backup type</span>
+              <span class="bkp-help">Full, consistent snapshot of the database (VACUUM INTO) plus stacks, repos, projects and the encryption key.</span>
             </div>
           }
         </div>
       }
-    </div>
 
-    <!-- Restore & key guidance -->
-    <div class="sb-card">
-      <div class="sb-card-head"><span class="eyebrow">Restoring &amp; the encryption key</span></div>
-      <ul class="sb-list">
-        <li>Backups are written to the host directory set by <span class="mono">BACKUP_HOST_DIR</span> (default
-          <span class="mono">./backups</span>). Point it at an external disk or NAS for true off-host durability.</li>
-        <li><strong>Restore</strong> is a host-side procedure (you can’t hot-restore the live database): stop the stack,
-          replace the <span class="mono">backend-data</span> volume contents with the archive, then start again —
-          see <span class="mono">BACKUP.md</span>.</li>
-        @if (keyExternal) {
-          <li>Your encryption key comes from <span class="mono">DOCKYARD_SECRET_KEY</span>, so it is
-            <strong>excluded</strong> from these archives. Keep that key backed up separately.</li>
+      @if (np.step===2) {
+        <div class="modal-body">
+          <div class="bkp-fld">
+            <span class="form-label">Schedule</span>
+            <div class="bkp-seg">
+              @for (c of cadences; track c.v) {
+                <button type="button" class="bkp-seg-opt" [class.on]="np.cadence===c.v" [class.accent]="np.cadence===c.v" (click)="np.cadence=c.v">{{ c.label }}</button>
+              }
+            </div>
+          </div>
+
+          <div class="bkp-fld">
+            <span class="form-label">Destination</span>
+            <div class="bkp-dests two">
+              <div class="bkp-dest-card" [class.on]="npDest==='Host directory'">
+                <span class="bkp-dest-top"><dy-icon name="hard-drive" [size]="15"></dy-icon><span class="bkp-dest-name">Host directory</span></span>
+                <span class="bkp-dest-sub mono">off-host, survives volume loss</span>
+              </div>
+              <div class="bkp-dest-card" [class.on]="npDest==='Backup volume'">
+                <span class="bkp-dest-top"><dy-icon name="database" [size]="15"></dy-icon><span class="bkp-dest-name">Backup volume</span></span>
+                <span class="bkp-dest-sub mono">dedicated backup-data volume</span>
+              </div>
+            </div>
+            <span class="bkp-help">Destination is chosen automatically by target — {{ npDest }}.</span>
+          </div>
+
+          <div class="bkp-fld">
+            <span class="form-label">Retention</span>
+            <div class="bkp-retain-row">
+              <span class="bkp-retain-pre">Keep last</span>
+              <input class="form-input mono bkp-retain-n" type="number" min="1" max="100" [(ngModel)]="np.keep" />
+              <span class="bkp-retain-pre">backups</span>
+            </div>
+          </div>
+
+          <div class="bkp-toggle-row" (click)="np.enabled=!np.enabled">
+            <div class="bkp-tr-text">
+              <div class="bkp-tr-title">Enable immediately</div>
+              <div class="bkp-tr-desc">Run this policy on its schedule as soon as it's saved.</div>
+            </div>
+            <button type="button" class="switch" [class.on]="np.enabled" [attr.aria-pressed]="np.enabled"></button>
+          </div>
+
+          <div class="bkp-summary">
+            <dy-icon name="info" [size]="15" color="var(--accent)"></dy-icon>
+            <span><b>{{ npIsApp ? 'Full' : np.type }}</b> backup of <b>{{ npTarget?.name }}</b>, {{ npCadenceLabel.toLowerCase() }} → <b>{{ npDest }}</b>, keep {{ np.keep }}.</span>
+          </div>
+        </div>
+      }
+
+      <div class="modal-foot">
+        @if (np.step===2) { <button class="btn btn-sm btn-ghost" (click)="np.step=1"><dy-icon name="arrow-left" [size]="13"></dy-icon> Back</button> }
+        <span class="foot-hint mono">{{ npTarget?.name }} · {{ npCadenceLabel }}</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm btn-ghost" (click)="showNew=false">Cancel</button>
+        @if (np.step===1) {
+          <button class="btn btn-sm btn-primary" (click)="np.step=2">Continue <dy-icon name="arrow-right" [size]="13"></dy-icon></button>
         } @else {
-          <li>These archives <strong>include</strong> <span class="mono">secret.key</span> — anyone with the archive can
-            decrypt your secrets, so store them securely. Set <span class="mono">DOCKYARD_SECRET_KEY</span> to manage the
-            key out-of-band and keep it out of the archive.</li>
+          <button class="btn btn-sm btn-primary" (click)="createPolicy()"><dy-icon name="check" [size]="13"></dy-icon> Save policy</button>
         }
-      </ul>
+      </div>
     </div>
-  }
-</div>
+  </div>
+}
+
+<!-- ════════════════ SETTINGS ════════════════ -->
+@if (showSettings) {
+  <div class="modal-backdrop" (click)="showSettings=false">
+    <div class="modal modal-lg bkp-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div class="modal-title">
+          <dy-icon name="settings" [size]="16" color="var(--accent)"></dy-icon>
+          <span>Backup settings</span>
+        </div>
+        <button class="icon-btn ghost" (click)="showSettings=false"><dy-icon name="x" [size]="15"></dy-icon></button>
+      </div>
+      <div class="modal-body">
+        <div class="bkp-msec">
+          <div class="bkp-msec-head">
+            <span class="bkp-msec-label">Storage destinations</span>
+            <span class="bkp-msec-meta mono">{{ legendDests.length }} configured</span>
+          </div>
+          <div class="bkp-dest-list">
+            @for (d of legendDests; track d.id) {
+              <div class="bkp-dest-row">
+                <span class="bkp-dest-row-ic"><dy-icon [name]="d.icon" [size]="15"></dy-icon></span>
+                <div class="bkp-dest-row-text">
+                  <div class="bkp-dest-row-name">{{ d.label }}</div>
+                  <div class="bkp-dest-row-detail mono">{{ d.id === 'host' ? 'BACKUP_HOST_DIR (bind mount)' : 'backup-data volume' }} · {{ formatBytes(d.bytes) }} used</div>
+                </div>
+                <span class="badge badge-running"><span class="badge-dot"></span>Active</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="bkp-msec">
+          <div class="bkp-msec-head"><span class="bkp-msec-label">Application backup</span></div>
+          <div class="bkp-toggle-row" (click)="sg.enabled=!sg.enabled">
+            <div class="bkp-tr-text">
+              <div class="bkp-tr-title">Automatic application backups</div>
+              <div class="bkp-tr-desc">Back up the database, secrets, stacks, repos and projects on a schedule.</div>
+            </div>
+            <button type="button" class="switch" [class.on]="sg.enabled" [attr.aria-pressed]="sg.enabled"></button>
+          </div>
+          <div class="bkp-fld-2">
+            <div class="bkp-fld">
+              <span class="form-label">Frequency</span>
+              <div class="bkp-select-wrap">
+                <select class="form-input bkp-select" [(ngModel)]="sg.interval" [disabled]="!sg.enabled">
+                  @for (c of cadences; track c.v) { <option [ngValue]="c.v">{{ c.label }}</option> }
+                </select>
+                <dy-icon class="ic" name="chevron-down" [size]="13" color="var(--fg-subtle)"></dy-icon>
+              </div>
+            </div>
+            <div class="bkp-fld">
+              <span class="form-label">Retention</span>
+              <div class="bkp-retain-row">
+                <input class="form-input mono bkp-retain-n" type="number" min="1" max="100" [(ngModel)]="sg.keep" [disabled]="!sg.enabled" />
+                <span class="bkp-retain-pre">backups</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bkp-msec">
+          <div class="bkp-msec-head"><span class="bkp-msec-label">Encryption key</span></div>
+          @if (ov?.key_external) {
+            <div class="bkp-summary">
+              <dy-icon name="shield-check" [size]="15" color="var(--accent)"></dy-icon>
+              <span>The encryption key is supplied via <b>DOCKYARD_SECRET_KEY</b>, so it is <b>excluded</b> from application backups. Keep it backed up separately.</span>
+            </div>
+          } @else {
+            <div class="bkp-warn">
+              <dy-icon name="triangle-alert" [size]="15"></dy-icon>
+              <span>Application backups <b>include secret.key</b> — anyone with an archive can decrypt your secrets. Set <b>DOCKYARD_SECRET_KEY</b> to manage the key out-of-band.</span>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="modal-foot">
+        <span class="foot-hint mono">applies to the application backup</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm btn-ghost" (click)="showSettings=false">Cancel</button>
+        <button class="btn btn-sm btn-primary" (click)="saveSettings()" [disabled]="savingSettings"><dy-icon name="check" [size]="13"></dy-icon> {{ savingSettings ? 'Saving…' : 'Save changes' }}</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ════════════════ RESTORE ════════════════ -->
+@if (restoreTarget) {
+  <div class="modal-backdrop" (click)="restoreTarget=null">
+    <div class="modal modal-lg bkp-modal bkp-modal-sm" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div class="modal-title">
+          <dy-icon name="rotate-ccw" [size]="16" color="var(--accent)"></dy-icon>
+          <span>Restore backup</span>
+          <span class="modal-title-tgt mono">{{ restoreTarget }}</span>
+        </div>
+        <button class="icon-btn ghost" (click)="restoreTarget=null"><dy-icon name="x" [size]="15"></dy-icon></button>
+      </div>
+      <div class="modal-body">
+        <div class="bkp-fld">
+          <span class="form-label">Restore point</span>
+          <div class="bkp-pick">
+            @for (p of restorePoints(restoreTarget); track p.id; let i = $index) {
+              <button type="button" class="bkp-pick-row" [class.on]="rs.point===p.id" (click)="rs.point=p.id">
+                <span class="bkp-radio" [class.on]="rs.point===p.id"></span>
+                <span class="bkp-pick-name">{{ relPast(p.started_at) }}</span>
+                @if (i === 0) { <span class="bkp-tag-latest">Latest</span> }
+                <span class="bkp-pick-meta mono">{{ p.type }} · {{ formatBytes(p.size_bytes) }}</span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="bkp-fld">
+          <span class="form-label">Restore to</span>
+          <div class="bkp-seg">
+            <button type="button" class="bkp-seg-opt" [class.on]="rs.where==='original'" [class.accent]="rs.where==='original'" (click)="rs.where='original'">original</button>
+            <button type="button" class="bkp-seg-opt" [class.on]="rs.where==='new'" [class.accent]="rs.where==='new'" (click)="rs.where='new'">new</button>
+          </div>
+          <div class="bkp-radio-legend">{{ rs.where==='original' ? 'Overwrite the existing ' + restoreTarget + ' volume in place.' : 'Create a fresh volume and restore into it — leaves the original untouched.' }}</div>
+          @if (rs.where==='new') {
+            <input class="form-input mono" style="margin-top:8px;" [(ngModel)]="rs.newName" />
+          }
+        </div>
+
+        @if (rs.where==='original') {
+          <div class="bkp-warn">
+            <dy-icon name="triangle-alert" [size]="15"></dy-icon>
+            <span>This stops containers using <b>{{ restoreTarget }}</b> and overwrites its current data with the selected backup. This can't be undone.</span>
+          </div>
+        }
+      </div>
+      <div class="modal-foot">
+        <span class="foot-hint mono">{{ rsPoint?.id }} · {{ formatBytes(rsPoint?.size_bytes) }}</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm btn-ghost" (click)="restoreTarget=null">Cancel</button>
+        <button class="btn btn-sm btn-primary" (click)="confirmRestore()"><dy-icon name="rotate-ccw" [size]="13"></dy-icon> {{ rs.where==='original' ? 'Restore & overwrite' : 'Restore to new volume' }}</button>
+      </div>
+    </div>
+  </div>
+}

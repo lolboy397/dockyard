@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 )
 
@@ -301,11 +302,28 @@ func (s *BackupService) Backup(vol string, stop bool, note string, keep int) (*s
 // consuming container(s), validates the archive BEFORE wiping the target,
 // extracts, then restarts the containers. Runs on a detached context.
 func (s *BackupService) Restore(vol string, id int64) error {
+	rec, err := s.db.GetVolumeBackup(id)
+	if err != nil || rec.VolumeName != vol {
+		return errMsg("backup not found")
+	}
+	return s.RestoreInto(id, vol, false)
+}
+
+// RestoreInto extracts a backup into targetVol — which may differ from the
+// backup's source volume (restore to a new volume). When create is true and the
+// target doesn't exist, it is created first. Destructive for the target: the
+// archive is validated (tar tzf) BEFORE the target is wiped, so a corrupt archive
+// is a no-op. Runs on a detached context.
+func (s *BackupService) RestoreInto(id int64, targetVol string, create bool) error {
 	if s.backupVolume == "" {
 		return errMsg("backup storage not configured")
 	}
+	targetVol = strings.TrimSpace(targetVol)
+	if targetVol == "" {
+		return errMsg("target volume required")
+	}
 	rec, err := s.db.GetVolumeBackup(id)
-	if err != nil || rec.VolumeName != vol {
+	if err != nil {
 		return errMsg("backup not found")
 	}
 	src := path.Join(vbBackupMount, path.Clean("/"+rec.File))
@@ -319,7 +337,15 @@ func (s *BackupService) Restore(vol string, id int64) error {
 		return err
 	}
 
-	running := s.runningConsumers(ctx, vol)
+	if create {
+		if _, e := s.docker.VolumeInspect(ctx, targetVol); e != nil {
+			if _, e2 := s.docker.VolumeCreate(ctx, volume.CreateOptions{Name: targetVol}); e2 != nil {
+				return fmt.Errorf("create target volume: %w", e2)
+			}
+		}
+	}
+
+	running := s.runningConsumers(ctx, targetVol)
 	if len(running) > 0 {
 		s.stopContainers(ctx, running)
 		defer s.startContainers(running)
@@ -327,7 +353,7 @@ func (s *BackupService) Restore(vol string, id int64) error {
 
 	script := fmt.Sprintf("set -e\ntar tzf %s >/dev/null\nrm -rf /v/* /v/..?* /v/.[!.]* 2>/dev/null || true\ntar xzf %s -C /v", src, src)
 	mounts := []mount.Mount{
-		{Type: mount.TypeVolume, Source: vol, Target: "/v"},
+		{Type: mount.TypeVolume, Source: targetVol, Target: "/v"},
 		{Type: mount.TypeVolume, Source: s.backupVolume, Target: vbBackupMount, ReadOnly: true},
 	}
 	code, err := s.runHelper(ctx, mounts, script)

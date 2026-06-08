@@ -225,6 +225,12 @@ func (db *DB) TouchBackupScheduleRun(vol string) error {
 	return err
 }
 
+// DeleteBackupSchedule removes a volume's schedule entirely (deletes the policy).
+func (db *DB) DeleteBackupSchedule(vol string) error {
+	_, err := db.conn.Exec(`DELETE FROM volume_backup_schedules WHERE volume_name=?`, vol)
+	return err
+}
+
 func scanBackupSchedule(s rowScanner) (*BackupSchedule, error) {
 	var sc BackupSchedule
 	var enabled, stop int

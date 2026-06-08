@@ -61,6 +61,27 @@ export interface AppBackupSchedule {
   updated_at: string;
 }
 
+export interface BkpDest { id: string; label: string; icon: string; bytes: number; }
+export interface BkpPolicy {
+  id: string; kind: 'volume' | 'app'; target: string; icon: string; type: string;
+  cadence: string; dest: string; retention: string; next: string; enabled: boolean;
+  interval_hours: number; keep: number; stop_container: boolean;
+}
+export interface BkpHistory {
+  id: string; kind: 'volume' | 'app'; target: string; type: string; size_bytes: number;
+  dest: string; started_at: string; status: string;
+  volume_name?: string; backup_id?: number; name?: string;
+}
+export interface BkpStats {
+  protected_volumes: number; total_volumes: number; storage_bytes: number;
+  last_backup_at: string | null; last_backup_target: string;
+  next_scheduled_at: string | null; next_scheduled_target: string;
+}
+export interface BackupsOverview {
+  configured: boolean; key_external: boolean; stats: BkpStats;
+  destinations: BkpDest[]; policies: BkpPolicy[]; recent: BkpHistory[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class DockerService {
   private base = '/api/v1';
@@ -300,9 +321,10 @@ export class DockerService {
     return this.http.post<VolumeBackup>(`${this.base}/volumes/${encodeURIComponent(name)}/backups`, body);
   }
 
-  restoreVolumeBackup(name: string, id: number): Observable<{ status: string }> {
+  restoreVolumeBackup(name: string, id: number, targetVolume?: string): Observable<{ status: string }> {
+    const body = targetVolume ? { target_volume: targetVolume } : null;
     return this.http.post<{ status: string }>(
-      `${this.base}/volumes/${encodeURIComponent(name)}/backups/${id}/restore`, null);
+      `${this.base}/volumes/${encodeURIComponent(name)}/backups/${id}/restore`, body);
   }
 
   deleteVolumeBackup(name: string, id: number): Observable<{ status: string }> {
@@ -327,7 +349,16 @@ export class DockerService {
       `${this.base}/volumes/${encodeURIComponent(name)}/backup-schedule`, body);
   }
 
+  deleteBackupSchedule(name: string): Observable<{ status: string }> {
+    return this.http.delete<{ status: string }>(
+      `${this.base}/volumes/${encodeURIComponent(name)}/backup-schedule`);
+  }
+
   // ---- Application (system) backup -------------------------------------------
+  getBackupsOverview(): Observable<BackupsOverview> {
+    return this.http.get<BackupsOverview>(`${this.base}/system/backups/overview`);
+  }
+
   listAppBackups(): Observable<{ configured: boolean; key_external: boolean; backups: AppBackup[] }> {
     return this.http.get<{ configured: boolean; key_external: boolean; backups: AppBackup[] }>(
       `${this.base}/system/backups`);
