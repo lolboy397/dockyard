@@ -6,7 +6,7 @@
           <span class="brand-word">Dockyard</span>
           <span class="rail-tag">setup</span>
         </div>
-        <p class="rail-lede">Configure this instance. Takes about two minutes — you can change everything later in settings.</p>
+        <p class="rail-lede">Create your admin account and name this instance. Takes about a minute.</p>
 
         <div class="steps">
           @for (s of steps; track s.id; let i = $index) {
@@ -108,32 +108,23 @@
             @case ('instance') {
               <div>
                 <div class="setup-head">
-                  <div class="setup-eyebrow">Step 2 · Engine</div>
-                  <h1 class="setup-title">Connect your Docker engine</h1>
-                  <p class="setup-desc">Name this instance and tell Dockyard where the Docker daemon lives. Defaults work for a standard local install.</p>
+                  <div class="setup-eyebrow">Step 2 · Instance</div>
+                  <h1 class="setup-title">Name this instance</h1>
+                  <p class="setup-desc">Give this instance a name, then confirm Dockyard can reach your Docker engine. Dockyard connects through a least-privilege socket proxy configured by your deployment.</p>
                 </div>
 
                 <div class="form-grid">
-                  <dy-field label="Instance name" hint="Shown in the title bar and across multi-instance views.">
+                  <dy-field label="Instance name" hint="Shown in the sidebar and across the app.">
                     <dy-text-input [value]="data.instanceName" (valueChange)="data.instanceName = $event"
                       placeholder="production" icon="server" [autoFocus]="true"></dy-text-input>
                   </dy-field>
 
-                  <dy-field label="Docker host" hint="Unix socket for a local daemon, or a tcp:// address for a remote one.">
-                    <dy-text-input [value]="data.dockerHost" (valueChange)="data.dockerHost = $event"
-                      placeholder="/var/run/docker.sock" prefix="unix://" [mono]="true"></dy-text-input>
+                  <dy-field label="Docker engine" hint="Set by your deployment (DOCKER_HOST → socket proxy). Not configurable here.">
+                    <div class="mono" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-inset);color:var(--fg-subtle);font-size:13px;">
+                      <dy-icon name="server" [size]="15"></dy-icon>
+                      <span>engine {{ engineVersion }} · via socket proxy</span>
+                    </div>
                   </dy-field>
-
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-                    <dy-field label="Data directory" hint="Where Dockyard stores its config & database.">
-                      <dy-text-input [value]="data.dataDir" (valueChange)="data.dataDir = $event"
-                        placeholder="/var/lib/dockyard" icon="folder" [mono]="true"></dy-text-input>
-                    </dy-field>
-                    <dy-field label="Bind address" hint="Host : port the web UI listens on.">
-                      <dy-text-input [value]="data.bindAddr" (valueChange)="data.bindAddr = $event"
-                        placeholder="0.0.0.0:9443" icon="globe" [mono]="true"></dy-text-input>
-                    </dy-field>
-                  </div>
 
                   <div class="test-row">
                     <dy-btn variant="secondary" icon="plug-zap" [loading]="testing" (clicked)="runTest()">Test connection</dy-btn>
@@ -147,39 +138,11 @@
               </div>
             }
 
-            <!-- ============ PREFS ============ -->
-            @case ('prefs') {
-              <div>
-                <div class="setup-head">
-                  <div class="setup-eyebrow">Step 3 · Preferences</div>
-                  <h1 class="setup-title">Set your defaults</h1>
-                  <p class="setup-desc">A few instance-wide preferences. Every one of these can be changed later in settings.</p>
-                </div>
-
-                <div class="form-grid">
-                  <dy-toggle [on]="data.tls" (toggled)="data.tls = !data.tls"
-                    title="Require TLS"
-                    desc="Serve the UI over HTTPS with a self-signed certificate. Strongly recommended for any non-loopback bind address."></dy-toggle>
-                  <dy-toggle [on]="data.autoUpdate" (toggled)="data.autoUpdate = !data.autoUpdate"
-                    title="Automatic updates"
-                    desc="Pull and apply Dockyard updates from the stable channel as they ship."></dy-toggle>
-                  <dy-toggle [on]="data.telemetry" (toggled)="data.telemetry = !data.telemetry"
-                    title="Anonymous usage stats"
-                    desc="Share anonymized, aggregate usage to help prioritize features. No container data, ever. Off by default."></dy-toggle>
-
-                  <dy-field label="Default registry" hint="Used when you pull an image without a registry prefix." [optional]="true">
-                    <dy-text-input [value]="data.registry" (valueChange)="data.registry = $event"
-                      placeholder="docker.io" icon="cloud" [mono]="true"></dy-text-input>
-                  </dy-field>
-                </div>
-              </div>
-            }
-
             <!-- ============ REVIEW ============ -->
             @case ('review') {
               <div>
                 <div class="setup-head">
-                  <div class="setup-eyebrow">Step 4 · Review</div>
+                  <div class="setup-eyebrow">Step 3 · Review</div>
                   <h1 class="setup-title">Confirm and create</h1>
                   <p class="setup-desc">Double-check everything below. Creating the admin finalizes setup — you’ll sign in next.</p>
                 </div>
@@ -204,22 +167,7 @@
                   </div>
                   <div class="review-rows">
                     <div class="review-row"><span class="review-k">Name</span><span class="review-v" [class.dim]="!data.instanceName">{{ data.instanceName || '—' }}</span></div>
-                    <div class="review-row"><span class="review-k">Docker host</span><span class="review-v">{{ 'unix://' + (data.dockerHost || '/var/run/docker.sock') }}</span></div>
-                    <div class="review-row"><span class="review-k">Data directory</span><span class="review-v">{{ data.dataDir || '/var/lib/dockyard' }}</span></div>
-                    <div class="review-row"><span class="review-k">Bind address</span><span class="review-v">{{ data.bindAddr || '0.0.0.0:9443' }}</span></div>
-                  </div>
-                </div>
-
-                <div class="review-group">
-                  <div class="review-gh">
-                    <span class="t"><dy-icon name="sliders-horizontal" [size]="14" color="var(--accent)"></dy-icon> Preferences</span>
-                    <span class="review-edit" (click)="go(3)"><dy-icon name="pencil" [size]="12"></dy-icon> Edit</span>
-                  </div>
-                  <div class="review-rows">
-                    <div class="review-row"><span class="review-k">TLS</span><span class="review-v" [class.dim]="!data.tls">{{ onOff(data.tls) }}</span></div>
-                    <div class="review-row"><span class="review-k">Auto updates</span><span class="review-v" [class.dim]="!data.autoUpdate">{{ onOff(data.autoUpdate) }}</span></div>
-                    <div class="review-row"><span class="review-k">Usage stats</span><span class="review-v" [class.dim]="!data.telemetry">{{ onOff(data.telemetry) }}</span></div>
-                    <div class="review-row"><span class="review-k">Default registry</span><span class="review-v">{{ data.registry || 'docker.io' }}</span></div>
+                    <div class="review-row"><span class="review-k">Docker engine</span><span class="review-v">via socket proxy{{ engineVersion ? ' · engine ' + engineVersion : '' }}</span></div>
                   </div>
                 </div>
               </div>

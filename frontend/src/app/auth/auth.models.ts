@@ -1,4 +1,7 @@
-/** Mirrors the data the setup wizard collects (see app-auth/main.jsx DEFAULT_DATA). */
+/** The data the setup wizard collects. Only fields that actually take effect are
+ *  gathered: the admin account and the instance name. Docker host, bind address,
+ *  data dir, TLS, auto-update, telemetry and default-registry are all fixed by the
+ *  deployment (compose env / socket proxy), so they are not asked for here. */
 export interface SetupData {
   // welcome
   accepted: boolean;
@@ -10,22 +13,12 @@ export interface SetupData {
   confirm: string;
   // instance
   instanceName: string;
-  dockerHost: string;
-  dataDir: string;
-  bindAddr: string;
-  // prefs
-  tls: boolean;
-  autoUpdate: boolean;
-  telemetry: boolean;
-  registry: string;
 }
 
 export const DEFAULT_DATA: SetupData = {
   accepted: false,
   fullName: '', email: '', username: '', password: '', confirm: '',
-  instanceName: 'production', dockerHost: '/var/run/docker.sock',
-  dataDir: '/var/lib/dockyard', bindAddr: '0.0.0.0:9443',
-  tls: true, autoUpdate: true, telemetry: false, registry: 'docker.io',
+  instanceName: 'production',
 };
 
 export interface AuthUser {

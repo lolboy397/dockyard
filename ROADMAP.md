@@ -15,7 +15,7 @@ App version: **0.0.1**. Branch: **`main`**.
 
 | Target | State | Gates |
 |---|---|---|
-| **Localhost / single user** | ✅ Ready | Commit + build-verify the in-flight branch (see below) |
+| **Localhost / single user** | ✅ Ready | Shipped & live on `main` (v0.0.1) |
 | **Multi-user (trusted LAN)** | 🚧 Close | Finish empty/loading/error states |
 | **Network / internet-exposed** | ⬜ Not yet | Real TLS, registry auth, SSO/2FA, API tokens |
 
@@ -96,13 +96,11 @@ App version: **0.0.1**. Branch: **`main`**.
 ## Remaining
 
 ### A. Before calling it "production" — even for localhost
-- ⬜ **Commit + build-verify the in-flight branch.** The working tree has a large
-  uncommitted refactor (the `auth/` components were moved into per-component
-  subfolders; `secret.key` removal is staged). Nothing ships until that's
-  committed and `docker compose build` + `go test ./...` are confirmed green.
-- ⬜ **Scrub `secret.key` from git history.** It is now gitignored and untracked
-  (deletion staged), but it still exists in history. The runtime key lives in
-  `/data/secret.key`, so practical risk is low — but scrub before any public push.
+- ✅ **Committed & build-verified on `main`.** The per-component refactor and the
+  `secret.key` removal are committed; `main` is the live production branch (v0.0.1).
+- ✅ **`secret.key` scrubbed from git history.** History was reset to a single
+  `Initial commit`; the leaked dev key is no longer present in any commit. The
+  runtime key lives at `/data/secret.key` or `$DOCKYARD_SECRET_KEY` (gitignored).
 - ⬜ **Finish empty/loading/error states.** Present on some pages (e.g.
   containers); make them consistent across every resource page, with Retry.
 

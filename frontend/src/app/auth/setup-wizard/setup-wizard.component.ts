@@ -9,7 +9,6 @@ import { DyField } from '../ui/field/field.component';
 import { DyTextInput } from '../ui/text-input/text-input.component';
 import { DyPasswordInput } from '../ui/password-input/password-input.component';
 import { DyPasswordStrength } from '../ui/password-strength/password-strength.component';
-import { DyToggle } from '../ui/toggle/toggle.component';
 import { DyCheckRow } from '../ui/check-row/check-row.component';
 import { DyBtn } from '../ui/btn/btn.component';
 
@@ -19,7 +18,6 @@ const STEPS: Step[] = [
   { id: 'welcome',  label: 'Welcome' },
   { id: 'admin',    label: 'Admin account' },
   { id: 'instance', label: 'Instance' },
-  { id: 'prefs',    label: 'Preferences' },
   { id: 'review',   label: 'Review' },
 ];
 
@@ -35,7 +33,7 @@ const FEATURES = [
   standalone: true,
   imports: [
     CommonModule, IconComponent,
-    DyBrandMark, DyField, DyTextInput, DyPasswordInput, DyPasswordStrength, DyToggle, DyCheckRow, DyBtn,
+    DyBrandMark, DyField, DyTextInput, DyPasswordInput, DyPasswordStrength, DyCheckRow, DyBtn,
   ],
   templateUrl: './setup-wizard.component.html',
 })
@@ -66,16 +64,14 @@ export class SetupWizardComponent {
 
   get pwMask(): string { return '•'.repeat(Math.max(8, this.data.password.length || 10)); }
 
-  onOff(b: boolean): string { return b ? 'enabled' : 'disabled'; }
-
-  // per-step validity gate (mirrors setup.jsx)
+  // per-step validity gate
   get valid(): boolean {
     const d = this.data;
     switch (this.step.id) {
       case 'welcome':  return d.accepted;
       case 'admin':    return !!d.fullName.trim() && /\S+@\S+\.\S+/.test(d.email) && d.username.trim().length >= 3
                               && d.password.length >= 8 && d.password === d.confirm;
-      case 'instance': return !!d.instanceName.trim() && !!d.dockerHost.trim();
+      case 'instance': return !!d.instanceName.trim();
       default:         return true;
     }
   }

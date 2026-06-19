@@ -8,16 +8,21 @@ How to build, run, test, and work on Dockyard. For **status / what's left**, see
 backend + Angular 17 standalone frontend + `registry:2`, deployed via
 `docker-compose.yml` (nginx serves the SPA and proxies `/api`, `/ws`, `/git`,
 `/webhooks`). The backend talks to Docker through a least-privilege **socket
-proxy**, never the raw socket. Branch: **`auth`** (PR target: `main`).
+proxy**, never the raw socket. Branch: **`main`** (treated as production — see
+the project memory). App version: **0.0.1** (`appVersion` in
+`backend/api/handlers/auth.go`).
 
 ## Recent structural notes
-- The `auth/` and resource-page components were **refactored into per-component
-  folders** (`<name>/<name>.component.{ts,html,scss}`); inline templates/styles
-  are now separate files. Committed (`a7967d4`) and build-verified.
-- `backend/storage/secret.key` was **removed from the repo** and gitignored
-  (`8001762`); the runtime key lives at `/data/secret.key` or `$DOCKYARD_SECRET_KEY`.
-  Note: it still exists in git **history** (commit `fbaecfc`) — scrub before any
-  public push (see ROADMAP §A).
+- Git history was **reset to a single `Initial commit` on `main`** (the old `auth`
+  branch and its 58-commit history were retired because an early commit had leaked
+  a dev `secret.key`). The runtime key lives at `/data/secret.key` or
+  `$DOCKYARD_SECRET_KEY` and is gitignored; it is **no longer in history**.
+- `auth/` and resource-page components live in **per-component folders**
+  (`<name>/<name>.component.{ts,html,scss}`) — inline templates/styles are split out.
+- The **first-run setup wizard** only collects fields that take effect (admin
+  account + instance name). Docker host, bind address, data dir, TLS, auto-update,
+  telemetry and default-registry are fixed by the deployment (compose env / socket
+  proxy), so they are intentionally **not** asked for.
 
 ## How to build / run / test (Windows + Docker Desktop)
 ```bash
@@ -44,13 +49,17 @@ docker compose rm -sf backend && docker volume rm docker-manager_backend-data &&
 - Builds emit harmless `NG8107` (redundant `?.`) warnings and LF→CRLF git warnings.
 
 ## DB migrations
-Sequential chain `migrate`..`migrateV18`, all wired in `storage/db.go`'s `Open()`
+Sequential chain `migrate`..`migrateV23`, all wired in `storage/db.go`'s `Open()`
 (V10 users.active, V11 metric_samples, V12 alert_rules, V13 stack_env,
 V14 stack_deploys, V15 stack_webhooks, V16 project_deploy, V17 alert_rules
-for/firing/pending columns [in `alerts.go`], V18 watched_images.update_available).
-**New migrations must be appended and wired into `Open()`** — never renumber
-existing ones. Note some migration bodies live next to their feature (e.g.
-`migrateV17` in `alerts.go`), but all are *called* from `db.go`'s `Open()`.
+for/firing/pending columns [in `alerts.go`], V18 watched_images.update_available,
+V19 roles + system-role seed [`roles.go`], V20 richer member fields [`auth.go`],
+V21 volume-backup catalogue + V22 per-volume backup schedule [`volumebackups.go`],
+V23 application-backup schedule [`appbackup.go`]). Note V20 is intentionally
+called *before* V19 in `Open()`. **New migrations must be appended and wired into
+`Open()`** — never renumber existing ones. Some migration bodies live next to
+their feature (e.g. `migrateV17` in `alerts.go`), but all are *called* from
+`db.go`'s `Open()`.
 
 ## Verification patterns that worked
 - **API**: fresh reset → setup admin → get bearer token → exercise endpoints →

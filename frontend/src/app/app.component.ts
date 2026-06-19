@@ -69,7 +69,6 @@ export class AppComponent implements OnInit, OnDestroy {
       items: [
         { label: 'Dashboard', icon: 'layout-dashboard', route: '/dashboard' },
         { label: 'Topology',  icon: 'workflow',         route: '/topology'  },
-        { label: 'Projects',  icon: 'rocket',           route: '/projects'  },
       ],
     },
     {
@@ -82,12 +81,18 @@ export class AppComponent implements OnInit, OnDestroy {
       ],
     },
     {
-      label: 'Build',
+      label: 'Deploy',
       items: [
         { label: 'Templates', icon: 'layout-template', route: '/templates' },
-        { label: 'Compose',   icon: 'boxes',       route: '/stacks'   },
+        { label: 'Compose',   icon: 'boxes',           route: '/stacks'    },
+        { label: 'Projects',  icon: 'rocket',          route: '/projects'  },
+      ],
+    },
+    {
+      label: 'Build',
+      items: [
         { label: 'Builds',    icon: 'hammer',      route: '/builds'   },
-        { label: 'Source',    icon: 'git-branch',  route: '/source'   },
+        { label: 'Git',       icon: 'git-branch',  route: '/source'   },
         { label: 'Registry',  icon: 'cloud',       route: '/registry' },
       ],
     },
@@ -217,6 +222,7 @@ export class AppComponent implements OnInit, OnDestroy {
       '/networks': 'Networks',
       '/stacks': 'Compose',
       '/builds': 'Builds',
+      '/source': 'Git',
       '/registry': 'Registry',
       '/templates': 'Templates',
       '/projects': 'Projects',
