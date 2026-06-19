@@ -282,6 +282,21 @@
 .port-conflict-title { font-size: 13px; font-weight: 500; color: var(--fg); }
 .port-conflict-sub   { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
 .port-conflict-form  { display: flex; align-items: center; gap: 8px; flex: none; }
+.port-conflict-remap { display: flex; align-items: center; gap: 12px; flex: none; }
+.port-conflict-rows  { display: flex; flex-direction: column; gap: 6px; }
+.port-conflict-row   { display: flex; align-items: center; gap: 8px; }
+.port-host-label     { font-size: 12px; color: var(--fg); }
+.port-used-by {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  background: var(--bg-inset);
+  border-radius: 4px;
+}
 .port-arrow { font-size: 11px; color: var(--fg-subtle); }
 .port-input {
   width: 72px;

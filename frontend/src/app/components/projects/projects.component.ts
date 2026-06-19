@@ -6,7 +6,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpEventType } from '@angular/common/http';
-import { Subscription } from 'rxjs';
+import { Subscription, forkJoin } from 'rxjs';
 import { DockerService } from '../../services/docker.service';
 import { WebSocketService, DeleteProgressEvent } from '../../services/websocket.service';
 import { NotificationService } from '../../services/notification.service';
@@ -14,6 +14,7 @@ import { ConfirmDialogService } from '../../services/confirm-dialog.service';
 import { ContextMenuService, ContextMenuItem } from '../../services/context-menu.service';
 import {
   Project, ProjectFileNode, GitRepo, GitFileStatus, GitCommit, GitBranch,
+  ProjectPortStatus,
 } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LogViewerComponent } from '../shared/log-viewer/log-viewer.component';
@@ -80,8 +81,10 @@ export class ProjectsComponent implements OnInit, OnDestroy {
   portsEditing = false;
   portRows: { host: string; container: string }[] = [];
   portConflictBanner = false;
-  portConflictPort = '';   // single conflicting port (from WS done event or HTTP error)
-  portConflictNewPort = ''; // user-edited replacement port
+  checkingPorts = false;    // a pre-build port check is in flight
+  // Host ports that collide with another running container. newPort is the
+  // user-editable replacement (pre-filled with a free port suggested by the backend).
+  portConflicts: { host: number; container: string; usedBy: string; newPort: string }[] = [];
 
   // ── Overview stats ────────────────────────────────────────────────────────
   overviewCpu = '';
@@ -264,8 +267,8 @@ export class ProjectsComponent implements OnInit, OnDestroy {
     this.buildLog = '';
     this.runLog = '';
     this.portConflictBanner = false;
-    this.portConflictPort = '';
-    this.portConflictNewPort = '';
+    this.portConflicts = [];
+    this.checkingPorts = false;
     this.fileTree = [];
     this.expandedNodes.clear();
     this.linkedRepo = null;
@@ -286,6 +289,7 @@ export class ProjectsComponent implements OnInit, OnDestroy {
     this.stopping = false;
     this.loadLogs(proj.id);
     this.loadOverviewStats();
+    this.checkPortsPassive();
     if (proj.repo_id) { this.loadLinkedRepo(proj.repo_id); this.loadDeployHook(proj.id); }
   }
 
@@ -484,9 +488,10 @@ export class ProjectsComponent implements OnInit, OnDestroy {
                   this.setSelectedStatus(status as any);
                   if (status === 'failed') {
                     if (msg.port_conflict) {
-                      this.portConflictPort = msg.port_conflict;
-                      this.portConflictNewPort = String(Number(msg.port_conflict) + 1);
-                      this.portConflictBanner = true;
+                      this.showPortConflicts([{
+                        host: Number(msg.port_conflict), container: '', in_use: true,
+                        suggested: Number(msg.port_conflict) + 1,
+                      }]);
                     } else {
                       this.notify.error('Build failed');
                     }
@@ -550,9 +555,10 @@ export class ProjectsComponent implements OnInit, OnDestroy {
                   this.setSelectedStatus(status as any);
                   if (status === 'failed') {
                     if (msg.port_conflict) {
-                      this.portConflictPort = msg.port_conflict;
-                      this.portConflictNewPort = String(Number(msg.port_conflict) + 1);
-                      this.portConflictBanner = true;
+                      this.showPortConflicts([{
+                        host: Number(msg.port_conflict), container: '', in_use: true,
+                        suggested: Number(msg.port_conflict) + 1,
+                      }]);
                     } else {
                       this.notify.error('Run failed');
                     }
@@ -744,14 +750,93 @@ export class ProjectsComponent implements OnInit, OnDestroy {
     this.togglePortEditor();
   }
 
-  remapAndRebuild(): void {
-    if (!this.selected || !this.portConflictPort || !this.portConflictNewPort) return;
+  // ── Port-conflict pre-check ────────────────────────────────────────────────
+
+  get portConflictTitle(): string {
+    if (this.portConflicts.length === 1) {
+      const c = this.portConflicts[0];
+      return `Port ${c.host} is already in use${c.usedBy ? ' by ' + c.usedBy : ''}`;
+    }
+    return `${this.portConflicts.length} host ports are already in use`;
+  }
+
+  // requestBuild / requestRun check for host-port conflicts first and show the
+  // remap banner instead of starting a doomed build. On a check failure they fall
+  // through to the action — the post-build detection still catches conflicts.
+  requestBuild(): void { this.withPortCheck(() => this.buildProject()); }
+  requestRun(): void { this.withPortCheck(() => this.runProject()); }
+
+  private withPortCheck(proceed: () => void): void {
+    if (!this.selected) return;
     const id = this.selected.id;
-    this.portConflictBanner = false;
+    this.checkingPorts = true;
     this.subs.add(
-      this.docker.overrideProjectPort(id, this.portConflictPort, this.portConflictNewPort).subscribe({
+      this.docker.checkProjectPorts(id).subscribe({
+        next: res => {
+          this.checkingPorts = false;
+          if (!this.selected || this.selected.id !== id) return;
+          const conflicts = res.ports.filter(p => p.in_use);
+          if (conflicts.length) {
+            this.showPortConflicts(conflicts);
+          } else {
+            this.portConflictBanner = false;
+            proceed();
+          }
+        },
+        error: () => { this.checkingPorts = false; proceed(); },
+      }),
+    );
+  }
+
+  // Silent check used when a project is opened — surfaces the banner proactively
+  // without blocking anything if the check fails.
+  private checkPortsPassive(): void {
+    if (!this.selected) return;
+    if (this.selected.status === 'running' || this.selected.status === 'building') return;
+    const id = this.selected.id;
+    this.subs.add(
+      this.docker.checkProjectPorts(id).subscribe({
+        next: res => {
+          if (!this.selected || this.selected.id !== id) return;
+          const conflicts = res.ports.filter(p => p.in_use);
+          if (conflicts.length) this.showPortConflicts(conflicts);
+        },
+        error: () => {},
+      }),
+    );
+  }
+
+  private showPortConflicts(conflicts: ProjectPortStatus[]): void {
+    this.portConflicts = conflicts.map(p => ({
+      host: p.host,
+      container: p.container,
+      usedBy: p.used_by ?? '',
+      newPort: String(p.suggested || p.host + 1),
+    }));
+    this.portConflictBanner = true;
+  }
+
+  remapAndRebuild(): void {
+    if (!this.selected || !this.portConflicts.length) return;
+    const id = this.selected.id;
+    // Only remap ports the user actually changed to a different value. Inputs are
+    // type="number", so ngModel may hand us numbers — coerce to strings since the
+    // backend decodes both ports into string fields.
+    const changes = this.portConflicts.filter(c => c.newPort && String(c.newPort) !== String(c.host));
+    this.portConflictBanner = false;
+    if (!changes.length) { this.buildProject(); return; }
+    const calls = changes.map(c =>
+      this.docker.overrideProjectPort(id, String(c.host), String(c.newPort)),
+    );
+    this.subs.add(
+      forkJoin(calls).subscribe({
+        // buildProject() refreshes the project (and its port mappings) once the
+        // build finishes, so no separate refresh is needed here.
         next: () => this.buildProject(),
-        error: err => this.notify.error('Remap failed: ' + (err.error?.error ?? err.message)),
+        error: err => {
+          this.portConflictBanner = true;
+          this.notify.error('Remap failed: ' + (err.error?.error ?? err.message));
+        },
       }),
     );
   }

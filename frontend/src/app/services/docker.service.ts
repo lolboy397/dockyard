@@ -8,7 +8,7 @@ import {
   SystemInfo, DiskUsage, HostStats, AppEvent, WatchedImage,
   StackSummary, StackDetail, Build, BuildDefinition, RegistryItem, RegistryImage,
   GitRepo, GitFileStatus, GitCommit, GitBranch,
-  Project, ProjectLogs, ProjectFileNode
+  Project, ProjectLogs, ProjectFileNode, ProjectPortCheck
 } from '../models/docker.models';
 
 export interface MetricSample {
@@ -670,6 +670,12 @@ export class DockerService {
 
   overrideProjectPort(id: number, oldPort: string, newPort: string): Observable<{status: string}> {
     return this.http.patch<{status: string}>(`${this.base}/projects/${id}/port-override`, { old_port: oldPort, new_port: newPort });
+  }
+
+  // Checks whether any of the project's declared host ports are already bound by
+  // another running container, so the UI can warn before a build/run.
+  checkProjectPorts(id: number): Observable<ProjectPortCheck> {
+    return this.http.get<ProjectPortCheck>(`${this.base}/projects/${id}/port-check`);
   }
 
   listProjects(): Observable<Project[]> {

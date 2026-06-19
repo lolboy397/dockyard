@@ -362,6 +362,19 @@ export interface ProjectLogs {
   run_log: string;
 }
 
+export interface ProjectPortStatus {
+  host: number;
+  container: string;
+  in_use: boolean;
+  used_by?: string;   // name of the container currently holding the host port
+  suggested?: number; // a free host port to remap to
+}
+
+export interface ProjectPortCheck {
+  ports: ProjectPortStatus[];
+  has_conflict: boolean;
+}
+
 export interface ProjectFileNode {
   name: string;
   type: 'file' | 'dir';

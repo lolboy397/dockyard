@@ -151,15 +151,15 @@
             <button class="btn-sm ghost" (click)="switchTab('logs')">
               <dy-icon name="scroll-text" [size]="13"></dy-icon>View logs
             </button>
-            <button class="btn-sm accent" (click)="buildProject()">
-              <dy-icon name="rotate-ccw" [size]="13"></dy-icon>Retry build
+            <button class="btn-sm accent" [disabled]="checkingPorts" (click)="requestBuild()">
+              <dy-icon name="rotate-ccw" [size]="13"></dy-icon>{{ checkingPorts ? 'Checking…' : 'Retry build' }}
             </button>
           } @else {
-            <button class="btn-sm" [disabled]="running || building" (click)="buildProject()">
-              <dy-icon name="hammer" [size]="13"></dy-icon>{{ isBuilt ? 'Rebuild' : 'Build' }}
+            <button class="btn-sm" [disabled]="running || building || checkingPorts" (click)="requestBuild()">
+              <dy-icon name="hammer" [size]="13"></dy-icon>{{ checkingPorts ? 'Checking…' : (isBuilt ? 'Rebuild' : 'Build') }}
             </button>
             @if (isBuilt) {
-              <button class="btn-sm accent" [disabled]="running" (click)="runProject()">
+              <button class="btn-sm accent" [disabled]="running || checkingPorts" (click)="requestRun()">
                 <dy-icon name="play" [size]="13"></dy-icon>{{ running ? 'Starting…' : 'Run' }}
               </button>
             }
@@ -189,14 +189,23 @@
         <div class="port-conflict">
           <dy-icon name="triangle-alert" [size]="16" style="flex:none; color:var(--danger-400)"></dy-icon>
           <div class="port-conflict-text">
-            <div class="port-conflict-title">Port {{ portConflictPort }} is already in use</div>
-            <div class="port-conflict-sub">Remap the host port to continue, or stop the conflicting container.</div>
+            <div class="port-conflict-title">{{ portConflictTitle }}</div>
+            <div class="port-conflict-sub">Remap the host port{{ portConflicts.length > 1 ? 's' : '' }} to continue, or stop the conflicting container.</div>
           </div>
-          <div class="port-conflict-form">
-            <span class="mono port-arrow">host</span>
-            <input class="port-input mono" type="number" [(ngModel)]="portConflictNewPort" [placeholder]="portConflictPort" />
-            <span class="mono port-arrow">→ {{ portConflictPort }}</span>
-            <button class="btn-sm accent" (click)="remapAndRebuild()">
+          <div class="port-conflict-remap">
+            <div class="port-conflict-rows">
+              @for (c of portConflicts; track c.host) {
+                <div class="port-conflict-row">
+                  <span class="mono port-host-label">:{{ c.host }}</span>
+                  @if (c.usedBy) {
+                    <span class="port-used-by" [title]="'in use by ' + c.usedBy">{{ c.usedBy }}</span>
+                  }
+                  <dy-icon name="arrow-right" [size]="12" style="color:var(--fg-subtle)"></dy-icon>
+                  <input class="port-input mono" type="number" [(ngModel)]="c.newPort" [placeholder]="c.host" />
+                </div>
+              }
+            </div>
+            <button class="btn-sm accent" [disabled]="checkingPorts" (click)="remapAndRebuild()">
               <dy-icon name="check" [size]="12"></dy-icon>Remap &amp; build
             </button>
           </div>

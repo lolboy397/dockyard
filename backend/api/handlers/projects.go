@@ -21,6 +21,8 @@ import (
 
 	"docker-manager/backend/storage"
 
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 )
@@ -234,6 +236,7 @@ func (h *deleteHub) finish() {
 // ProjectHandlers manages local project upload, build and run.
 type ProjectHandlers struct {
 	db         *storage.DB
+	docker     *client.Client // used to inspect host-port usage for pre-build conflict checks
 	mu         sync.Mutex
 	cancels    map[int64]context.CancelFunc
 	hubs       sync.Map // int64 → *broadcastHub  (build-log streaming)
@@ -241,9 +244,10 @@ type ProjectHandlers struct {
 }
 
 // NewProjectHandlers creates a new ProjectHandlers.
-func NewProjectHandlers(db *storage.DB) *ProjectHandlers {
+func NewProjectHandlers(db *storage.DB, cli *client.Client) *ProjectHandlers {
 	return &ProjectHandlers{
 		db:      db,
+		docker:  cli,
 		cancels: make(map[int64]context.CancelFunc),
 	}
 }
@@ -915,16 +919,13 @@ func parseComposePorts(content, hostPort string) map[string]string {
 	return result
 }
 
-// PortOverride creates (or replaces) a docker-compose.override.yml that remaps
-// a conflicting host port to a new one without modifying the original compose file.
+// PortOverride remaps a conflicting host port to a new one. For compose projects
+// it rewrites the compose file in place (backing up the original first); for other
+// project types it updates the stored ports field that drives `docker run -p`.
 func (h *ProjectHandlers) PortOverride(w http.ResponseWriter, r *http.Request) {
 	proj, err := h.getProject(r)
 	if err != nil {
 		writeError(w, http.StatusNotFound, errMsg("project not found"))
-		return
-	}
-	if proj.Type != "compose" {
-		writeError(w, http.StatusBadRequest, errMsg("only compose projects support port override"))
 		return
 	}
 	var body struct {
@@ -935,34 +936,250 @@ func (h *ProjectHandlers) PortOverride(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, errMsg("old_port and new_port required"))
 		return
 	}
-	composePath := findComposeFile(proj.Path)
-	data, err := os.ReadFile(composePath)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("could not read compose file: %w", err))
+
+	if proj.Type == "compose" {
+		composePath := findComposeFile(proj.Path)
+		data, err := os.ReadFile(composePath)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Errorf("could not read compose file: %w", err))
+			return
+		}
+		newContent, changed := replaceComposeHostPort(string(data), body.OldPort, body.NewPort)
+		if !changed {
+			writeError(w, http.StatusNotFound, fmt.Errorf("port %s not found in compose file", body.OldPort))
+			return
+		}
+		// Back up the original compose file the first time it is modified.
+		backupPath := composePath + ".original"
+		if _, statErr := os.Stat(backupPath); os.IsNotExist(statErr) {
+			_ = os.WriteFile(backupPath, data, 0644)
+		}
+		// Remove any stale additive override file left by an earlier run attempt.
+		_ = os.Remove(filepath.Join(proj.Path, "docker-compose.override.yml"))
+		if err := os.WriteFile(composePath, []byte(newContent), 0644); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Errorf("could not update compose file: %w", err))
+			return
+		}
+	} else if !hostPortDeclared(proj.Ports, body.OldPort) {
+		writeError(w, http.StatusNotFound, fmt.Errorf("port %s not found in project ports", body.OldPort))
 		return
 	}
-	newContent, changed := replaceComposeHostPort(string(data), body.OldPort, body.NewPort)
-	if !changed {
-		writeError(w, http.StatusNotFound, fmt.Errorf("port %s not found in compose file", body.OldPort))
-		return
-	}
-	// Back up the original compose file the first time it is modified.
-	backupPath := composePath + ".original"
-	if _, statErr := os.Stat(backupPath); os.IsNotExist(statErr) {
-		_ = os.WriteFile(backupPath, data, 0644)
-	}
-	// Remove any stale additive override file left by an earlier run attempt.
-	_ = os.Remove(filepath.Join(proj.Path, "docker-compose.override.yml"))
-	if err := os.WriteFile(composePath, []byte(newContent), 0644); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Errorf("could not update compose file: %w", err))
-		return
-	}
-	// Keep the DB ports field in sync so the frontend reflects the new mapping.
+
+	// Keep the DB ports field in sync. For non-compose projects this is the change
+	// that actually takes effect at `docker run`.
 	if proj.Ports != "" {
 		newPorts := strings.ReplaceAll(proj.Ports, body.OldPort+":", body.NewPort+":")
 		h.db.UpdateProjectPorts(proj.ID, newPorts) //nolint:errcheck
 	}
 	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+// ── Port-conflict pre-check ─────────────────────────────────────────────────────
+
+// declaredPort is a host:container port mapping a project will try to bind.
+type declaredPort struct {
+	Host      int
+	Container string
+}
+
+// portHolder identifies the running container currently publishing a host port.
+type portHolder struct {
+	name           string
+	composeProject string
+}
+
+// portCheckResult describes one declared host port and whether another running
+// container already holds it.
+type portCheckResult struct {
+	Host      int    `json:"host"`
+	Container string `json:"container"`
+	InUse     bool   `json:"in_use"`
+	UsedBy    string `json:"used_by,omitempty"`
+	Suggested int    `json:"suggested,omitempty"` // a free host port to remap to
+}
+
+// parseHostPort extracts the host and container port from a single mapping such as
+// "8080:80", "0.0.0.0:8080:80", or "8080:80/tcp". It returns ok=false for bare
+// ports (e.g. "80"), which Docker publishes to a random host port and so can't
+// collide with anything.
+func parseHostPort(mapping string) (declaredPort, bool) {
+	mapping = strings.Trim(strings.TrimSpace(mapping), `"'`)
+	if mapping == "" {
+		return declaredPort{}, false
+	}
+	if i := strings.IndexByte(mapping, '/'); i >= 0 {
+		mapping = mapping[:i]
+	}
+	parts := strings.Split(mapping, ":")
+	var hostStr, containerStr string
+	switch len(parts) {
+	case 2: // HOST:CONTAINER
+		hostStr, containerStr = parts[0], parts[1]
+	case 3: // IP:HOST:CONTAINER
+		hostStr, containerStr = parts[1], parts[2]
+	default:
+		return declaredPort{}, false
+	}
+	host, err := strconv.Atoi(hostStr)
+	if err != nil {
+		return declaredPort{}, false
+	}
+	return declaredPort{Host: host, Container: containerStr}, true
+}
+
+// hostPortDeclared reports whether the comma-separated ports list publishes the
+// given host port.
+func hostPortDeclared(ports, host string) bool {
+	for _, m := range parsePorts(ports) {
+		if dp, ok := parseHostPort(m); ok && strconv.Itoa(dp.Host) == host {
+			return true
+		}
+	}
+	return false
+}
+
+// composeDeclaredPorts extracts host:container mappings from a compose file's
+// short-form ports entries (e.g. - "8080:80"). Only entries inside a ports: block
+// are considered, so unrelated "n:n" tokens (image tags, versions) are ignored.
+// Long syntax (published:/target:) is not parsed.
+func composeDeclaredPorts(content string) []declaredPort {
+	mapRe := regexp.MustCompile(`["']?(?:\d{1,3}(?:\.\d{1,3}){3}:)?(\d+):(\d+)(?:/\w+)?["']?`)
+	var result []declaredPort
+	seen := map[int]bool{}
+	inPorts := false
+	for _, line := range strings.Split(content, "\n") {
+		if strings.TrimSpace(line) == "ports:" {
+			inPorts = true
+			continue
+		}
+		trimmed := strings.TrimLeft(line, " ")
+		spaces := len(line) - len(trimmed)
+		// A non-list key at the service-key indent (≤4 spaces) closes the block.
+		if inPorts && spaces <= 4 && len(trimmed) > 0 && trimmed[0] != '-' {
+			inPorts = false
+		}
+		if !inPorts {
+			continue
+		}
+		if m := mapRe.FindStringSubmatch(line); m != nil {
+			host, _ := strconv.Atoi(m[1])
+			if host != 0 && !seen[host] {
+				seen[host] = true
+				result = append(result, declaredPort{Host: host, Container: m[2]})
+			}
+		}
+	}
+	return result
+}
+
+// projectDeclaredPorts returns the host:container mappings a project will try to
+// bind when it runs: from the compose file for compose projects, or from the
+// stored ports field otherwise.
+func (h *ProjectHandlers) projectDeclaredPorts(proj *storage.Project) []declaredPort {
+	if proj.Type == "compose" {
+		data, err := os.ReadFile(findComposeFile(proj.Path))
+		if err != nil {
+			return nil
+		}
+		return composeDeclaredPorts(string(data))
+	}
+	var result []declaredPort
+	seen := map[int]bool{}
+	for _, m := range parsePorts(proj.Ports) {
+		if dp, ok := parseHostPort(m); ok && !seen[dp.Host] {
+			seen[dp.Host] = true
+			result = append(result, dp)
+		}
+	}
+	return result
+}
+
+// usedHostPorts maps every host port currently published by a running container to
+// the container publishing it.
+func (h *ProjectHandlers) usedHostPorts(ctx context.Context) (map[int]portHolder, error) {
+	used := map[int]portHolder{}
+	if h.docker == nil {
+		return used, nil
+	}
+	containers, err := h.docker.ContainerList(ctx, container.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range containers {
+		name := ""
+		if len(c.Names) > 0 {
+			name = strings.TrimPrefix(c.Names[0], "/")
+		}
+		holder := portHolder{name: name, composeProject: c.Labels["com.docker.compose.project"]}
+		for _, p := range c.Ports {
+			if p.PublicPort != 0 {
+				used[int(p.PublicPort)] = holder
+			}
+		}
+	}
+	return used, nil
+}
+
+// suggestFreePort returns the first host port above `from` not already bound by a
+// running container or declared by the project, or 0 if none is found.
+func suggestFreePort(from int, used map[int]portHolder, declared map[int]bool) int {
+	for p := from + 1; p <= 65535; p++ {
+		if _, taken := used[p]; taken {
+			continue
+		}
+		if declared[p] {
+			continue
+		}
+		return p
+	}
+	return 0
+}
+
+// computePortConflicts marks each declared host port that another running
+// container already holds. Ports held by the project's own containers
+// (ownContainer for dockerfile projects, ownCompose label for compose projects)
+// are not conflicts, since a rebuild replaces them.
+func computePortConflicts(declared []declaredPort, used map[int]portHolder, ownContainer, ownCompose string) ([]portCheckResult, bool) {
+	declaredSet := make(map[int]bool, len(declared))
+	for _, d := range declared {
+		declaredSet[d.Host] = true
+	}
+	results := make([]portCheckResult, 0, len(declared))
+	hasConflict := false
+	for _, d := range declared {
+		res := portCheckResult{Host: d.Host, Container: d.Container}
+		if holder, ok := used[d.Host]; ok {
+			own := holder.name == ownContainer ||
+				(holder.composeProject != "" && holder.composeProject == ownCompose)
+			if !own {
+				res.InUse = true
+				res.UsedBy = holder.name
+				res.Suggested = suggestFreePort(d.Host, used, declaredSet)
+				hasConflict = true
+			}
+		}
+		results = append(results, res)
+	}
+	return results, hasConflict
+}
+
+// CheckPorts reports which of a project's declared host ports are already bound by
+// another running container, so the UI can warn before starting a build/run.
+func (h *ProjectHandlers) CheckPorts(w http.ResponseWriter, r *http.Request) {
+	proj, err := h.getProject(r)
+	if err != nil {
+		writeError(w, http.StatusNotFound, errMsg("project not found"))
+		return
+	}
+	declared := h.projectDeclaredPorts(proj)
+	used, err := h.usedHostPorts(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("could not list containers: %w", err))
+		return
+	}
+	results, hasConflict := computePortConflicts(declared, used,
+		"project-"+strings.ToLower(proj.Name), composeProjectName(proj.Name))
+	writeJSON(w, map[string]any{"ports": results, "has_conflict": hasConflict})
 }
 
 // replaceComposeHostPort replaces every host-port binding matching oldPort in the
