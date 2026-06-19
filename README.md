@@ -171,8 +171,20 @@ ghcr.io/lolboy397/dockyard-backend:latest
 ghcr.io/lolboy397/dockyard-frontend:latest
 ```
 
-The `docker-compose.yml` references these images, so on the server you just pull
-and restart:
+There are two ways to consume them on a server:
+
+**A. Standalone (no repo needed) — recommended.** Copy just
+[`docker-compose.images.yml`](docker-compose.images.yml) (and optionally
+`.env.example` → `.env`) to the server. It runs purely from the published images
+— no source or Dockerfiles required:
+
+```bash
+docker compose -f docker-compose.images.yml pull
+docker compose -f docker-compose.images.yml up -d
+```
+
+**B. From a repo checkout.** The main `docker-compose.yml` also references the
+images (it keeps `build:` for local dev), so a checked-out server can just:
 
 ```bash
 git pull                       # fetch the latest compose file
