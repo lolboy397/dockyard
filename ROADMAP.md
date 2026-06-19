@@ -85,8 +85,8 @@ App version: **0.0.1**. Branch: **`main`**.
   `styles/volume-explorer.scss`. Real volume browsing is a follow-up (see §B).
 - **Local-friendly serving** ✅ The frontend is served over **both HTTP and HTTPS
   with no forced HTTP→HTTPS redirect**, so a local instance is reached at
-  `http://localhost` — a browser **secure context**, so Chrome shows no "Not
-  secure" warning and needs no certificate. HSTS is reserved for real-cert
+  `http://localhost:9272` (default host ports 9272/9273) — a browser **secure
+  context**, so Chrome shows no "Not secure" warning and needs no certificate. HSTS is reserved for real-cert
   deployments (see §B "Real TLS"); the self-signed cert still backs `https://`.
   Frontend container **healthcheck fixed** (IPv4 `http://127.0.0.1/` — `localhost`
   resolved to IPv6 `::1`, where nginx isn't bound).

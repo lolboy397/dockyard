@@ -60,14 +60,19 @@ cp .env.example .env        # then edit .env
 docker compose up -d --build
 ```
 
-Then open **http://localhost** and complete the **first-run setup wizard** — it
-creates your admin account and instance settings. There are **no default
+Then open **http://localhost:9272** and complete the **first-run setup wizard** —
+it creates your admin account and instance settings. There are **no default
 credentials**; the account you create in the wizard is the only one until you add
 more from the Users page.
 
-> `http://localhost` is a browser *secure context*, so there's no certificate
-> warning even though the bundled HTTPS cert is self-signed. `https://localhost`
-> also works (you'll get the expected self-signed warning).
+> The default host ports are **9272 (HTTP)** and **9273 (HTTPS)** — deliberately
+> uncommon so they don't collide with anything already on 80/443. Change them with
+> `HTTP_PORT` / `HTTPS_PORT` in `.env` (e.g. back to `80`/`443`).
+>
+> `http://localhost:9272` is a browser *secure context* (localhost is special-cased
+> at any port), so there's no certificate warning even though the bundled HTTPS cert
+> is self-signed. `https://localhost:9273` also works (you'll get the expected
+> self-signed warning).
 
 To stop or update:
 
@@ -86,8 +91,8 @@ is therefore root-equivalent on the host.
 
 | You want to… | Do this |
 |---|---|
-| Use it on the same machine | Open `http://localhost` — works out of the box |
-| Reach it from other devices on a **trusted LAN** | Set `BIND_ADDR=0.0.0.0` in `.env`, then `docker compose up -d`. Reach it at `http://<host-ip>`. |
+| Use it on the same machine | Open `http://localhost:9272` — works out of the box |
+| Reach it from other devices on a **trusted LAN** | Set `BIND_ADDR=0.0.0.0` in `.env`, then `docker compose up -d`. Reach it at `http://<host-ip>:9272`. |
 | Expose it beyond your LAN | **Don't expose it directly.** Put a hardened reverse proxy (Caddy/Traefik/nginx) with **real TLS** and access control in front, on a host you trust, and keep the app bound to loopback or an internal interface. |
 
 **Why so cautious?** Anyone who can reach the UI and authenticate can run
@@ -105,7 +110,7 @@ full annotated list. The most important ones:
 | Variable | Default | Purpose |
 |---|---|---|
 | `BIND_ADDR` | `127.0.0.1` | Host interface the UI binds to (`0.0.0.0` for LAN) |
-| `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | Host ports for the UI |
+| `HTTP_PORT` / `HTTPS_PORT` | `9272` / `9273` | Host ports for the UI (uncommon by default) |
 | `DOCKYARD_SECRET_KEY` | _(generated)_ | base64 32-byte key encrypting secrets at rest — see below |
 | `CORS_ALLOWED_ORIGINS` | `*` | Comma-separated allowed origins (safe default: bearer-token auth, no cookies) |
 | `BACKUP_KEEP` | `10` | Volume backups kept per volume |

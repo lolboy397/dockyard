@@ -34,7 +34,7 @@ docker compose up -d --build frontend     # frontend only (Angular)
 # reset to a FRESH first-run instance (wipes the SQLite volume)
 docker compose rm -sf backend && docker volume rm docker-manager_backend-data && docker compose up -d
 ```
-- App: **http://localhost** (first-run setup wizard → admin). Password rule is min-8-chars only.
+- App: **http://localhost:9272** (default host ports are 9272/9273, not 80/443 — override with `HTTP_PORT`/`HTTPS_PORT`). First-run setup wizard → admin; password rule is min-8-chars only.
 - **Run Go tests in a linux container via PowerShell** (NOT git-bash — it mangles `-w /src`):
   ```powershell
   docker run --rm -v "C:/Development/docker-manager/backend:/src" -w /src golang:1.26-alpine sh -c "go test ./... 2>&1"
