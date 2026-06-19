@@ -49,6 +49,10 @@ services:
         max-file: "3"
 
   backend:
+    # Pre-built image published by CI to GHCR. `docker compose pull` fetches it;
+    # the build section below still lets you build locally with `up --build`.
+    # Override the tag (e.g. a pinned release) via DOCKYARD_TAG in .env.
+    image: ghcr.io/lolboy397/dockyard-backend:${DOCKYARD_TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -127,6 +131,8 @@ services:
         max-file: "3"
 
   frontend:
+    # Pre-built image published by CI to GHCR (see the backend service note).
+    image: ghcr.io/lolboy397/dockyard-frontend:${DOCKYARD_TAG:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile

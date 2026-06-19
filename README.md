@@ -160,6 +160,43 @@ Details in [`BACKUP.md`](BACKUP.md).
 
 ---
 
+## Deploy from pre-built images (CI / GHCR)
+
+Every push to `main` builds the `backend` and `frontend` images in GitHub Actions
+and publishes them to the GitHub Container Registry (GHCR), so a server can run
+the stack **without building anything locally**:
+
+```bash
+ghcr.io/lolboy397/dockyard-backend:latest
+ghcr.io/lolboy397/dockyard-frontend:latest
+```
+
+The `docker-compose.yml` references these images, so on the server you just pull
+and restart:
+
+```bash
+git pull                       # fetch the latest compose file
+docker compose pull            # pull the freshly built images (no local build)
+docker compose up -d           # restart with the new images
+```
+
+Because the repository is private the packages are private too, so log in **once**
+on the server with a GitHub token that has the `read:packages` scope (or flip each
+package to *public* in its GitHub package settings):
+
+```bash
+echo <TOKEN> | docker login ghcr.io -u <github-user> --password-stdin
+```
+
+Pin a specific build instead of `latest` by setting `DOCKYARD_TAG` in `.env`
+(e.g. `DOCKYARD_TAG=0.0.1` for a `v0.0.1` release tag, or `DOCKYARD_TAG=sha-abc1234`
+for an exact commit). Tagged releases (`git tag v0.0.2 && git push --tags`) publish
+matching `:0.0.2` / `:0.0` image tags. The server must be `linux/amd64` (the
+default build target); for an ARM host, see the note in
+[`.github/workflows/release.yml`](.github/workflows/release.yml).
+
+---
+
 ## Running offline / air-gapped
 
 Once built, the stack makes **no outbound network calls on its own**. You can
