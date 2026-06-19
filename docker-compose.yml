@@ -101,6 +101,9 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      # Grace window covering DB init + the Docker-endpoint connect retry, so the
+      # backend isn't marked unhealthy while it's still legitimately starting.
+      start_period: 75s
     logging:
       driver: json-file
       options:
