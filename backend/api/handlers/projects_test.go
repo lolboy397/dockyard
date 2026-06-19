@@ -2,8 +2,34 @@ package handlers
 
 import (
 	"reflect"
+	"slices"
 	"testing"
+
+	"docker-manager/backend/storage"
 )
+
+func TestBuildCommandArgs(t *testing.T) {
+	df := &storage.Project{Type: "dockerfile", Name: "app", ImageTag: "project-app:latest", Path: "/data/projects/app"}
+	cmp := &storage.Project{Type: "compose", Name: "app", Path: "/data/projects/app"}
+
+	// Cached (default) builds must NOT pass --no-cache.
+	if got := buildCommandArgs(df, false); slices.Contains(got, "--no-cache") {
+		t.Errorf("dockerfile cached build should not include --no-cache: %v", got)
+	}
+	if got := buildCommandArgs(cmp, false); slices.Contains(got, "--no-cache") {
+		t.Errorf("compose cached build should not include --no-cache: %v", got)
+	}
+
+	// Forced builds must pass --no-cache.
+	dfNo := buildCommandArgs(df, true)
+	if !slices.Contains(dfNo, "--no-cache") || !slices.Contains(dfNo, "project-app:latest") {
+		t.Errorf("dockerfile no-cache build wrong: %v", dfNo)
+	}
+	cmpNo := buildCommandArgs(cmp, true)
+	if cmpNo[0] != "compose" || !slices.Contains(cmpNo, "build") || !slices.Contains(cmpNo, "--no-cache") {
+		t.Errorf("compose no-cache build wrong: %v", cmpNo)
+	}
+}
 
 func TestParseHostPort(t *testing.T) {
 	cases := []struct {

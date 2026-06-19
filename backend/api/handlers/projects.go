@@ -763,8 +763,14 @@ func (h *ProjectHandlers) Build(w http.ResponseWriter, r *http.Request) {
 	h.cancels[proj.ID] = cancel
 	h.mu.Unlock()
 
-	go h.runBuild(ctx, proj)
+	go h.runBuildAndStart(ctx, proj, noCacheRequested(r))
 	writeJSON(w, map[string]string{"status": "building"})
+}
+
+// noCacheRequested reports whether the request asked for a cache-less (full)
+// rebuild via ?no_cache=true.
+func noCacheRequested(r *http.Request) bool {
+	return r.URL.Query().Get("no_cache") == "true"
 }
 
 // Run starts the project containers (after a successful build).
@@ -799,7 +805,7 @@ func (h *ProjectHandlers) Run(w http.ResponseWriter, r *http.Request) {
 	h.cancels[proj.ID] = cancel
 	h.mu.Unlock()
 
-	go h.runBuildAndStart(ctx, proj)
+	go h.runBuildAndStart(ctx, proj, noCacheRequested(r))
 	writeJSON(w, map[string]string{"status": "building"})
 }
 
@@ -1308,99 +1314,36 @@ func (h *ProjectHandlers) TriggerDeploy(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusNotFound, errMsg("project not found"))
 		return
 	}
-	go h.runBuildAndStart(context.Background(), proj)
+	// Deploy-on-push uses the layer cache for fast incremental deploys.
+	go h.runBuildAndStart(context.Background(), proj, false)
 	writeJSON(w, map[string]any{"message": "deploy triggered"})
 }
 
 // ── Async build logic ─────────────────────────────────────────────────────────
 
-func (h *ProjectHandlers) runBuild(ctx context.Context, proj *storage.Project) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[panic] project %s build: %v", proj.Name, r)
-			h.db.UpdateProjectStatus(proj.ID, "failed", fmt.Sprintf("build crashed: %v", r)) //nolint:errcheck
+// buildCommandArgs returns the `docker …` arguments that build a project's image.
+// When noCache is true the build ignores the layer cache (a full, from-scratch
+// rebuild); otherwise Docker reuses cached layers — much faster on re-runs.
+func buildCommandArgs(proj *storage.Project, noCache bool) []string {
+	if proj.Type == "compose" {
+		args := []string{"compose", "-f", findComposeFile(proj.Path), "-p", composeProjectName(proj.Name), "build"}
+		if noCache {
+			args = append(args, "--no-cache")
 		}
-	}()
-	defer h.cleanupCancel(proj.ID)
-
-	hub := newBroadcastHub()
-	h.hubs.Store(proj.ID, hub)
-	defer h.hubs.Delete(proj.ID)
-
-	log.Printf("[project %s] build started", proj.Name)
-	h.db.LogEvent("project_build_start", "user", "project", proj.Name, "", "", "") //nolint:errcheck
-
-	var logBuf strings.Builder
-	var buildErr error
-
-	switch proj.Type {
-	case "compose":
-		composePath := findComposeFile(proj.Path)
-		args := []string{"compose", "-f", composePath, "-p", composeProjectName(proj.Name), "build", "--no-cache"}
-		buildErr = h.streamCommand(ctx, proj.ID, "build", proj.Path, &logBuf, hub, "docker", args...)
-	case "dockerfile":
-		buildErr = h.streamCommand(ctx, proj.ID, "build", proj.Path, &logBuf, hub,
-			"docker", "build", "--no-cache", "-t", proj.ImageTag, proj.Path)
+		return args
 	}
-
-	if buildErr != nil {
-		finalStatus := "idle"
-		if ctx.Err() == nil {
-			finalStatus = "failed"
-		}
-		h.db.UpdateProjectStatus(proj.ID, finalStatus, "") //nolint:errcheck
-		hub.finish(finalStatus, "")
-		h.db.LogEvent("project_build_failed", "system", "project", proj.Name, "", "", buildErr.Error()) //nolint:errcheck
-		log.Printf("[project %s] build failed: %v", proj.Name, buildErr)
-		return
+	// dockerfile
+	args := []string{"build"}
+	if noCache {
+		args = append(args, "--no-cache")
 	}
-
-	// Build succeeded — automatically start the containers.
-	log.Printf("[project %s] build complete, starting containers", proj.Name)
-	h.db.LogEvent("project_build_success", "system", "project", proj.Name, "", "", "") //nolint:errcheck
-	h.db.UpdateProjectStatus(proj.ID, "running", "") //nolint:errcheck
-
-	var runBuf strings.Builder
-	var runErr error
-
-	switch proj.Type {
-	case "compose":
-		composePath := findComposeFile(proj.Path)
-		runErr = h.streamCommand(ctx, proj.ID, "run", proj.Path, &runBuf, nil,
-			"docker", "compose", "-f", composePath, "-p", composeProjectName(proj.Name), "up", "-d")
-	case "dockerfile":
-		containerName := "project-" + strings.ToLower(proj.Name)
-		exec.Command("docker", "rm", "-f", containerName).Run() //nolint:errcheck
-		args := []string{"run", "-d", "--name", containerName}
-		for _, p := range parsePorts(proj.Ports) {
-			args = append(args, "-p", p)
-		}
-		args = append(args, proj.ImageTag)
-		runErr = h.streamCommand(ctx, proj.ID, "run", proj.Path, &runBuf, nil, "docker", args...)
-		if runErr == nil {
-			h.db.UpdateProjectStatus(proj.ID, "running", containerName) //nolint:errcheck
-		}
-	}
-
-	if runErr != nil {
-		if ctx.Err() != nil {
-			hub.finish("idle", "")
-			return
-		}
-		portConflict := detectPortConflict(runBuf.String(), proj)
-		h.db.UpdateProjectStatus(proj.ID, "failed", "") //nolint:errcheck
-		hub.finish("failed", portConflict)
-		h.db.LogEvent("project_run_failed", "system", "project", proj.Name, "", "", runErr.Error()) //nolint:errcheck
-		log.Printf("[project %s] run failed: %v", proj.Name, runErr)
-		return
-	}
-
-	hub.finish("running", "")
-	h.db.LogEvent("project_start", "system", "project", proj.Name, "", "", "") //nolint:errcheck
-	log.Printf("[project %s] running", proj.Name)
+	return append(args, "-t", proj.ImageTag, proj.Path)
 }
 
-func (h *ProjectHandlers) runBuildAndStart(ctx context.Context, proj *storage.Project) {
+// runBuildAndStart builds the project image (honouring noCache) and then starts
+// its containers, streaming progress to the build-log hub. It is the single path
+// behind both the Build and Run endpoints.
+func (h *ProjectHandlers) runBuildAndStart(ctx context.Context, proj *storage.Project, noCache bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[panic] project %s build+run: %v", proj.Name, r)
@@ -1413,22 +1356,13 @@ func (h *ProjectHandlers) runBuildAndStart(ctx context.Context, proj *storage.Pr
 	h.hubs.Store(proj.ID, hub)
 	defer h.hubs.Delete(proj.ID)
 
-	log.Printf("[project %s] build+run started", proj.Name)
+	log.Printf("[project %s] build+run started (no-cache=%v)", proj.Name, noCache)
 	h.db.LogEvent("project_build_start", "user", "project", proj.Name, "", "", "") //nolint:errcheck
 
 	var logBuf strings.Builder
 
 	// 1. Build
-	var buildErr error
-	switch proj.Type {
-	case "compose":
-		composePath := findComposeFile(proj.Path)
-		buildErr = h.streamCommand(ctx, proj.ID, "build", proj.Path, &logBuf, hub,
-			"docker", "compose", "-f", composePath, "-p", composeProjectName(proj.Name), "build")
-	case "dockerfile":
-		buildErr = h.streamCommand(ctx, proj.ID, "build", proj.Path, &logBuf, hub,
-			"docker", "build", "-t", proj.ImageTag, proj.Path)
-	}
+	buildErr := h.streamCommand(ctx, proj.ID, "build", proj.Path, &logBuf, hub, "docker", buildCommandArgs(proj, noCache)...)
 
 	if buildErr != nil {
 		finalStatus := "idle"

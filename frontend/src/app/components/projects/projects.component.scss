@@ -250,6 +250,8 @@
   &:hover { background: var(--bg-hover); }
   &.danger { color: var(--danger-400, #ef4444); }
   &.danger:hover { background: rgba(239,68,68,.08); }
+  &:disabled { opacity: .45; cursor: not-allowed; }
+  &:disabled:hover { background: transparent; }
 }
 
 /* conflict banner */

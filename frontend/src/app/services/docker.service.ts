@@ -691,12 +691,15 @@ export class DockerService {
     return this.http.delete<void>(`${this.base}/projects/${id}${qs}`);
   }
 
-  buildProject(id: number): Observable<any> {
-    return this.http.post(`${this.base}/projects/${id}/build`, {});
+  // noCache=true forces a full rebuild that ignores Docker's layer cache.
+  buildProject(id: number, noCache = false): Observable<any> {
+    const q = noCache ? '?no_cache=true' : '';
+    return this.http.post(`${this.base}/projects/${id}/build${q}`, {});
   }
 
-  runProject(id: number): Observable<any> {
-    return this.http.post(`${this.base}/projects/${id}/run`, {});
+  runProject(id: number, noCache = false): Observable<any> {
+    const q = noCache ? '?no_cache=true' : '';
+    return this.http.post(`${this.base}/projects/${id}/run${q}`, {});
   }
 
   restartProject(id: number): Observable<any> {

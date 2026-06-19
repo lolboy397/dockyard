@@ -175,6 +175,13 @@
             </button>
             @if (moreMenuOpen) {
               <div class="more-menu-dropdown" (click)="$event.stopPropagation()">
+                @if (selected.type !== 'unknown') {
+                  <button class="more-menu-item" [disabled]="building || checkingPorts"
+                    title="Rebuild ignoring Docker's layer cache (slower, fully from scratch)"
+                    (click)="requestBuild(true); moreMenuOpen = false">
+                    <dy-icon name="hammer" [size]="13"></dy-icon>Force rebuild (no cache)
+                  </button>
+                }
                 <button class="more-menu-item danger" (click)="deleteProject(); moreMenuOpen = false">
                   <dy-icon name="trash-2" [size]="13"></dy-icon>Delete project
                 </button>

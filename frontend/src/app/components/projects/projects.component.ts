@@ -450,7 +450,7 @@ export class ProjectsComponent implements OnInit, OnDestroy {
 
   // ── Build / Run / Stop ─────────────────────────────────────────────────────
 
-  buildProject(): void {
+  buildProject(noCache = false): void {
     if (!this.selected) return;
     const id = this.selected.id;
     this.building = true;
@@ -463,7 +463,7 @@ export class ProjectsComponent implements OnInit, OnDestroy {
 
     // Trigger the async build, then stream log lines via WebSocket.
     this.subs.add(
-      this.docker.buildProject(id).subscribe({
+      this.docker.buildProject(id, noCache).subscribe({
         error: err => {
           this.building = false;
           this.setSelectedStatus('failed');
@@ -763,7 +763,7 @@ export class ProjectsComponent implements OnInit, OnDestroy {
   // requestBuild / requestRun check for host-port conflicts first and show the
   // remap banner instead of starting a doomed build. On a check failure they fall
   // through to the action — the post-build detection still catches conflicts.
-  requestBuild(): void { this.withPortCheck(() => this.buildProject()); }
+  requestBuild(noCache = false): void { this.withPortCheck(() => this.buildProject(noCache)); }
   requestRun(): void { this.withPortCheck(() => this.runProject()); }
 
   private withPortCheck(proceed: () => void): void {
