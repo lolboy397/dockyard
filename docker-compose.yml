@@ -154,8 +154,11 @@ services:
     #   volumes:
     #     - ./certs:/etc/nginx/certs:ro
     depends_on:
+      # Start ordering only — do NOT block the whole stack (and roll it back) if
+      # the backend is slow to report healthy. nginx proxies to the backend on
+      # demand and tolerates it coming up a few seconds later.
       backend:
-        condition: service_healthy
+        condition: service_started
     security_opt:
       - no-new-privileges:true
     mem_limit: 128m
