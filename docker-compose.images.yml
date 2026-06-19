@@ -54,8 +54,9 @@ services:
     volumes:
       # Read-only mount of the host socket — only this container can reach it.
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    security_opt:
-      - no-new-privileges:true
+    # security_opt:               # Disabled by default: the Docker *snap* (e.g. Ubuntu Core)
+    #   - no-new-privileges:true  # rejects this with "exec ... operation not permitted".
+    #                             # Re-enable this hardening on native/apt-installed Docker.
     mem_limit: 128m
     logging:
       driver: json-file
@@ -101,8 +102,9 @@ services:
       # loss of the Docker volumes. Point BACKUP_HOST_DIR at an external disk/NAS
       # for off-host durability. The dir is chowned to the app uid on first run.
       - ${BACKUP_HOST_DIR:-./backups}:/host-backups
-    security_opt:
-      - no-new-privileges:true
+    # security_opt:               # Disabled by default: the Docker *snap* (e.g. Ubuntu Core)
+    #   - no-new-privileges:true  # rejects this with "exec ... operation not permitted".
+    #                             # Re-enable this hardening on native/apt-installed Docker.
     # Memory ceiling so a leak can't take down the whole host while unattended.
     mem_limit: 512m
     healthcheck:
@@ -133,8 +135,9 @@ services:
     environment:
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
       REGISTRY_HTTP_ADDR: ":5000"
-    security_opt:
-      - no-new-privileges:true
+    # security_opt:               # Disabled by default: the Docker *snap* (e.g. Ubuntu Core)
+    #   - no-new-privileges:true  # rejects this with "exec ... operation not permitted".
+    #                             # Re-enable this hardening on native/apt-installed Docker.
     mem_limit: 256m
     logging:
       driver: json-file
@@ -166,8 +169,9 @@ services:
       # demand and tolerates it coming up a few seconds later.
       backend:
         condition: service_started
-    security_opt:
-      - no-new-privileges:true
+    # security_opt:               # Disabled by default: the Docker *snap* (e.g. Ubuntu Core)
+    #   - no-new-privileges:true  # rejects this with "exec ... operation not permitted".
+    #                             # Re-enable this hardening on native/apt-installed Docker.
     mem_limit: 128m
     healthcheck:
       # Check the HTTP listener over IPv4 loopback (127.0.0.1, not "localhost",
