@@ -44,6 +44,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Register QEMU binfmt handlers so Buildx can cross-build the arm64 image
+      # on the amd64 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -72,12 +77,12 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: true
+          # Multi-arch so the stack runs on both x86-64 and ARM64 hosts; the host
+          # pulls the matching variant automatically from the published manifest.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Reuse layers between runs, scoped per image so they don't collide.
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
-          # Single linux/amd64 image (no provenance attestation) keeps the package
-          # a plain image. If the target server is ARM, add:
-          #   platforms: linux/arm64
           provenance: false
