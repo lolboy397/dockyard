@@ -170,13 +170,13 @@ export class ProjectsComponent implements OnInit, OnDestroy {
     const built = !!p.image_tag && p.status !== 'failed';
     const primary: ContextMenuItem = running
       ? { label: 'Stop', icon: 'square', onSelect: () => { this.selectProject(p); this.stopProject(); } }
-      : { label: built ? 'Run' : 'Build', icon: built ? 'play' : 'hammer', onSelect: () => { this.selectProject(p); if (built) this.runProject(); else this.buildProject(); } };
+      : { label: built ? 'Run' : 'Build', icon: built ? 'play' : 'hammer', onSelect: () => { this.selectProject(p); if (built) this.requestRun(); else this.requestBuild(); } };
 
     const items: ContextMenuItem[] = [
       { label: 'Open', icon: 'layout-panel-left', accent: true, onSelect: () => { this.selectProject(p); this.switchTab('overview'); } },
       { type: 'separator' },
       primary,
-      { label: 'Rebuild', icon: 'hammer', disabled: p.status === 'building', onSelect: () => { this.selectProject(p); this.buildProject(); } },
+      { label: 'Rebuild', icon: 'hammer', disabled: p.status === 'building', onSelect: () => { this.selectProject(p); this.requestBuild(); } },
       { label: 'Open in browser', icon: 'external-link', disabled: !running, onSelect: () => { this.selectProject(p); this.openFirstPort(); } },
       { type: 'separator' },
       { label: 'View logs', icon: 'scroll-text', onSelect: () => { this.selectProject(p); this.switchTab('logs'); } },
