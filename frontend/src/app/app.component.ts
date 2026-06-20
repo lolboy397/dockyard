@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
@@ -56,6 +56,8 @@ export class AppComponent implements OnInit, OnDestroy {
   notifications: AppEvent[] = [];
   theme: 'dark' | 'light' = 'dark';
   activeSection = '';
+  updateAvailable = false;        // drives the "Updates" nav badge (admins only)
+  private updateChecked = false;
 
   navCounts: NavCounts = { containers: null, images: null, volumes: null, networks: null };
 
@@ -107,7 +109,20 @@ export class AppComponent implements OnInit, OnDestroy {
     },
   ];
 
-  constructor(private docker: DockerService, private router: Router, public auth: AuthService, private realtime: RealtimeService) {}
+  constructor(private docker: DockerService, private router: Router, public auth: AuthService, private realtime: RealtimeService) {
+    // Once auth resolves an admin, do a one-shot background update check so the
+    // sidebar can flag an available update. Errors (incl. non-admin 403) are
+    // ignored; the Updates page is the authoritative view.
+    effect(() => {
+      if (this.auth.ready() && this.auth.authed() && this.auth.isAdmin() && !this.updateChecked) {
+        this.updateChecked = true;
+        this.docker.checkForUpdate().subscribe({
+          next: s => { this.updateAvailable = !!s?.update_available; },
+          error: () => { /* ignore */ },
+        });
+      }
+    });
+  }
 
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
@@ -234,6 +249,8 @@ export class AppComponent implements OnInit, OnDestroy {
       '/alerts': 'Alerts',
       '/users': 'Users',
       '/roles': 'Roles',
+      '/backups': 'Backups',
+      '/updates': 'Updates',
     };
     for (const [path, label] of Object.entries(map)) {
       if (url.startsWith(path)) return label;

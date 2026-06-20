@@ -1,0 +1,151 @@
+<div class="body no-detail">
+  <div class="content-area">
+    <div class="content-head">
+      <div class="content-title-row">
+        <h2 class="content-title">Updates</h2>
+        @if (status) { <span class="content-count">v{{ status.current_version }}{{ status.commit ? ' · ' + status.commit.slice(0,7) : '' }}</span> }
+      </div>
+      <div class="content-actions">
+        <button class="btn btn-sm btn-secondary" (click)="check(true)" [disabled]="loading || applying">
+          <dy-icon name="refresh-cw" [size]="13" [class.spin]="loading"></dy-icon>
+          {{ loading ? 'Checking…' : 'Check now' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="dbody" style="max-width:880px;">
+
+      @if (loadError) {
+        <div class="dsection">
+          <div style="display:flex;align-items:center;gap:8px;color:var(--danger-400,#F87171);font-size:13px;">
+            <dy-icon name="triangle-alert" [size]="15"></dy-icon>{{ loadError }}
+          </div>
+        </div>
+      } @else if (!status) {
+        <div style="padding:40px;text-align:center;color:var(--fg-subtle);font-size:12px;">Checking for updates…</div>
+      } @else {
+
+        <!-- Update status banner -->
+        @if (status.update_available) {
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--r-lg);
+                      background:var(--warn-soft,rgba(245,158,11,0.10));border:1px solid var(--warn-400,#FBBF24);">
+            <dy-dot tone="warn" [size]="7"></dy-dot>
+            <div style="flex:1;">
+              <div style="font-weight:600;font-size:13px;color:var(--fg);">An update is available</div>
+              <div style="font-size:12px;color:var(--fg-muted);">A newer image has been published for one or more Dockyard services.</div>
+            </div>
+            @if (status.compose_ready) {
+              <button class="btn btn-sm btn-primary" (click)="apply()" [disabled]="!canApply">
+                <dy-icon name="circle-arrow-up" [size]="13"></dy-icon> Update Dockyard
+              </button>
+            }
+          </div>
+        } @else {
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--r-lg);
+                      background:var(--bg-raised);border:1px solid var(--border);">
+            <dy-dot tone="running" [size]="7"></dy-dot>
+            <div style="font-weight:600;font-size:13px;color:var(--fg);">You're on the latest build</div>
+          </div>
+        }
+
+        <!-- Current build -->
+        <div class="dsection">
+          <div class="dsection-head"><span class="eyebrow">This instance</span></div>
+          <div class="meta-grid">
+            <span class="meta-k">Version</span>        <span class="meta-v mono">v{{ status.current_version }}</span>
+            @if (status.commit) {
+              <span class="meta-k">Commit</span>       <span class="meta-v mono">{{ status.commit.slice(0,12) }}</span>
+            }
+            <span class="meta-k">Channel (tag)</span>  <span class="meta-v mono">{{ status.tag }}</span>
+            @if (status.project) {
+              <span class="meta-k">Compose project</span><span class="meta-v mono">{{ status.project }}</span>
+            }
+            <span class="meta-k">Last checked</span>   <span class="meta-v mono">{{ status.checked_at | date:'yyyy-MM-dd HH:mm:ss' }}</span>
+          </div>
+        </div>
+
+        <!-- Per-service detail -->
+        <div class="dsection">
+          <div class="dsection-head"><span class="eyebrow">Services</span></div>
+          @if (status.components.length) {
+            <table class="kv-table">
+              <thead><tr><th>Service</th><th>Image</th><th>Running</th><th>Latest</th><th>Status</th></tr></thead>
+              <tbody>
+                @for (c of status.components; track c.service + c.image) {
+                  <tr>
+                    <td>{{ c.service }}</td>
+                    <td class="mono" style="word-break:break-all;">{{ c.image }}</td>
+                    <td class="mono">{{ short(c.current_digest) }}</td>
+                    <td class="mono">{{ short(c.latest_digest) }}</td>
+                    <td style="white-space:nowrap;">
+                      @if (!c.latest_digest) {
+                        <dy-dot tone="idle" [size]="6"></dy-dot> Unknown
+                      } @else if (c.update_available) {
+                        <dy-dot tone="warn" [size]="6"></dy-dot> Update available
+                      } @else {
+                        <dy-dot tone="running" [size]="6"></dy-dot> Up to date
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <div style="color:var(--fg-subtle);font-size:12px;">No Dockyard services found to update.</div>
+          }
+        </div>
+
+        <!-- Apply / manual instructions -->
+        <div class="dsection">
+          @if (status.compose_ready) {
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-sm btn-primary" (click)="apply()" [disabled]="!canApply">
+                <dy-icon name="circle-arrow-up" [size]="13"></dy-icon> Update Dockyard
+              </button>
+              @if (!status.update_available) {
+                <span style="font-size:12px;color:var(--fg-subtle);">Nothing to update — you're on the latest build.</span>
+              }
+            </div>
+            <p style="margin:10px 0 0;font-size:11px;color:var(--fg-subtle);line-height:1.5;">
+              Pulls the new images and recreates the stack in place via a short-lived helper container.
+              Dockyard goes offline for a few seconds; this page reloads automatically when it returns.
+            </p>
+          } @else {
+            <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--fg-muted);line-height:1.6;">
+              <dy-icon name="info" [size]="15" style="flex:none;margin-top:1px;"></dy-icon>
+              <div>
+                One-click update is unavailable — the compose project couldn't be auto-detected (this
+                instance may not be running under Docker Compose). Set
+                <span class="mono">DOCKYARD_COMPOSE_DIR</span> to the project's host path in your
+                <span class="mono">.env</span> and restart to enable it, or update manually:
+                <pre class="mono" style="margin:8px 0 0;padding:10px 12px;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-md);white-space:pre-wrap;">docker compose pull
+docker compose up -d</pre>
+              </div>
+            </div>
+          }
+        </div>
+
+        @if (status.error) {
+          <div style="font-size:11px;color:var(--warn-400,#FBBF24);">{{ status.error }}</div>
+        }
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Updating overlay -->
+@if (applying) {
+  <div style="position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;
+              background:rgba(5,7,12,0.66);backdrop-filter:blur(3px);">
+    <div style="text-align:center;max-width:380px;padding:28px 32px;">
+      <dy-icon [name]="applied ? 'circle-check' : 'loader-circle'" [size]="34"
+               [class.spin]="!applied" [style.color]="applied ? 'var(--running-400)' : 'var(--accent)'"></dy-icon>
+      <div style="margin-top:14px;font-size:15px;font-weight:600;color:#fff;">
+        {{ applied ? 'Update complete — reloading…' : 'Updating Dockyard…' }}
+      </div>
+      <div style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.6);line-height:1.5;">
+        {{ applied ? 'Loading the new version.' : 'Pulling images and recreating the stack. This page will reload automatically when Dockyard is back online.' }}
+      </div>
+    </div>
+  </div>
+}

@@ -68,6 +68,10 @@ export const routes: Routes = [
     loadComponent: () => import('./components/system-backup/system-backup.component').then(m => m.SystemBackupComponent)
   },
   {
+    path: 'updates',
+    loadComponent: () => import('./components/system-update/system-update.component').then(m => m.SystemUpdateComponent)
+  },
+  {
     path: 'templates',
     loadComponent: () => import('./components/templates/templates.component').then(m => m.TemplatesComponent)
   },

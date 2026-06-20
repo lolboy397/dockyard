@@ -82,6 +82,12 @@ services:
       # its configured interval).
       BACKUP_KEEP: "${BACKUP_KEEP:-10}"
       BACKUP_SCHEDULE_TICK_SECONDS: "${BACKUP_SCHEDULE_TICK_SECONDS:-300}"
+      # One-click self-update (Admin → Updates) auto-detects the compose project
+      # directory + file from Compose's own container labels, so it works without
+      # any config. Set this ONLY to override that (e.g. a non-Compose deployment):
+      # the absolute HOST path to this project. The updater bind-mounts it at the
+      # same path so relative paths in this file resolve correctly.
+      DOCKYARD_COMPOSE_DIR: "${DOCKYARD_COMPOSE_DIR:-}"
     volumes:
       # Persist the SQLite database, stacks, repos and uploaded projects.
       - backend-data:/data

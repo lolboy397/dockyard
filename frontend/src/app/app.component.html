@@ -61,6 +61,11 @@
             <dy-icon name="database-backup" [size]="15"></dy-icon>
             <span class="nav-label">Backups</span>
           </a>
+          <a class="nav-item" routerLink="/updates" routerLinkActive="active">
+            <dy-icon name="circle-arrow-up" [size]="15"></dy-icon>
+            <span class="nav-label">Updates</span>
+            @if (updateAvailable) { <dy-dot tone="warn" [size]="6" title="Update available"></dy-dot> }
+          </a>
         </div>
       }
     </nav>

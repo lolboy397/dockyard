@@ -382,3 +382,25 @@ export interface ProjectFileNode {
   lines?: number;
   children?: ProjectFileNode[];
 }
+
+// ── Native self-update ──────────────────────────────────────────────────────
+export interface UpdateComponent {
+  service: string;          // compose service (backend / frontend)
+  image: string;            // ghcr.io/owner/dockyard-backend:tag
+  current_digest: string;   // digest the running container is on
+  latest_digest: string;    // digest the tag currently resolves to
+  update_available: boolean;
+}
+
+export interface UpdateStatus {
+  current_version: string;
+  commit?: string;
+  build_date?: string;
+  tag: string;              // tag the stack tracks (latest / 0.0.x)
+  project: string;          // compose project name
+  compose_ready: boolean;   // DOCKYARD_COMPOSE_DIR set → Apply available
+  components: UpdateComponent[];
+  update_available: boolean;
+  checked_at: string;
+  error?: string;           // non-fatal note (e.g. registry unreachable)
+}

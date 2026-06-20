@@ -82,6 +82,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Stamp the commit into the backend binary (shown on the Updates page).
+          # Harmlessly ignored by the frontend image, which doesn't declare it.
+          build-args: |
+            DOCKYARD_COMMIT=${{ github.sha }}
           # Reuse layers between runs, scoped per image so they don't collide.
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}

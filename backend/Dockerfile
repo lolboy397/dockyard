@@ -9,7 +9,17 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /docker-manager .
+
+# Build metadata stamped into the binary so the running app can report exactly
+# which build it is (surfaced on the Updates page). Supplied by CI; empty on a
+# plain local `docker compose up --build`, in which case the UI just omits them.
+ARG DOCKYARD_COMMIT=""
+ARG DOCKYARD_DATE=""
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w \
+      -X 'docker-manager/backend/api/handlers.appCommit=${DOCKYARD_COMMIT}' \
+      -X 'docker-manager/backend/api/handlers.appBuildDate=${DOCKYARD_DATE}'" \
+    -o /docker-manager .
 
 # Runtime stage
 FROM alpine:3.20

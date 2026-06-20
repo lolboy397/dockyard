@@ -8,7 +8,8 @@ import {
   SystemInfo, DiskUsage, HostStats, AppEvent, WatchedImage,
   StackSummary, StackDetail, Build, BuildDefinition, RegistryItem, RegistryImage,
   GitRepo, GitFileStatus, GitCommit, GitBranch,
-  Project, ProjectLogs, ProjectFileNode, ProjectPortCheck
+  Project, ProjectLogs, ProjectFileNode, ProjectPortCheck,
+  UpdateStatus
 } from '../models/docker.models';
 
 export interface MetricSample {
@@ -108,6 +109,16 @@ export class DockerService {
   getMetricsHistory(rangeSec = 3600): Observable<MetricSample[]> {
     const params = new HttpParams().set('range', String(rangeSec));
     return this.http.get<MetricSample[]>(`${this.base}/system/metrics-history`, { params });
+  }
+
+  // ---- Self-update -----------------------------------------------------------
+  checkForUpdate(force = false): Observable<UpdateStatus> {
+    const params = force ? new HttpParams().set('force', 'true') : undefined;
+    return this.http.get<UpdateStatus>(`${this.base}/system/update/check`, { params });
+  }
+
+  applyUpdate(): Observable<{ status: string; updater: string }> {
+    return this.http.post<{ status: string; updater: string }>(`${this.base}/system/update/apply`, {});
   }
 
   // ---- Alerts ----------------------------------------------------------------

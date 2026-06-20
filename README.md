@@ -115,6 +115,7 @@ full annotated list. The most important ones:
 | `CORS_ALLOWED_ORIGINS` | `*` | Comma-separated allowed origins (safe default: bearer-token auth, no cookies) |
 | `BACKUP_KEEP` | `10` | Volume backups kept per volume |
 | `BACKUP_SCHEDULE_TICK_SECONDS` | `300` | Scheduler polling resolution |
+| `DOCKYARD_COMPOSE_DIR` | _(auto-detected)_ | Override for the compose project host path used by one-click self-update (see [Upgrades](#upgrades)) |
 
 ### The encryption key (read this before you store secrets)
 
@@ -154,14 +155,38 @@ disaster-recovery steps, see [`BACKUP.md`](BACKUP.md).
 
 ## Upgrades
 
+**In-app, one click (recommended).** When running from the pre-built images,
+**Admin → Updates** checks GHCR for a newer build of the `backend`/`frontend`
+images and applies it for you — no shelling into the host. Dockyard takes a
+consistent application backup first, then launches a short-lived helper that runs
+`docker compose pull && docker compose up -d` against the same project and
+recreates the stack; the UI reconnects automatically once the new backend is up.
+
+The compose project directory and file are **auto-detected** from the labels
+Compose stamps on its containers, so for a normal `docker compose up -d`
+deployment this works out of the box. If detection fails (e.g. a non-Compose
+deployment), set `DOCKYARD_COMPOSE_DIR` to the project's host path to override it.
+
+This needs the GHCR packages to be pullable on the host — make them **public**
+(they contain no secrets) or `docker login ghcr.io` once with a `read:packages`
+token.
+
+**Manual.** From a source checkout:
+
 ```bash
 git pull
 docker compose up -d --build
 ```
 
+…or from the published images:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
 Database migrations run automatically on startup. Back up `backend-data` first;
-if an upgrade misbehaves, restore the volume and redeploy the previous image.
-Details in [`BACKUP.md`](BACKUP.md).
+if an upgrade misbehaves, restore the volume and redeploy the previous image
+(pin the old one with `DOCKYARD_TAG`). Details in [`BACKUP.md`](BACKUP.md).
 
 ---
 
