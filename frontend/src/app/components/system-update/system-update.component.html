@@ -129,6 +129,28 @@ docker compose up -d</pre>
           <div style="font-size:11px;color:var(--warn-400,#FBBF24);">{{ status.error }}</div>
         }
       }
+
+      <!-- Updater output: the most recent self-update run's logs, so a failed or
+           stuck update is never a black box. -->
+      @if (updaterLogs) {
+        <div class="dsection">
+          <div class="dsection-head">
+            <span class="eyebrow">Updater output</span>
+            <span style="display:flex;align-items:center;gap:8px;">
+              @if (updaterState) { <span class="mono" style="font-size:11px;color:var(--fg-subtle);">{{ updaterState }}</span> }
+              <button class="btn btn-sm btn-ghost" (click)="loadUpdaterLogs()">
+                <dy-icon name="refresh-cw" [size]="12"></dy-icon> Refresh
+              </button>
+            </span>
+          </div>
+          @if (timedOut) {
+            <div style="font-size:12px;color:var(--warn-400,#FBBF24);margin-bottom:6px;">
+              The update didn't complete in time. The output below shows what the updater container did.
+            </div>
+          }
+          <pre class="mono" style="margin:0;padding:10px 12px;background:#0b0b0b;border:1px solid var(--border);border-radius:var(--r-md);max-height:300px;overflow:auto;white-space:pre-wrap;font-size:11px;line-height:1.5;color:var(--fg-muted);">{{ updaterLogs }}</pre>
+        </div>
+      }
     </div>
   </div>
 </div>
@@ -137,7 +159,7 @@ docker compose up -d</pre>
 @if (applying) {
   <div style="position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;
               background:rgba(5,7,12,0.66);backdrop-filter:blur(3px);">
-    <div style="text-align:center;max-width:380px;padding:28px 32px;">
+    <div style="text-align:center;max-width:560px;padding:28px 32px;">
       <dy-icon [name]="applied ? 'circle-check' : 'loader-circle'" [size]="34"
                [class.spin]="!applied" [style.color]="applied ? 'var(--running-400)' : 'var(--accent)'"></dy-icon>
       <div style="margin-top:14px;font-size:15px;font-weight:600;color:#fff;">
@@ -146,6 +168,9 @@ docker compose up -d</pre>
       <div style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.6);line-height:1.5;">
         {{ applied ? 'Loading the new version.' : 'Pulling images and recreating the stack. This page will reload automatically when Dockyard is back online.' }}
       </div>
+      @if (updaterLogs) {
+        <pre style="margin:14px 0 0;text-align:left;max-height:200px;overflow:auto;white-space:pre-wrap;font:11px/1.5 monospace;color:rgba(255,255,255,0.72);background:rgba(0,0,0,0.45);padding:10px 12px;border-radius:8px;">{{ updaterLogs }}</pre>
+      }
     </div>
   </div>
 }

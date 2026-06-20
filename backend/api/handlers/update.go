@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -301,6 +303,40 @@ func (h *UpdateHandlers) Check(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, st)
 }
 
+// Logs returns the recent output and exit state of the most recent updater
+// container, so a failed/stuck self-update isn't a black box. Admin-only.
+func (h *UpdateHandlers) Logs(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r) {
+		writeError(w, http.StatusForbidden, errMsg("admin role required"))
+		return
+	}
+	ctx := r.Context()
+	rc, err := h.docker.ContainerLogs(ctx, updaterName, container.LogsOptions{
+		ShowStdout: true, ShowStderr: true, Tail: "400",
+	})
+	if err != nil {
+		// No updater container (never run, or already removed) — not an error.
+		writeJSON(w, map[string]any{"exists": false, "logs": ""})
+		return
+	}
+	defer rc.Close()
+
+	// Container logs are multiplexed (no TTY) — demux stdout+stderr into one buffer.
+	var buf bytes.Buffer
+	if _, derr := stdcopy.StdCopy(&buf, &buf, rc); derr != nil {
+		log.Printf("[update] read updater logs: %v", derr)
+	}
+
+	state := ""
+	if insp, ierr := h.docker.ContainerInspect(ctx, updaterName); ierr == nil && insp.State != nil {
+		state = insp.State.Status
+		if insp.State.Status == "exited" {
+			state = fmt.Sprintf("exited (code %d)", insp.State.ExitCode)
+		}
+	}
+	writeJSON(w, map[string]any{"exists": true, "state": state, "logs": buf.String()})
+}
+
 // Apply pulls the new images and recreates the stack in place by launching a
 // detached updater container that runs `docker compose pull && up -d`. The
 // backend is one of the services that gets recreated, so this handler returns
@@ -380,8 +416,19 @@ func (h *UpdateHandlers) Apply(w http.ResponseWriter, r *http.Request) {
 	for _, f := range files {
 		fflags += fmt.Sprintf(" -f %q", f)
 	}
+	// Robustness: --ignore-pull-failures so a transient Docker Hub hiccup on a
+	// sidecar image (registry / socket-proxy, already present locally anyway)
+	// doesn't abort the whole update before `up -d` runs; the echo markers make
+	// the updater container's logs readable (surfaced on the Updates page).
 	script := fmt.Sprintf(
-		"set -e\nsleep 2\ncd %q\ndocker compose -p %q%s pull\ndocker compose -p %q%s up -d\n",
+		"echo '[dockyard-updater] starting'\n"+
+			"sleep 2\n"+
+			"cd %q || { echo '[dockyard-updater] ERROR: cannot cd to project dir'; exit 1; }\n"+
+			"echo '[dockyard-updater] pulling new images'\n"+
+			"docker compose -p %q%s pull --ignore-pull-failures || echo '[dockyard-updater] WARN: some image pulls failed, continuing'\n"+
+			"echo '[dockyard-updater] recreating stack'\n"+
+			"docker compose -p %q%s up -d\n"+
+			"echo \"[dockyard-updater] finished with exit code $?\"\n",
 		dir, project, fflags, project, fflags,
 	)
 

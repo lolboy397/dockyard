@@ -121,6 +121,10 @@ export class DockerService {
     return this.http.post<{ status: string; updater: string }>(`${this.base}/system/update/apply`, {});
   }
 
+  getUpdateLogs(): Observable<{ exists: boolean; state?: string; logs: string }> {
+    return this.http.get<{ exists: boolean; state?: string; logs: string }>(`${this.base}/system/update/logs`);
+  }
+
   // ---- Alerts ----------------------------------------------------------------
   listAlerts(): Observable<AlertRule[]> {
     return this.http.get<AlertRule[]>(`${this.base}/alerts`);

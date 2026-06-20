@@ -19,7 +19,11 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
   loading = false;      // initial / forced check in flight
   applying = false;     // an update is being applied (stack recreating)
   applied = false;      // update finished, page about to reload
+  timedOut = false;     // apply didn't complete in time — show updater output
   loadError = '';       // failed to load the check (e.g. not admin)
+
+  updaterLogs = '';     // output of the most recent updater container
+  updaterState = '';    // running / exited (code N)
 
   private pollTimer?: ReturnType<typeof setTimeout>;
   private pollStarted = 0;
@@ -32,9 +36,18 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
     public auth: AuthService,
   ) {}
 
-  ngOnInit(): void { this.check(); }
+  ngOnInit(): void { this.check(); this.loadUpdaterLogs(); }
 
   ngOnDestroy(): void { if (this.pollTimer) clearTimeout(this.pollTimer); }
+
+  // Pull the most recent updater container's output + exit state. Used on load
+  // (so a prior failed run is visible) and while an update is in progress.
+  loadUpdaterLogs(): void {
+    this.docker.getUpdateLogs().subscribe({
+      next: r => { this.updaterLogs = r.logs || ''; this.updaterState = r.state || ''; },
+      error: () => { /* backend may be recreating */ },
+    });
+  }
 
   check(force = false): void {
     this.loading = true;
@@ -64,6 +77,8 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
 
     this.applying = true;
     this.applied = false;
+    this.timedOut = false;
+    this.updaterLogs = '';
     this.docker.applyUpdate().subscribe({
       next: () => {
         this.notify.info('Update started — pulling images and recreating the stack…');
@@ -83,9 +98,14 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
   // frontend assets.
   private pollUntilBack(): void {
     this.pollTimer = setTimeout(() => {
+      // Refresh the updater output each tick so the user sees live progress (and
+      // the exact failure if it errors). Swallows failures while the API is down.
+      this.loadUpdaterLogs();
+
       if (Date.now() - this.pollStarted > this.pollTimeoutMs) {
         this.applying = false;
-        this.notify.error('Update is taking longer than expected. Check the updater container logs (dockyard-updater).');
+        this.timedOut = true;
+        this.notify.error('Update did not finish in time — see the updater output below.');
         return;
       }
       this.docker.checkForUpdate(true).subscribe({
