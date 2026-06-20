@@ -92,11 +92,6 @@ services:
       # scheduler's polling resolution.
       BACKUP_KEEP: "${BACKUP_KEEP:-10}"
       BACKUP_SCHEDULE_TICK_SECONDS: "${BACKUP_SCHEDULE_TICK_SECONDS:-300}"
-      # One-click self-update (Admin → Updates) auto-detects the compose project
-      # directory + file from Compose's container labels, so it works without
-      # config. Set this ONLY to override detection: the absolute HOST path to the
-      # directory holding this file. Empty/unresolved → update manually instead.
-      DOCKYARD_COMPOSE_DIR: "${DOCKYARD_COMPOSE_DIR:-}"
     volumes:
       # Persist the SQLite database, stacks, repos and uploaded projects.
       - backend-data:/data

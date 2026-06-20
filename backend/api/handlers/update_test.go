@@ -38,40 +38,6 @@ func TestRefTag(t *testing.T) {
 	}
 }
 
-func TestResolveCompose(t *testing.T) {
-	labels := map[string]string{
-		lblComposeWorkdir:     "/opt/dockyard",
-		lblComposeConfigFiles: "/opt/dockyard/docker-compose.images.yml",
-	}
-
-	// No override → resolve from the compose labels.
-	t.Setenv("DOCKYARD_COMPOSE_DIR", "")
-	if dir, files := resolveCompose(labels); dir != "/opt/dockyard" || len(files) != 1 {
-		t.Errorf("label resolve = (%q, %v), want (/opt/dockyard, 1 file)", dir, files)
-	}
-
-	// Multiple config files are all carried through.
-	multi := map[string]string{
-		lblComposeWorkdir:     "/srv/app",
-		lblComposeConfigFiles: "/srv/app/compose.yaml,/srv/app/compose.prod.yaml",
-	}
-	if dir, files := resolveCompose(multi); dir != "/srv/app" || len(files) != 2 {
-		t.Errorf("multi resolve = (%q, %v), want (/srv/app, 2 files)", dir, files)
-	}
-
-	// Explicit override wins and ignores label file paths (different dir).
-	t.Setenv("DOCKYARD_COMPOSE_DIR", "/custom/path")
-	if dir, files := resolveCompose(labels); dir != "/custom/path" || files != nil {
-		t.Errorf("override resolve = (%q, %v), want (/custom/path, nil)", dir, files)
-	}
-
-	// Neither labels nor override → not a compose deployment.
-	t.Setenv("DOCKYARD_COMPOSE_DIR", "")
-	if dir, _ := resolveCompose(map[string]string{}); dir != "" {
-		t.Errorf("empty resolve dir = %q, want \"\"", dir)
-	}
-}
-
 func TestIsDockyardImage(t *testing.T) {
 	cases := []struct {
 		in   string

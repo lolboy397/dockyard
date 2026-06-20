@@ -62,7 +62,7 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
   }
 
   get canApply(): boolean {
-    return !!this.status?.compose_ready && !!this.status?.update_available
+    return !!this.status?.apply_ready && !!this.status?.update_available
       && this.auth.isAdmin() && !this.applying;
   }
 

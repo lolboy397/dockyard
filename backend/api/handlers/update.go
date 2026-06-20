@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -23,13 +22,15 @@ import (
 // Native self-update — lets Dockyard check whether a newer image of its own
 // services has been published (digest comparison via the registry, no pull) and
 // apply the update in place, so the operator never has to drop to the host /
-// Portainer to run `docker compose pull && up -d` by hand.
+// Portainer to update it by hand.
 //
 // The hard constraint is that a container cannot stop+recreate ITSELF (its
 // process dies mid-swap). So Apply launches a short-lived, detached *updater*
-// container that runs compose against the same socket proxy; it outlives the
-// backend's restart and finishes the job. This mirrors how Watchtower
-// self-updates.
+// container (the Dockyard image running the `self-update` subcommand) that pulls
+// each image and recreates the containers from their existing config; it outlives
+// the backend's restart and finishes the job. This is deployment-agnostic — no
+// compose file is needed — so it works under plain compose, Portainer, or
+// docker run. (Mirrors how Watchtower self-updates.)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Build-stamped at link time via `-ldflags -X` (see backend/Dockerfile and the
@@ -41,10 +42,8 @@ var (
 )
 
 const (
-	lblComposeProject     = "com.docker.compose.project"
-	lblComposeService     = "com.docker.compose.service"
-	lblComposeWorkdir     = "com.docker.compose.project.working_dir"
-	lblComposeConfigFiles = "com.docker.compose.project.config_files"
+	lblComposeProject = "com.docker.compose.project"
+	lblComposeService = "com.docker.compose.service"
 	// updaterName is reused across runs: the previous (exited) updater is removed
 	// before a new one is created, so its logs survive for inspection until the
 	// next update instead of vanishing on exit.
@@ -69,9 +68,9 @@ type UpdateStatus struct {
 	CurrentVersion  string            `json:"current_version"`
 	Commit          string            `json:"commit,omitempty"`
 	BuildDate       string            `json:"build_date,omitempty"`
-	Tag             string            `json:"tag"`           // the tag the stack tracks (latest / 0.0.x)
-	Project         string            `json:"project"`       // compose project name
-	ComposeReady    bool              `json:"compose_ready"` // DOCKYARD_COMPOSE_DIR set → Apply available
+	Tag             string            `json:"tag"`         // the tag the stack tracks (latest / 0.0.x)
+	Project         string            `json:"project"`     // compose project name
+	ApplyReady      bool              `json:"apply_ready"` // in-app update can be applied (running as a recreatable container)
 	Components      []UpdateComponent `json:"components"`
 	UpdateAvailable bool              `json:"update_available"` // any component has an update
 	CheckedAt       time.Time         `json:"checked_at"`
@@ -90,39 +89,6 @@ type UpdateHandlers struct {
 
 func NewUpdateHandlers(cli *client.Client, db *storage.DB, bk *BackupService) *UpdateHandlers {
 	return &UpdateHandlers{docker: cli, db: db, bk: bk}
-}
-
-// composeDir returns the operator's explicit DOCKYARD_COMPOSE_DIR override (empty
-// when unset).
-func composeDir() string { return strings.TrimSpace(os.Getenv("DOCKYARD_COMPOSE_DIR")) }
-
-// resolveCompose works out the host project directory and the exact compose
-// file(s) the running stack was deployed with. It prefers the labels Compose
-// stamps on every container (so self-update is zero-config and handles custom
-// filenames like docker-compose.images.yml), and falls back to the
-// DOCKYARD_COMPOSE_DIR override. dir is "" only when the instance wasn't deployed
-// by Compose and no override is set — Apply is then unavailable.
-func resolveCompose(labels map[string]string) (dir string, files []string) {
-	// Explicit override wins: trust the operator's directory and let compose
-	// auto-detect the file there (mixing an override dir with label file paths
-	// from a different dir would be inconsistent).
-	if d := composeDir(); d != "" {
-		return d, nil
-	}
-	dir = labels[lblComposeWorkdir]
-	if cf := labels[lblComposeConfigFiles]; cf != "" && dir != "" {
-		for _, f := range strings.Split(cf, ",") {
-			f = strings.TrimSpace(f)
-			if f == "" {
-				continue
-			}
-			if !filepath.IsAbs(f) {
-				f = filepath.Join(dir, f)
-			}
-			files = append(files, f)
-		}
-	}
-	return dir, files
 }
 
 // isDockyardImage limits the components we track to Dockyard's own images, so the
@@ -217,21 +183,16 @@ func (h *UpdateHandlers) gatherStatus(ctx context.Context) (*UpdateStatus, error
 	}
 	project := ""
 	selfImage := ""
-	var selfLabels map[string]string
 	if self.Config != nil {
-		selfLabels = self.Config.Labels
-		project = selfLabels[lblComposeProject]
+		project = self.Config.Labels[lblComposeProject]
 		selfImage = self.Config.Image
 	}
 	st.Project = project
 	st.Tag = refTag(selfImage)
-	if dir, _ := resolveCompose(selfLabels); dir != "" {
-		st.ComposeReady = true
-	}
 
 	if project == "" {
 		// Not a compose deployment (e.g. a bare `docker run` / dev build): we can
-		// still report the backend's own image, but Apply won't be offered.
+		// still report and recreate the backend's own image.
 		st.Components = append(st.Components, h.componentFor(ctx, "backend", selfImage, self.Image))
 	} else {
 		list, err := h.docker.ContainerList(ctx, container.ListOptions{All: true})
@@ -263,6 +224,9 @@ func (h *UpdateHandlers) gatherStatus(ctx context.Context) (*UpdateStatus, error
 			st.Error = "Could not reach the registry to check one or more images."
 		}
 	}
+	// We can apply an update in place as long as we found Dockyard service
+	// containers to recreate (i.e. we're running as a managed container).
+	st.ApplyReady = len(st.Components) > 0
 	return st, nil
 }
 
@@ -337,11 +301,11 @@ func (h *UpdateHandlers) Logs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"exists": true, "state": state, "logs": buf.String()})
 }
 
-// Apply pulls the new images and recreates the stack in place by launching a
-// detached updater container that runs `docker compose pull && up -d`. The
-// backend is one of the services that gets recreated, so this handler returns
-// BEFORE the swap completes; clients should poll until the API comes back.
-// Admin + write tier.
+// Apply recreates the stack in place by launching a detached updater container
+// (the Dockyard image running the `self-update` subcommand) that pulls each image
+// and recreates the containers from their existing config. The backend is one of
+// the services recreated, so this handler returns BEFORE the swap completes;
+// clients should poll until the API comes back. Admin + write tier.
 func (h *UpdateHandlers) Apply(w http.ResponseWriter, r *http.Request) {
 	if !isAdmin(r) {
 		writeError(w, http.StatusForbidden, errMsg("admin role required"))
@@ -352,10 +316,9 @@ func (h *UpdateHandlers) Apply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The updater runs compose, so it must operate on the real deployment: we need
-	// the project name, the exact compose file(s) and host directory, an image
-	// that ships the compose CLI (the backend's own does — reuse it), and the
-	// network that can reach the socket proxy. All come from our own container.
+	// The updater is the backend's own image (so it has the self-update routine);
+	// it needs the network that can reach the socket proxy and the compose project
+	// name to scope which containers to recreate. All come from our own container.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -369,30 +332,22 @@ func (h *UpdateHandlers) Apply(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Errorf("inspect own container: %w", err))
 		return
 	}
-	if self.Config == nil || self.Config.Labels[lblComposeProject] == "" {
-		writeError(w, http.StatusPreconditionFailed, errMsg("this instance is not running under docker compose; update manually"))
+	if self.Config == nil {
+		writeError(w, http.StatusPreconditionFailed, errMsg("cannot read own container config; update manually"))
 		return
 	}
 	project := self.Config.Labels[lblComposeProject]
 	updaterImage := self.Config.Image
-
-	dir, files := resolveCompose(self.Config.Labels)
-	if dir == "" {
-		writeError(w, http.StatusPreconditionFailed,
-			errMsg("could not determine the compose project directory; set DOCKYARD_COMPOSE_DIR to its host path and restart, or update manually with `docker compose pull && docker compose up -d`"))
-		return
-	}
-	if !filepath.IsAbs(dir) {
-		writeError(w, http.StatusPreconditionFailed, errMsg("the compose project directory must be an absolute host path; set DOCKYARD_COMPOSE_DIR"))
-		return
-	}
-
 	netName := ""
 	if self.NetworkSettings != nil {
 		for n := range self.NetworkSettings.Networks {
 			netName = n
 			break
 		}
+	}
+	if netName == "" {
+		writeError(w, http.StatusPreconditionFailed, errMsg("could not determine a network to reach the Docker socket proxy; update manually"))
+		return
 	}
 
 	// Best-effort consistent snapshot before mutating the running stack, so a bad
@@ -405,48 +360,19 @@ func (h *UpdateHandlers) Apply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Bind the project dir at the SAME absolute path inside the updater so
-	// compose's relative bind sources (./backups, build contexts) resolve to the
-	// real host paths, and the working-dir basename matches the original project.
-	// `-p` pins the project name and `-f` pins the exact compose file(s) the stack
-	// was deployed with (handles non-default filenames / overlays); both come from
-	// Compose's own labels. `sleep` lets this HTTP response flush before the
-	// backend is torn down.
-	fflags := ""
-	for _, f := range files {
-		fflags += fmt.Sprintf(" -f %q", f)
-	}
-	// Robustness: --ignore-pull-failures so a transient Docker Hub hiccup on a
-	// sidecar image (registry / socket-proxy, already present locally anyway)
-	// doesn't abort the whole update before `up -d` runs; the echo markers make
-	// the updater container's logs readable (surfaced on the Updates page).
-	script := fmt.Sprintf(
-		"echo '[dockyard-updater] starting'\n"+
-			"sleep 2\n"+
-			"cd %q || { echo '[dockyard-updater] ERROR: cannot cd to project dir'; exit 1; }\n"+
-			"echo '[dockyard-updater] pulling new images'\n"+
-			"docker compose -p %q%s pull --ignore-pull-failures || echo '[dockyard-updater] WARN: some image pulls failed, continuing'\n"+
-			"echo '[dockyard-updater] recreating stack'\n"+
-			"docker compose -p %q%s up -d\n"+
-			"echo \"[dockyard-updater] finished with exit code $?\"\n",
-		dir, project, fflags, project, fflags,
-	)
-
+	// The updater runs `docker-manager self-update <project>` via the image's
+	// entrypoint (which drops to the app user, then execs the binary with these
+	// args). It talks to the daemon through the socket proxy on the shared network.
 	cfg := &container.Config{
-		Image:      updaterImage,
-		Entrypoint: []string{"/bin/sh", "-c"},
-		Cmd:        []string{script},
-		Env:        []string{"DOCKER_HOST=" + socketProxyHost},
-		User:       "0",
-		Labels:     map[string]string{"dockyard.role": "updater"},
+		Image:  updaterImage,
+		Cmd:    []string{"self-update", project},
+		Env:    []string{"DOCKER_HOST=" + socketProxyHost},
+		Labels: map[string]string{"dockyard.role": "updater"},
 	}
 	hostCfg := &container.HostConfig{
-		Binds:         []string{dir + ":" + dir},
+		NetworkMode:   container.NetworkMode(netName),
 		AutoRemove:    false,
 		RestartPolicy: container.RestartPolicy{Name: "no"},
-	}
-	if netName != "" {
-		hostCfg.NetworkMode = container.NetworkMode(netName)
 	}
 
 	// Remove a prior (exited) updater so the name is free and old logs are cleared.

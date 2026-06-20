@@ -34,7 +34,7 @@
               <div style="font-weight:600;font-size:13px;color:var(--fg);">An update is available</div>
               <div style="font-size:12px;color:var(--fg-muted);">A newer image has been published for one or more Dockyard services.</div>
             </div>
-            @if (status.compose_ready) {
+            @if (status.apply_ready) {
               <button class="btn btn-sm btn-primary" (click)="apply()" [disabled]="!canApply">
                 <dy-icon name="circle-arrow-up" [size]="13"></dy-icon> Update Dockyard
               </button>
@@ -97,7 +97,7 @@
 
         <!-- Apply / manual instructions -->
         <div class="dsection">
-          @if (status.compose_ready) {
+          @if (status.apply_ready) {
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               <button class="btn btn-sm btn-primary" (click)="apply()" [disabled]="!canApply">
                 <dy-icon name="circle-arrow-up" [size]="13"></dy-icon> Update Dockyard
@@ -107,17 +107,16 @@
               }
             </div>
             <p style="margin:10px 0 0;font-size:11px;color:var(--fg-subtle);line-height:1.5;">
-              Pulls the new images and recreates the stack in place via a short-lived helper container.
-              Dockyard goes offline for a few seconds; this page reloads automatically when it returns.
+              Pulls the new images and recreates each Dockyard container in place via a short-lived
+              helper. Dockyard goes offline for a few seconds; this page reloads automatically when it
+              returns. Works regardless of how the stack was deployed (compose, Portainer, …).
             </p>
           } @else {
             <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--fg-muted);line-height:1.6;">
               <dy-icon name="info" [size]="15" style="flex:none;margin-top:1px;"></dy-icon>
               <div>
-                One-click update is unavailable — the compose project couldn't be auto-detected (this
-                instance may not be running under Docker Compose). Set
-                <span class="mono">DOCKYARD_COMPOSE_DIR</span> to the project's host path in your
-                <span class="mono">.env</span> and restart to enable it, or update manually:
+                In-app update is unavailable — this instance doesn't appear to be running as a managed
+                container that can be recreated. Update manually instead:
                 <pre class="mono" style="margin:8px 0 0;padding:10px 12px;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-md);white-space:pre-wrap;">docker compose pull
 docker compose up -d</pre>
               </div>

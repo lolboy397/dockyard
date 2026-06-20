@@ -23,6 +23,18 @@ import (
 )
 
 func main() {
+	// Self-update helper subcommand: `docker-manager self-update [project]`. Runs
+	// in a throwaway helper container to recreate the stack in place, so it must
+	// not open the DB or start the server — handle it before anything else.
+	if len(os.Args) > 1 && os.Args[1] == "self-update" {
+		project := ""
+		if len(os.Args) > 2 {
+			project = os.Args[2]
+		}
+		runSelfUpdate(project)
+		return
+	}
+
 	port := envOrDefault("PORT", "8080")
 	dbPath := envOrDefault("DB_PATH", "docker-manager.db")
 

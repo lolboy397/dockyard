@@ -398,7 +398,7 @@ export interface UpdateStatus {
   build_date?: string;
   tag: string;              // tag the stack tracks (latest / 0.0.x)
   project: string;          // compose project name
-  compose_ready: boolean;   // DOCKYARD_COMPOSE_DIR set → Apply available
+  apply_ready: boolean;     // in-app update can be applied (recreatable container)
   components: UpdateComponent[];
   update_available: boolean;
   checked_at: string;

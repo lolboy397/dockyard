@@ -115,7 +115,6 @@ full annotated list. The most important ones:
 | `CORS_ALLOWED_ORIGINS` | `*` | Comma-separated allowed origins (safe default: bearer-token auth, no cookies) |
 | `BACKUP_KEEP` | `10` | Volume backups kept per volume |
 | `BACKUP_SCHEDULE_TICK_SECONDS` | `300` | Scheduler polling resolution |
-| `DOCKYARD_COMPOSE_DIR` | _(auto-detected)_ | Override for the compose project host path used by one-click self-update (see [Upgrades](#upgrades)) |
 
 ### The encryption key (read this before you store secrets)
 
@@ -158,14 +157,15 @@ disaster-recovery steps, see [`BACKUP.md`](BACKUP.md).
 **In-app, one click (recommended).** When running from the pre-built images,
 **Admin → Updates** checks GHCR for a newer build of the `backend`/`frontend`
 images and applies it for you — no shelling into the host. Dockyard takes a
-consistent application backup first, then launches a short-lived helper that runs
-`docker compose pull && docker compose up -d` against the same project and
-recreates the stack; the UI reconnects automatically once the new backend is up.
+consistent application backup first, then launches a short-lived helper container
+that pulls each image and recreates the Dockyard containers in place from their
+existing config (preserving volumes, ports, env and network aliases); the UI
+reconnects automatically once the new backend is up.
 
-The compose project directory and file are **auto-detected** from the labels
-Compose stamps on its containers, so for a normal `docker compose up -d`
-deployment this works out of the box. If detection fails (e.g. a non-Compose
-deployment), set `DOCKYARD_COMPOSE_DIR` to the project's host path to override it.
+Because it recreates containers from their own config rather than re-running a
+compose file, this is **deployment-agnostic** — it works whether the stack was
+started with plain `docker compose`, **Portainer**, or `docker run`. No extra
+configuration is needed.
 
 This needs the GHCR packages to be pullable on the host — make them **public**
 (they contain no secrets) or `docker login ghcr.io` once with a `read:packages`
