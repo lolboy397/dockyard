@@ -99,9 +99,10 @@
     </div>
 
     @if (mutedCount > 0) {
-      <button class="muted-toggle" [class.on]="showMuted" (click)="toggleShowMuted()">
+      <button class="muted-toggle" [class.on]="showMuted" (click)="toggleShowMuted()"
+              [title]="(showMuted ? 'Hide' : 'Reveal') + ' muted events in the list (' + mutedCount + ' hidden by filters in total)'">
         <dy-icon [name]="showMuted ? 'eye' : 'eye-off'" [size]="12"></dy-icon>
-        {{ showMuted ? 'Hide' : 'Show' }} {{ mutedCount }} muted
+        {{ mutedCount }} muted · {{ showMuted ? 'hide' : 'show' }}
       </button>
     }
   </div>

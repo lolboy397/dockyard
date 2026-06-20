@@ -130,6 +130,36 @@ docker compose up -d</pre>
           <div style="font-size:11px;color:var(--warn-400,#FBBF24);">{{ status.error }}</div>
         }
       }
+
+      <!-- Changelog -->
+      @if (changelog.length) {
+        <div class="dsection cl-section">
+          <div class="dsection-head"><span class="eyebrow">What's new</span></div>
+          <div class="cl-timeline">
+            @for (rel of changelog; track rel.version) {
+              <div class="cl-release" [class.cl-current]="rel.current">
+                <div class="cl-rel-head">
+                  <span class="cl-ver mono">v{{ rel.version }}</span>
+                  @if (rel.current) { <span class="cl-badge cl-badge-current">current</span> }
+                  @if (rel.date) { <span class="cl-date">{{ rel.date }}</span> }
+                </div>
+                @for (sec of rel.sections; track $index) {
+                  <div class="cl-group">
+                    @if (sec.title) {
+                      <span class="cl-cat" [class]="'cl-cat-' + sectionTone(sec.title)">{{ sec.title }}</span>
+                    }
+                    <ul class="cl-items">
+                      @for (item of sec.items; track $index) {
+                        <li [innerHTML]="item | mdInline"></li>
+                      }
+                    </ul>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
     </div>
   </div>
 

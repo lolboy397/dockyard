@@ -9,7 +9,7 @@ import {
   StackSummary, StackDetail, Build, BuildDefinition, RegistryItem, RegistryImage,
   GitRepo, GitFileStatus, GitCommit, GitBranch,
   Project, ProjectLogs, ProjectFileNode, ProjectPortCheck,
-  UpdateStatus, EventFilter
+  UpdateStatus, EventFilter, ChangelogEntry
 } from '../models/docker.models';
 import { map } from 'rxjs/operators';
 
@@ -124,6 +124,10 @@ export class DockerService {
 
   getUpdateLogs(): Observable<{ exists: boolean; state?: string; logs: string }> {
     return this.http.get<{ exists: boolean; state?: string; logs: string }>(`${this.base}/system/update/logs`);
+  }
+
+  getChangelog(): Observable<ChangelogEntry[]> {
+    return this.http.get<ChangelogEntry[]>(`${this.base}/system/changelog`);
   }
 
   // ---- Alerts ----------------------------------------------------------------

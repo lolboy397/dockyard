@@ -426,3 +426,15 @@ export interface UpdateStatus {
   checked_at: string;
   error?: string;           // non-fatal note (e.g. registry unreachable)
 }
+
+export interface ChangelogSection {
+  title: string;            // Added / Fixed / Changed (empty = no category)
+  items: string[];
+}
+
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  current: boolean;         // matches the running build's version
+  sections: ChangelogSection[];
+}

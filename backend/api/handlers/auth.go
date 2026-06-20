@@ -25,7 +25,7 @@ import (
 )
 
 // appVersion is the Dockyard application version surfaced on the auth screens.
-const appVersion = "0.0.2"
+const appVersion = "0.0.3"
 
 // AuthHandlers serves the first-run setup wizard and login endpoints.
 type AuthHandlers struct {

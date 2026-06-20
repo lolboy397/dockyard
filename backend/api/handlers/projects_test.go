@@ -10,6 +10,31 @@ import (
 	"github.com/docker/docker/api/types/container"
 )
 
+func TestCleanupCancelTokenGuard(t *testing.T) {
+	h := &ProjectHandlers{cancels: make(map[int64]buildCtl)}
+	calls := 0
+	h.cancels[7] = buildCtl{cancel: func() { calls++ }, token: 1}
+
+	// A stale cleanup (wrong token — e.g. an older, stopped build whose goroutine
+	// is only now winding down) must NOT remove or cancel the current entry.
+	h.cleanupCancel(7, 99)
+	if _, ok := h.cancels[7]; !ok {
+		t.Fatal("entry removed by a non-owning token")
+	}
+	if calls != 0 {
+		t.Fatalf("cancel invoked by wrong token (%d times)", calls)
+	}
+
+	// The owning token tears down and cancels exactly once.
+	h.cleanupCancel(7, 1)
+	if _, ok := h.cancels[7]; ok {
+		t.Fatal("entry not removed by its owning token")
+	}
+	if calls != 1 {
+		t.Fatalf("cancel invoked %d times, want 1", calls)
+	}
+}
+
 func TestBuildCommandArgs(t *testing.T) {
 	df := &storage.Project{Type: "dockerfile", Name: "app", ImageTag: "project-app:latest", Path: "/data/projects/app"}
 	cmp := &storage.Project{Type: "compose", Name: "app", Path: "/data/projects/app"}

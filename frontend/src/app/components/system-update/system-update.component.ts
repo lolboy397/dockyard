@@ -4,9 +4,10 @@ import { DockerService } from '../../services/docker.service';
 import { NotificationService } from '../../services/notification.service';
 import { ConfirmDialogService } from '../../services/confirm-dialog.service';
 import { AuthService } from '../../auth/auth.service';
-import { UpdateStatus } from '../../models/docker.models';
+import { UpdateStatus, ChangelogEntry } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
+import { MdInlinePipe } from '../shared/md-inline.pipe';
 
 interface UpdateStep {
   key: string;
@@ -18,7 +19,7 @@ interface UpdateStep {
 @Component({
   selector: 'app-system-update',
   standalone: true,
-  imports: [CommonModule, IconComponent, StatusDotComponent],
+  imports: [CommonModule, IconComponent, StatusDotComponent, MdInlinePipe],
   templateUrl: './system-update.component.html',
   styles: [`
     .upd-layout {
@@ -122,6 +123,51 @@ interface UpdateStep {
       font-size: 11px; color: var(--fg-subtle); font-family: var(--font-mono);
     }
     .upd-raw-toggle:hover { color: var(--fg-muted); }
+
+    /* ── Changelog ────────────────────────────────────────────────────── */
+    .cl-section { margin-top: 4px; }
+    .cl-timeline { display: flex; flex-direction: column; gap: 18px; }
+    .cl-release {
+      position: relative; padding-left: 16px;
+      border-left: 2px solid var(--border);
+    }
+    .cl-release::before {
+      content: ''; position: absolute; left: -5px; top: 5px;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--border-strong, var(--idle-400)); border: 2px solid var(--bg);
+    }
+    .cl-release.cl-current { border-left-color: var(--accent); }
+    .cl-release.cl-current::before { background: var(--accent); }
+
+    .cl-rel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .cl-ver { font-size: 13px; font-weight: 600; color: var(--fg); }
+    .cl-date { font-size: 11px; color: var(--fg-subtle); }
+    .cl-badge-current {
+      font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--accent); background: var(--accent-soft, rgba(34,211,238,0.10));
+      border-radius: 999px; padding: 1px 7px;
+    }
+
+    .cl-group { margin-bottom: 8px; }
+    .cl-group:last-child { margin-bottom: 0; }
+    .cl-cat {
+      display: inline-block; margin-bottom: 4px;
+      font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+      border-radius: 3px; padding: 1px 6px;
+    }
+    .cl-cat-running { color: var(--running-400); background: rgba(16,185,129,0.12); }
+    .cl-cat-warn    { color: var(--warn-400);    background: rgba(245,158,11,0.12); }
+    .cl-cat-info    { color: var(--info-400);    background: rgba(59,130,246,0.12); }
+    .cl-cat-danger  { color: var(--danger-400);  background: rgba(239,68,68,0.12); }
+    .cl-cat-idle    { color: var(--fg-muted);    background: var(--bg-raised); }
+
+    .cl-items { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+    .cl-items li { font-size: 12.5px; line-height: 1.5; color: var(--fg-muted); }
+    .cl-items li strong { color: var(--fg); font-weight: 600; }
+    .cl-items li code {
+      font-family: var(--font-mono); font-size: 11.5px;
+      background: var(--bg-raised); border-radius: 3px; padding: 0 4px;
+    }
   `],
 })
 export class SystemUpdateComponent implements OnInit, OnDestroy {
@@ -140,6 +186,8 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
   disconnected = false;       // last poll failed — the stack is recreating
   showRaw = false;            // reveal the raw updater output below the checklist
 
+  changelog: ChangelogEntry[] = [];   // release notes shipped with this build
+
   private pollTimer?: ReturnType<typeof setTimeout>;
   private pollStarted = 0;
   private readonly pollTimeoutMs = 6 * 60 * 1000;
@@ -151,9 +199,26 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
     public auth: AuthService,
   ) {}
 
-  ngOnInit(): void { this.check(); this.loadUpdaterLogs(); }
+  ngOnInit(): void { this.check(); this.loadUpdaterLogs(); this.loadChangelog(); }
 
   ngOnDestroy(): void { if (this.pollTimer) clearTimeout(this.pollTimer); }
+
+  loadChangelog(): void {
+    this.docker.getChangelog().subscribe({
+      next: c => { this.changelog = c || []; },
+      error: () => { /* non-fatal — page still works without release notes */ },
+    });
+  }
+
+  // Tone for a section badge, so Added/Fixed/Changed read at a glance.
+  sectionTone(title: string): string {
+    const t = (title || '').toLowerCase();
+    if (t.startsWith('add') || t.startsWith('new')) return 'running';
+    if (t.startsWith('fix')) return 'warn';
+    if (t.startsWith('chang') || t.startsWith('improv')) return 'info';
+    if (t.startsWith('remov') || t.startsWith('deprecat')) return 'danger';
+    return 'idle';
+  }
 
   // Pull the most recent updater container's output + exit state. Used on load
   // (so a prior failed run is visible) and while an update is in progress.

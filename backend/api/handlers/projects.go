@@ -234,14 +234,24 @@ func (h *deleteHub) finish() {
 	h.subs = make(map[chan delEvent]struct{})
 }
 
+// buildCtl tracks one in-flight build/run so it can be cancelled. The token
+// uniquely identifies the build episode: cleanupCancel only tears down the entry
+// it owns, so a build that finishes (or is stopped) can never cancel a newer
+// build that started for the same project in the meantime.
+type buildCtl struct {
+	cancel context.CancelFunc
+	token  int64
+}
+
 // ProjectHandlers manages local project upload, build and run.
 type ProjectHandlers struct {
 	db         *storage.DB
 	docker     *client.Client // used to inspect host-port usage for pre-build conflict checks
 	mu         sync.Mutex
-	cancels    map[int64]context.CancelFunc
-	hubs       sync.Map // int64 → *broadcastHub  (build-log streaming)
-	deleteHubs sync.Map // int64 → *deleteHub     (delete-progress streaming)
+	cancels    map[int64]buildCtl // projID → in-flight build; presence is the authoritative "is building" guard
+	nextToken  int64              // monotonic build-episode id (guarded by mu)
+	hubs       sync.Map           // int64 → *broadcastHub  (build-log streaming)
+	deleteHubs sync.Map           // int64 → *deleteHub     (delete-progress streaming)
 }
 
 // NewProjectHandlers creates a new ProjectHandlers.
@@ -249,8 +259,34 @@ func NewProjectHandlers(db *storage.DB, cli *client.Client) *ProjectHandlers {
 	return &ProjectHandlers{
 		db:      db,
 		docker:  cli,
-		cancels: make(map[int64]context.CancelFunc),
+		cancels: make(map[int64]buildCtl),
 	}
+}
+
+// startBuild atomically claims the in-flight build slot for a project and
+// launches the build+run goroutine. It returns false if a build/run is already
+// running — closing the race between checking status and launching the goroutine
+// (two quick requests could otherwise both start, double-building and orphaning a
+// cancel). The 30-minute timeout context is owned by the goroutine and released
+// in cleanupCancel.
+func (h *ProjectHandlers) startBuild(proj *storage.Project, noCache bool) bool {
+	h.mu.Lock()
+	if _, busy := h.cancels[proj.ID]; busy {
+		h.mu.Unlock()
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	h.nextToken++
+	token := h.nextToken
+	h.cancels[proj.ID] = buildCtl{cancel: cancel, token: token}
+	h.mu.Unlock()
+
+	// runBuildAndStart always builds *and* starts, so both logs are stale now.
+	h.db.UpdateProjectStatus(proj.ID, "building", "") //nolint:errcheck
+	h.db.UpdateProjectBuildLog(proj.ID, "")           //nolint:errcheck
+	h.db.UpdateProjectRunLog(proj.ID, "")             //nolint:errcheck
+	go h.runBuildAndStart(ctx, token, proj, noCache)
+	return true
 }
 
 // ── File tree types ───────────────────────────────────────────────────────────
@@ -582,8 +618,8 @@ func (h *ProjectHandlers) runDelete(proj *storage.Project, purge bool, hub *dele
 
 	// Cancel any in-progress build/run for this project so its files aren't held.
 	h.mu.Lock()
-	if cancel, ok := h.cancels[proj.ID]; ok {
-		cancel()
+	if ctl, ok := h.cancels[proj.ID]; ok {
+		ctl.cancel()
 		delete(h.cancels, proj.ID)
 	}
 	h.mu.Unlock()
@@ -747,10 +783,6 @@ func (h *ProjectHandlers) Build(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, errMsg("project not found"))
 		return
 	}
-	if proj.Status == "building" {
-		writeError(w, http.StatusConflict, errMsg("build already in progress"))
-		return
-	}
 	if proj.Type == "unknown" {
 		writeError(w, http.StatusBadRequest, errMsg("project type unknown — no Dockerfile or docker-compose.yml detected"))
 		return
@@ -759,15 +791,10 @@ func (h *ProjectHandlers) Build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.db.UpdateProjectStatus(proj.ID, "building", "") //nolint:errcheck
-	h.db.UpdateProjectBuildLog(proj.ID, "")           //nolint:errcheck
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	h.mu.Lock()
-	h.cancels[proj.ID] = cancel
-	h.mu.Unlock()
-
-	go h.runBuildAndStart(ctx, proj, noCacheRequested(r))
+	if !h.startBuild(proj, noCacheRequested(r)) {
+		writeError(w, http.StatusConflict, errMsg("build already in progress"))
+		return
+	}
 	writeJSON(w, map[string]string{"status": "building"})
 }
 
@@ -788,10 +815,6 @@ func (h *ProjectHandlers) Run(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, errMsg("project is already running"))
 		return
 	}
-	if proj.Status == "building" {
-		writeError(w, http.StatusConflict, errMsg("build is in progress"))
-		return
-	}
 	if proj.Type == "unknown" {
 		writeError(w, http.StatusBadRequest, errMsg("project type unknown"))
 		return
@@ -800,16 +823,10 @@ func (h *ProjectHandlers) Run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.db.UpdateProjectStatus(proj.ID, "building", "") //nolint:errcheck
-	h.db.UpdateProjectBuildLog(proj.ID, "")           //nolint:errcheck
-	h.db.UpdateProjectRunLog(proj.ID, "")             //nolint:errcheck
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-	h.mu.Lock()
-	h.cancels[proj.ID] = cancel
-	h.mu.Unlock()
-
-	go h.runBuildAndStart(ctx, proj, noCacheRequested(r))
+	if !h.startBuild(proj, noCacheRequested(r)) {
+		writeError(w, http.StatusConflict, errMsg("build is in progress"))
+		return
+	}
 	writeJSON(w, map[string]string{"status": "building"})
 }
 
@@ -823,8 +840,8 @@ func (h *ProjectHandlers) Stop(w http.ResponseWriter, r *http.Request) {
 
 	// Cancel in-progress build/run if any.
 	h.mu.Lock()
-	if cancel, ok := h.cancels[proj.ID]; ok {
-		cancel()
+	if ctl, ok := h.cancels[proj.ID]; ok {
+		ctl.cancel()
 		delete(h.cancels, proj.ID)
 	}
 	h.mu.Unlock()
@@ -1165,6 +1182,11 @@ func (h *ProjectHandlers) livePortIndex(ctx context.Context) map[string][]storag
 		if proj := c.Labels["com.docker.compose.project"]; proj != "" {
 			idx[proj] = append(idx[proj], mappings...)
 		}
+		// Index by both the full container ID and name: a dockerfile project may
+		// store either as its ContainerID depending on how it was launched.
+		if c.ID != "" {
+			idx[c.ID] = append(idx[c.ID], mappings...)
+		}
 		for _, name := range c.Names {
 			n := strings.TrimPrefix(name, "/")
 			idx[n] = append(idx[n], mappings...)
@@ -1436,8 +1458,12 @@ func (h *ProjectHandlers) TriggerDeploy(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusNotFound, errMsg("project not found"))
 		return
 	}
-	// Deploy-on-push uses the layer cache for fast incremental deploys.
-	go h.runBuildAndStart(context.Background(), proj, false)
+	// Deploy-on-push uses the layer cache for fast incremental deploys. Routed
+	// through startBuild so a push during an in-flight build is ignored rather
+	// than double-building.
+	if !h.startBuild(proj, false) {
+		log.Printf("[project %s] deploy trigger ignored: a build is already in progress", proj.Name)
+	}
 	writeJSON(w, map[string]any{"message": "deploy triggered"})
 }
 
@@ -1465,14 +1491,14 @@ func buildCommandArgs(proj *storage.Project, noCache bool) []string {
 // runBuildAndStart builds the project image (honouring noCache) and then starts
 // its containers, streaming progress to the build-log hub. It is the single path
 // behind both the Build and Run endpoints.
-func (h *ProjectHandlers) runBuildAndStart(ctx context.Context, proj *storage.Project, noCache bool) {
+func (h *ProjectHandlers) runBuildAndStart(ctx context.Context, token int64, proj *storage.Project, noCache bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[panic] project %s build+run: %v", proj.Name, r)
 			h.db.UpdateProjectStatus(proj.ID, "failed", fmt.Sprintf("build crashed: %v", r)) //nolint:errcheck
 		}
 	}()
-	defer h.cleanupCancel(proj.ID)
+	defer h.cleanupCancel(proj.ID, token)
 
 	hub := newBroadcastHub()
 	h.hubs.Store(proj.ID, hub)
@@ -1825,9 +1851,17 @@ func (h *ProjectHandlers) Restart(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "running"})
 }
 
-func (h *ProjectHandlers) cleanupCancel(id int64) {
+// cleanupCancel releases the build slot for id, but only if `token` still owns it
+// — so a finishing (or stopped) build never cancels a newer build that reclaimed
+// the slot for the same project. Calling cancel here releases the timeout context
+// on the normal-completion path (otherwise its timer would linger until the
+// 30-minute deadline).
+func (h *ProjectHandlers) cleanupCancel(id, token int64) {
 	h.mu.Lock()
-	delete(h.cancels, id)
+	if ctl, ok := h.cancels[id]; ok && ctl.token == token {
+		ctl.cancel()
+		delete(h.cancels, id)
+	}
 	h.mu.Unlock()
 }
 

@@ -167,14 +167,6 @@ func recreateContainer(ctx context.Context, cli *client.Client, id, step string)
 	// keeping os.Hostname()-based self-inspection working in the recreated backend.
 	info.Config.Hostname = ""
 
-	log.Printf("[self-update] step %s recreating", step)
-	timeout := 30
-	log.Printf("[self-update] stopping %s", name)
-	_ = cli.ContainerStop(ctx, id, container.StopOptions{Timeout: &timeout})
-	if err := cli.ContainerRemove(ctx, id, container.RemoveOptions{}); err != nil {
-		return fmt.Errorf("remove old: %w", err)
-	}
-
 	// ContainerCreate connects to a single network; create with the primary (the
 	// one the old container used as NetworkMode, if known) and connect the rest.
 	var netCfg *network.NetworkingConfig
@@ -195,11 +187,34 @@ func recreateContainer(ctx context.Context, cli *client.Client, id, step string)
 		}
 	}
 
-	log.Printf("[self-update] creating %s", name)
-	created, err := cli.ContainerCreate(ctx, info.Config, info.HostConfig, netCfg, nil, name)
+	log.Printf("[self-update] step %s recreating", step)
+
+	// Create-before-destroy: build the replacement under a temporary name while the
+	// current container is still running. Creating doesn't bind host ports (that
+	// happens at start), so it can't conflict — but a broken new image or invalid
+	// config fails HERE, leaving the existing container untouched and still up,
+	// instead of after we've already torn it down.
+	tmpName := name + "-dyupd"
+	_ = cli.ContainerRemove(ctx, tmpName, container.RemoveOptions{Force: true}) // clear any stale temp from a prior failed run
+	log.Printf("[self-update] creating replacement for %s", name)
+	created, err := cli.ContainerCreate(ctx, info.Config, info.HostConfig, netCfg, nil, tmpName)
 	if err != nil {
-		return fmt.Errorf("create: %w", err)
+		return fmt.Errorf("create replacement (old container left running): %w", err)
 	}
+
+	// The replacement exists — now retire the old container and take over its name.
+	timeout := 30
+	log.Printf("[self-update] stopping %s", name)
+	_ = cli.ContainerStop(ctx, id, container.StopOptions{Timeout: &timeout})
+	if err := cli.ContainerRemove(ctx, id, container.RemoveOptions{}); err != nil {
+		_ = cli.ContainerRemove(ctx, created.ID, container.RemoveOptions{Force: true}) // don't leak the temp
+		return fmt.Errorf("remove old: %w", err)
+	}
+	if err := cli.ContainerRename(ctx, created.ID, name); err != nil {
+		// Non-fatal: the replacement still works under its temp name; just log it.
+		log.Printf("[self-update] warn: rename %s -> %s: %v", tmpName, name, err)
+	}
+
 	for n, ep := range extra {
 		if err := cli.NetworkConnect(ctx, n, created.ID, ep); err != nil {
 			log.Printf("[self-update] warn: connect %s -> %s: %v", name, n, err)

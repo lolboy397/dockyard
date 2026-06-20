@@ -153,6 +153,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		r.Get("/system/update/check", updates.Check)
 		r.Get("/system/update/logs", updates.Logs)
 		r.Post("/system/update/apply", updates.Apply)
+		r.Get("/system/changelog", updates.Changelog)
 
 		// Application (system) backup — admin-only, enforced in the handlers.
 		// Static routes registered before the parameterised {name} routes.
