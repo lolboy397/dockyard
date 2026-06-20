@@ -263,6 +263,10 @@ app-projects {
 .body {
   display: grid;
   grid-template-columns: 1fr 420px;
+  /* Bound the single row to the container height (min 0) so the list/detail
+     panes scroll internally instead of the auto row growing to fit all rows
+     and clipping the overflow. */
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
   height: 100%;
