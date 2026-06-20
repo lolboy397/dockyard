@@ -13,6 +13,79 @@ import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
   standalone: true,
   imports: [CommonModule, IconComponent, StatusDotComponent],
   templateUrl: './system-update.component.html',
+  styles: [`
+    .upd-layout {
+      flex: 1; min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 440px;
+      grid-template-rows: minmax(0, 1fr);
+    }
+    .upd-main { min-height: 0; overflow-y: auto; }
+
+    /* Right rail: updater output (its own scroll, so logs never clip the page). */
+    .upd-side {
+      min-height: 0; overflow: hidden;
+      display: flex; flex-direction: column;
+      border-left: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+    .upd-side-head {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 12px 14px; border-bottom: 1px solid var(--border-subtle);
+    }
+    .upd-side-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; }
+
+    .upd-log {
+      margin: 0; white-space: pre-wrap; word-break: break-word;
+      font-family: var(--font-mono); font-size: 11px; line-height: 1.55;
+      color: var(--fg-muted);
+    }
+    .upd-empty { color: var(--fg-subtle); font-size: 12px; line-height: 1.6; padding: 8px 2px; }
+
+    /* ── Updating animation ───────────────────────────────────────────── */
+    .upd-progress-card {
+      border: 1px solid var(--border); border-radius: var(--r-lg);
+      background: var(--bg-raised); padding: 14px; margin-bottom: 14px;
+    }
+    .upd-progress-top { display: flex; align-items: center; gap: 10px; }
+    .upd-orb {
+      width: 30px; height: 30px; border-radius: 50%; flex: none; position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upd-orb::before {
+      content: ''; position: absolute; inset: -3px; border-radius: 50%;
+      background: conic-gradient(from 0deg, transparent, var(--accent));
+      animation: upd-spin 0.9s linear infinite; -webkit-mask: radial-gradient(circle 11px, transparent 98%, #000 100%);
+      mask: radial-gradient(circle 11px, transparent 98%, #000 100%);
+    }
+    .upd-orb.done::before { animation: none; background: var(--running-400); }
+    @keyframes upd-spin { to { transform: rotate(360deg); } }
+
+    .upd-phase { font-size: 13px; font-weight: 600; color: var(--fg); }
+    .upd-sub { font-size: 11px; color: var(--fg-subtle); margin-top: 1px; }
+
+    .upd-bar {
+      position: relative; height: 4px; margin-top: 12px;
+      background: var(--bg-elevated); border-radius: 3px; overflow: hidden;
+    }
+    .upd-bar::after {
+      content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 30%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      animation: upd-sweep 1.25s ease-in-out infinite;
+    }
+    .upd-bar.done::after {
+      width: 100%; animation: none;
+      background: var(--running-400);
+    }
+    @keyframes upd-sweep { 0% { left: -30%; } 100% { left: 100%; } }
+
+    @media (max-width: 900px) {
+      .upd-layout { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 44%); }
+      .upd-side { border-left: 0; border-top: 1px solid var(--border); }
+    }
+  `],
 })
 export class SystemUpdateComponent implements OnInit, OnDestroy {
   status: UpdateStatus | null = null;
@@ -127,5 +200,17 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
   short(digest?: string): string {
     if (!digest) return '—';
     return digest.replace('sha256:', '').slice(0, 12);
+  }
+
+  // Friendly phase label derived from the updater's live output, so the progress
+  // card reflects what's actually happening rather than a static spinner.
+  get phase(): string {
+    if (this.applied) return 'Update complete';
+    const l = (this.updaterLogs || '').toLowerCase();
+    if (l.includes('done')) return 'Finishing up…';
+    if (l.includes('creating') || l.includes('stopping')) return 'Recreating containers…';
+    if (l.includes('pulling')) return 'Pulling new images…';
+    if (this.updaterLogs) return 'Starting updater…';
+    return 'Preparing update…';
   }
 }

@@ -1,5 +1,7 @@
-<div class="body no-detail">
-  <div class="content-area">
+<div class="upd-layout">
+
+  <!-- LEFT: update status + actions -->
+  <div class="upd-main">
     <div class="content-head">
       <div class="content-title-row">
         <h2 class="content-title">Updates</h2>
@@ -13,7 +15,7 @@
       </div>
     </div>
 
-    <div class="dbody" style="max-width:880px;">
+    <div class="dbody" style="max-width:760px;">
 
       @if (loadError) {
         <div class="dsection">
@@ -102,7 +104,7 @@
               <button class="btn btn-sm btn-primary" (click)="apply()" [disabled]="!canApply">
                 <dy-icon name="circle-arrow-up" [size]="13"></dy-icon> Update Dockyard
               </button>
-              @if (!status.update_available) {
+              @if (!status.update_available && !applying) {
                 <span style="font-size:12px;color:var(--fg-subtle);">Nothing to update — you're on the latest build.</span>
               }
             </div>
@@ -128,48 +130,52 @@ docker compose up -d</pre>
           <div style="font-size:11px;color:var(--warn-400,#FBBF24);">{{ status.error }}</div>
         }
       }
+    </div>
+  </div>
 
-      <!-- Updater output: the most recent self-update run's logs, so a failed or
-           stuck update is never a black box. -->
-      @if (updaterLogs) {
-        <div class="dsection">
-          <div class="dsection-head">
-            <span class="eyebrow">Updater output</span>
-            <span style="display:flex;align-items:center;gap:8px;">
-              @if (updaterState) { <span class="mono" style="font-size:11px;color:var(--fg-subtle);">{{ updaterState }}</span> }
-              <button class="btn btn-sm btn-ghost" (click)="loadUpdaterLogs()">
-                <dy-icon name="refresh-cw" [size]="12"></dy-icon> Refresh
-              </button>
+  <!-- RIGHT: updater output rail -->
+  <aside class="upd-side">
+    <div class="upd-side-head">
+      <span class="eyebrow">Updater output</span>
+      <span style="display:flex;align-items:center;gap:8px;">
+        @if (updaterState && !applying) { <span class="mono" style="font-size:11px;color:var(--fg-subtle);">{{ updaterState }}</span> }
+        <button class="icon-btn sm ghost" (click)="loadUpdaterLogs()" title="Refresh output" [disabled]="applying">
+          <dy-icon name="refresh-cw" [size]="13"></dy-icon>
+        </button>
+      </span>
+    </div>
+
+    <div class="upd-side-body">
+      <!-- Live progress card while an update is applying / just finished -->
+      @if (applying || applied) {
+        <div class="upd-progress-card">
+          <div class="upd-progress-top">
+            <span class="upd-orb" [class.done]="applied">
+              @if (applied) { <dy-icon name="check" [size]="14" [style.color]="'var(--running-400)'"></dy-icon> }
             </span>
-          </div>
-          @if (timedOut) {
-            <div style="font-size:12px;color:var(--warn-400,#FBBF24);margin-bottom:6px;">
-              The update didn't complete in time. The output below shows what the updater container did.
+            <div>
+              <div class="upd-phase">{{ applied ? 'Update complete' : phase }}</div>
+              <div class="upd-sub">{{ applied ? 'Reloading to the new version…' : 'Dockyard will briefly go offline; this page reloads automatically.' }}</div>
             </div>
-          }
-          <pre class="mono" style="margin:0;padding:10px 12px;background:#0b0b0b;border:1px solid var(--border);border-radius:var(--r-md);max-height:300px;overflow:auto;white-space:pre-wrap;font-size:11px;line-height:1.5;color:var(--fg-muted);">{{ updaterLogs }}</pre>
+          </div>
+          <div class="upd-bar" [class.done]="applied"></div>
+        </div>
+      }
+
+      @if (timedOut) {
+        <div style="font-size:12px;color:var(--warn-400,#FBBF24);margin-bottom:10px;line-height:1.5;">
+          The update didn't complete in time. The output below shows what the updater did.
+        </div>
+      }
+
+      @if (updaterLogs) {
+        <pre class="upd-log">{{ updaterLogs }}</pre>
+      } @else if (!applying) {
+        <div class="upd-empty">
+          No update has run yet. When you apply an update, the updater container's live output appears
+          here — pulling images, recreating each service, and reconnecting.
         </div>
       }
     </div>
-  </div>
+  </aside>
 </div>
-
-<!-- Updating overlay -->
-@if (applying) {
-  <div style="position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;
-              background:rgba(5,7,12,0.66);backdrop-filter:blur(3px);">
-    <div style="text-align:center;max-width:560px;padding:28px 32px;">
-      <dy-icon [name]="applied ? 'circle-check' : 'loader-circle'" [size]="34"
-               [class.spin]="!applied" [style.color]="applied ? 'var(--running-400)' : 'var(--accent)'"></dy-icon>
-      <div style="margin-top:14px;font-size:15px;font-weight:600;color:#fff;">
-        {{ applied ? 'Update complete — reloading…' : 'Updating Dockyard…' }}
-      </div>
-      <div style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.6);line-height:1.5;">
-        {{ applied ? 'Loading the new version.' : 'Pulling images and recreating the stack. This page will reload automatically when Dockyard is back online.' }}
-      </div>
-      @if (updaterLogs) {
-        <pre style="margin:14px 0 0;text-align:left;max-height:200px;overflow:auto;white-space:pre-wrap;font:11px/1.5 monospace;color:rgba(255,255,255,0.72);background:rgba(0,0,0,0.45);padding:10px 12px;border-radius:8px;">{{ updaterLogs }}</pre>
-      }
-    </div>
-  </div>
-}
