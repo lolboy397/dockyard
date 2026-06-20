@@ -665,6 +665,11 @@ input[type=checkbox] {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   overflow: hidden;
+  /* Keep the table at its full content height inside the flex-column
+     .content-area. Without this it has overflow:hidden, which gives a flex item
+     an automatic min-height of 0, so it shrinks to fit and clips its own rows —
+     .content-area never overflows and never shows a scrollbar. */
+  flex: none;
 }
 
 /* Design-system column layout: checkbox · Name · Image · Status · Ports · CPU · Mem · Started · Actions */
@@ -1098,6 +1103,9 @@ input[type=checkbox] {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   overflow: hidden;
+  /* See .ctable: prevent the flex item from shrinking below its content so the
+     scroll container (.content-area) overflows and scrolls. */
+  flex: none;
 }
 .gtable-head, .gtable-row {
   display: grid;
