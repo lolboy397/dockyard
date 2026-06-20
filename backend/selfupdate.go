@@ -74,25 +74,32 @@ func runSelfUpdate(project string) {
 		return !isBackend(targets[i].name, targets[i].service) && isBackend(targets[j].name, targets[j].service)
 	})
 
-	names := make([]string, len(targets))
+	// Emit a machine-parseable plan + per-step markers (alongside the human log
+	// lines) so the UI can render a live step checklist by polling these logs —
+	// the log is cumulative, so a client reconnecting after the backend restarts
+	// still sees every step that happened during the gap.
+	ids := make([]string, len(targets))
 	for i, t := range targets {
-		names[i] = t.name
+		ids[i] = stepID(t.service, t.name)
 	}
-	log.Printf("[self-update] updating %d container(s): %s", len(targets), strings.Join(names, ", "))
+	log.Printf("[self-update] plan %s", strings.Join(ids, " "))
 
 	failed := 0
 	for _, t := range targets {
-		log.Printf("[self-update] >>> %s", t.name)
-		if err := recreateContainer(ctx, cli, t.id); err != nil {
+		id := stepID(t.service, t.name)
+		if err := recreateContainer(ctx, cli, t.id, id); err != nil {
+			log.Printf("[self-update] step %s failed", id)
 			log.Printf("[self-update] FAILED %s: %v", t.name, err)
 			failed++
 		} else {
+			log.Printf("[self-update] step %s done", id)
 			log.Printf("[self-update] updated %s", t.name)
 		}
 	}
 	if failed > 0 {
 		log.Fatalf("[self-update] finished with %d failure(s)", failed)
 	}
+	log.Printf("[self-update] complete")
 	log.Printf("[self-update] done — all services updated")
 }
 
@@ -100,11 +107,21 @@ func isBackend(name, service string) bool {
 	return strings.Contains(name, "backend") || strings.Contains(service, "backend")
 }
 
+// stepID is the stable identifier the UI keys progress steps on — the compose
+// service name when present, else the container name. Must match how the backend
+// labels components in gatherStatus.
+func stepID(service, name string) string {
+	if service != "" {
+		return service
+	}
+	return name
+}
+
 // recreateContainer pulls the image a container runs and recreates the container
 // from its existing config, preserving volumes, ports, env, restart policy and —
 // crucially — its network attachments + service-name aliases (so e.g. the
 // frontend keeps resolving the backend at "backend").
-func recreateContainer(ctx context.Context, cli *client.Client, id string) error {
+func recreateContainer(ctx context.Context, cli *client.Client, id, step string) error {
 	info, err := cli.ContainerInspect(ctx, id)
 	if err != nil {
 		return fmt.Errorf("inspect: %w", err)
@@ -116,6 +133,7 @@ func recreateContainer(ctx context.Context, cli *client.Client, id string) error
 	name := strings.TrimPrefix(info.Name, "/")
 	service := info.Config.Labels["com.docker.compose.service"]
 
+	log.Printf("[self-update] step %s pulling", step)
 	log.Printf("[self-update] pulling %s", imageRef)
 	rc, err := cli.ImagePull(ctx, imageRef, image.PullOptions{})
 	if err != nil {
@@ -149,6 +167,7 @@ func recreateContainer(ctx context.Context, cli *client.Client, id string) error
 	// keeping os.Hostname()-based self-inspection working in the recreated backend.
 	info.Config.Hostname = ""
 
+	log.Printf("[self-update] step %s recreating", step)
 	timeout := 30
 	log.Printf("[self-update] stopping %s", name)
 	_ = cli.ContainerStop(ctx, id, container.StopOptions{Timeout: &timeout})

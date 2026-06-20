@@ -8,6 +8,13 @@ import { UpdateStatus } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 
+interface UpdateStep {
+  key: string;
+  label: string;
+  state: 'pending' | 'running' | 'done' | 'failed';
+  detail?: string;
+}
+
 @Component({
   selector: 'app-system-update',
   standalone: true,
@@ -85,6 +92,36 @@ import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
       .upd-layout { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 44%); }
       .upd-side { border-left: 0; border-top: 1px solid var(--border); }
     }
+
+    /* ── Step checklist ───────────────────────────────────────────────── */
+    .upd-steps { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+    .upd-step { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--r-md); }
+    .upd-step.st-running { background: var(--accent-soft, rgba(34,211,238,0.08)); }
+    .upd-step-ico {
+      flex: none; width: 18px; height: 18px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .upd-step-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-disabled, #475569); }
+    .st-running .upd-step-ico { color: var(--accent); }
+    .st-done .upd-step-ico { color: var(--running-400); }
+    .st-failed .upd-step-ico { color: var(--danger-400, #F87171); }
+    .upd-step-label { font-size: 12.5px; color: var(--fg); }
+    .st-pending .upd-step-label { color: var(--fg-subtle); }
+    .upd-step-detail { font-size: 11px; color: var(--fg-subtle); margin-left: 6px; }
+
+    .upd-reconnect {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; margin-bottom: 12px;
+      font-size: 12px; color: var(--fg-muted);
+      border: 1px dashed var(--border); border-radius: var(--r-md);
+    }
+
+    .upd-raw-toggle {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: none; border: 0; cursor: pointer; padding: 4px 0;
+      font-size: 11px; color: var(--fg-subtle); font-family: var(--font-mono);
+    }
+    .upd-raw-toggle:hover { color: var(--fg-muted); }
   `],
 })
 export class SystemUpdateComponent implements OnInit, OnDestroy {
@@ -93,10 +130,15 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
   applying = false;     // an update is being applied (stack recreating)
   applied = false;      // update finished, page about to reload
   timedOut = false;     // apply didn't complete in time — show updater output
+  failed = false;       // updater exited non-zero / a step failed
   loadError = '';       // failed to load the check (e.g. not admin)
 
   updaterLogs = '';     // output of the most recent updater container
   updaterState = '';    // running / exited (code N)
+
+  steps: UpdateStep[] = [];   // live step checklist parsed from updater output
+  disconnected = false;       // last poll failed — the stack is recreating
+  showRaw = false;            // reveal the raw updater output below the checklist
 
   private pollTimer?: ReturnType<typeof setTimeout>;
   private pollStarted = 0;
@@ -151,9 +193,12 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
     this.applying = true;
     this.applied = false;
     this.timedOut = false;
+    this.failed = false;
+    this.disconnected = false;
     this.updaterLogs = '';
     this.docker.applyUpdate().subscribe({
-      next: () => {
+      next: resp => {
+        this.seedSteps(resp?.backup);
         this.notify.info('Update started — pulling images and recreating the stack…');
         this.pollStarted = Date.now();
         this.pollUntilBack();
@@ -165,15 +210,81 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
     });
   }
 
-  // Poll the check endpoint until the new build is running (update no longer
-  // available). API calls fail while the backend/frontend recreate — those are
-  // swallowed and retried. Once it reports up-to-date, reload to pick up the new
-  // frontend assets.
+  // Build the initial checklist the moment the update starts: the backup (already
+  // taken by the backend) plus a pending step per Dockyard service, in the order
+  // the updater processes them (backend last). Live state fills in from the logs.
+  private seedSteps(backup?: string): void {
+    const steps: UpdateStep[] = [];
+    if (backup) steps.push({ key: 'backup', label: 'Backed up current state', state: 'done', detail: backup });
+    for (const id of this.serviceIds()) {
+      steps.push({ key: 'svc:' + id, label: 'Update ' + id, state: 'pending' });
+    }
+    this.steps = steps;
+  }
+
+  private isBackend(s: string): boolean { return (s || '').toLowerCase().includes('backend'); }
+
+  private serviceIds(): string[] {
+    if (!this.status) return [];
+    return [...this.status.components]
+      .sort((a, b) => (this.isBackend(a.service) ? 1 : 0) - (this.isBackend(b.service) ? 1 : 0))
+      .map(c => c.service);
+  }
+
+  // Parse the cumulative updater output into the step checklist. The log persists
+  // across the backend restart, so re-parsing after a reconnect recovers every
+  // step that happened during the gap.
+  private parseProgress(logs: string): void {
+    const phase: Record<string, string> = {};
+    let plan: string[] | null = null;
+    let complete = false;
+    for (const ln of logs.split('\n')) {
+      let m = ln.match(/\[self-update\] plan (.+)/);
+      if (m) { plan = m[1].trim().split(/\s+/); continue; }
+      m = ln.match(/\[self-update\] step (\S+) (pulling|recreating|done|failed)/);
+      if (m) { phase[m[1]] = m[2]; continue; }
+      if (ln.includes('[self-update] complete')) complete = true;
+    }
+
+    const ids = plan ?? this.serviceIds();
+    const svcSteps: UpdateStep[] = ids.map(id => {
+      const p = phase[id];
+      if (p === 'done') return { key: 'svc:' + id, label: 'Update ' + id, state: 'done' };
+      if (p === 'failed') return { key: 'svc:' + id, label: 'Update ' + id, state: 'failed' };
+      if (p === 'recreating') return { key: 'svc:' + id, label: 'Update ' + id, state: 'running', detail: 'Recreating container…' };
+      if (p === 'pulling') return { key: 'svc:' + id, label: 'Update ' + id, state: 'running', detail: 'Pulling image…' };
+      return { key: 'svc:' + id, label: 'Update ' + id, state: 'pending' };
+    });
+    if (complete) svcSteps.forEach(s => { if (s.state !== 'failed') s.state = 'done'; });
+
+    const backup = this.steps.find(s => s.key === 'backup');
+    this.steps = backup ? [backup, ...svcSteps] : svcSteps;
+  }
+
+  // Poll until the new build is running (update no longer available). API calls
+  // fail while the backend/frontend recreate — those flip `disconnected` and are
+  // retried. Once it reports up-to-date, reload to pick up the new frontend.
   private pollUntilBack(): void {
     this.pollTimer = setTimeout(() => {
-      // Refresh the updater output each tick so the user sees live progress (and
-      // the exact failure if it errors). Swallows failures while the API is down.
-      this.loadUpdaterLogs();
+      if (!this.applying) return;  // already finished (failed/applied) — stop the loop
+
+      // Refresh the updater output each tick to advance the checklist.
+      this.docker.getUpdateLogs().subscribe({
+        next: r => {
+          this.updaterLogs = r.logs || ''; this.updaterState = r.state || '';
+          this.parseProgress(this.updaterLogs);
+          // The updater exited non-zero (or a step failed) → fail fast instead of
+          // waiting out the timeout.
+          if (this.applying && (/exited \(code [1-9]/.test(this.updaterState) || this.steps.some(s => s.state === 'failed'))) {
+            this.applying = false;
+            this.failed = true;
+            this.disconnected = false;
+            this.steps.forEach(s => { if (s.state === 'running') s.state = 'failed'; });
+            this.notify.error('Update failed — see the updater output.');
+          }
+        },
+        error: () => { /* backend recreating */ },
+      });
 
       if (Date.now() - this.pollStarted > this.pollTimeoutMs) {
         this.applying = false;
@@ -184,15 +295,17 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
       this.docker.checkForUpdate(true).subscribe({
         next: s => {
           this.status = s;
+          this.disconnected = false;
           if (!s.update_available) {
             this.applied = true;
+            this.steps.forEach(st => { if (st.state !== 'failed') st.state = 'done'; });
             this.notify.success('Dockyard updated — reloading…');
             setTimeout(() => window.location.reload(), 1500);
           } else {
             this.pollUntilBack();
           }
         },
-        error: () => this.pollUntilBack(),  // backend still recreating
+        error: () => { this.disconnected = true; this.pollUntilBack(); },  // backend still recreating
       });
     }, 5000);
   }
@@ -206,9 +319,10 @@ export class SystemUpdateComponent implements OnInit, OnDestroy {
   // card reflects what's actually happening rather than a static spinner.
   get phase(): string {
     if (this.applied) return 'Update complete';
+    if (this.disconnected) return 'Reconnecting…';
     const l = (this.updaterLogs || '').toLowerCase();
-    if (l.includes('done')) return 'Finishing up…';
-    if (l.includes('creating') || l.includes('stopping')) return 'Recreating containers…';
+    if (l.includes('[self-update] complete')) return 'Finishing up…';
+    if (l.includes('recreating')) return 'Recreating containers…';
     if (l.includes('pulling')) return 'Pulling new images…';
     if (this.updaterLogs) return 'Starting updater…';
     return 'Preparing update…';

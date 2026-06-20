@@ -352,10 +352,12 @@ func (h *UpdateHandlers) Apply(w http.ResponseWriter, r *http.Request) {
 
 	// Best-effort consistent snapshot before mutating the running stack, so a bad
 	// release can be rolled back. Never blocks the update if backups aren't set up.
+	backupName := ""
 	if h.bk != nil && h.bk.AppBackupConfigured() {
 		if info, berr := h.bk.BackupApp(0); berr != nil {
 			log.Printf("[update] pre-update backup failed (continuing): %v", berr)
 		} else {
+			backupName = info.Name
 			log.Printf("[update] pre-update backup written: %s", info.Name)
 		}
 	}
@@ -395,5 +397,5 @@ func (h *UpdateHandlers) Apply(w http.ResponseWriter, r *http.Request) {
 	h.cached = nil
 	h.mu.Unlock()
 
-	writeJSON(w, map[string]any{"status": "updating", "updater": created.ID})
+	writeJSON(w, map[string]any{"status": "updating", "updater": created.ID, "backup": backupName})
 }

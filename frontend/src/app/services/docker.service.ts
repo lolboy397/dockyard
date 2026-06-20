@@ -117,8 +117,8 @@ export class DockerService {
     return this.http.get<UpdateStatus>(`${this.base}/system/update/check`, { params });
   }
 
-  applyUpdate(): Observable<{ status: string; updater: string }> {
-    return this.http.post<{ status: string; updater: string }>(`${this.base}/system/update/apply`, {});
+  applyUpdate(): Observable<{ status: string; updater: string; backup?: string }> {
+    return this.http.post<{ status: string; updater: string; backup?: string }>(`${this.base}/system/update/apply`, {});
   }
 
   getUpdateLogs(): Observable<{ exists: boolean; state?: string; logs: string }> {

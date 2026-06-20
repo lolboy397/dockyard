@@ -162,18 +162,61 @@ docker compose up -d</pre>
         </div>
       }
 
-      @if (timedOut) {
-        <div style="font-size:12px;color:var(--warn-400,#FBBF24);margin-bottom:10px;line-height:1.5;">
-          The update didn't complete in time. The output below shows what the updater did.
+      <!-- Step checklist -->
+      @if (steps.length && (applying || applied || timedOut || failed)) {
+        <div class="upd-steps">
+          @for (s of steps; track s.key) {
+            <div class="upd-step st-{{ s.state }}">
+              <span class="upd-step-ico">
+                @if (s.state === 'running') { <dy-icon name="loader" [size]="14" class="spin"></dy-icon> }
+                @else if (s.state === 'done') { <dy-icon name="check" [size]="14"></dy-icon> }
+                @else if (s.state === 'failed') { <dy-icon name="x" [size]="14"></dy-icon> }
+                @else { <span class="upd-step-dot"></span> }
+              </span>
+              <span class="upd-step-label">
+                {{ s.label }}
+                @if (s.detail && s.state === 'running') { <span class="upd-step-detail">{{ s.detail }}</span> }
+                @if (s.detail && s.state === 'done' && s.key === 'backup') { <span class="upd-step-detail">{{ s.detail }}</span> }
+              </span>
+            </div>
+          }
         </div>
       }
 
+      <!-- Reconnect indicator during the recreate gap -->
+      @if (applying && disconnected && !applied) {
+        <div class="upd-reconnect">
+          <dy-icon name="loader" [size]="13" class="spin"></dy-icon>
+          Reconnecting to Dockyard… (the stack is restarting)
+        </div>
+      }
+
+      @if (failed) {
+        <div style="font-size:12px;color:var(--danger-400,#F87171);margin-bottom:10px;line-height:1.5;">
+          The update failed. The output below shows what went wrong; your previous version is still
+          running (a pre-update backup was taken if configured).
+        </div>
+      } @else if (timedOut) {
+        <div style="font-size:12px;color:var(--warn-400,#FBBF24);margin-bottom:10px;line-height:1.5;">
+          The update didn't finish in time. The output below shows what the updater did.
+        </div>
+      }
+
+      <!-- Raw output (collapsible once there's a checklist; shown directly otherwise) -->
       @if (updaterLogs) {
-        <pre class="upd-log">{{ updaterLogs }}</pre>
+        @if (steps.length && (applying || applied || timedOut || failed)) {
+          <button class="upd-raw-toggle" (click)="showRaw = !showRaw">
+            <dy-icon [name]="showRaw ? 'chevron-down' : 'chevron-right'" [size]="12"></dy-icon>
+            Raw updater output
+          </button>
+          @if (showRaw) { <pre class="upd-log" style="margin-top:6px;">{{ updaterLogs }}</pre> }
+        } @else {
+          <pre class="upd-log">{{ updaterLogs }}</pre>
+        }
       } @else if (!applying) {
         <div class="upd-empty">
-          No update has run yet. When you apply an update, the updater container's live output appears
-          here — pulling images, recreating each service, and reconnecting.
+          No update has run yet. When you apply an update, the live progress — backing up, pulling
+          images, recreating each service, and reconnecting — appears here step by step.
         </div>
       }
     </div>
