@@ -986,6 +986,19 @@ type Project struct {
 	RepoID      *int64    `json:"repo_id,omitempty"`
 	// Branch is not persisted — populated at read time from git.
 	Branch      string    `json:"branch"`
+	// PublishedPorts is not persisted — populated at read time from the live
+	// running container(s). It reflects the ports actually exposed right now,
+	// which can differ from the declared Ports string after a port override.
+	PublishedPorts []PortMapping `json:"published_ports,omitempty"`
+}
+
+// PortMapping is a single live host→container port binding published by a running
+// container, used to show a project's real exposed ports (not just its declared
+// configuration).
+type PortMapping struct {
+	Host      string `json:"host"`
+	Container string `json:"container"`
+	Protocol  string `json:"protocol,omitempty"`
 }
 
 // CreateProject inserts a new project record and returns the full row as

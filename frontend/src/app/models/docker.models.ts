@@ -354,6 +354,17 @@ export interface Project {
   build_log?: string;
   run_log?: string;
   repo_id?: number;
+  // Live host→container ports of the running container(s). Reflects what is
+  // actually exposed now (the source of truth, like the Containers page) and may
+  // differ from the declared `ports` string after a port override. Present only
+  // while the project is running.
+  published_ports?: ProjectPublishedPort[];
+}
+
+export interface ProjectPublishedPort {
+  host: string;
+  container: string;
+  protocol?: string;
 }
 
 export interface ProjectLogs {

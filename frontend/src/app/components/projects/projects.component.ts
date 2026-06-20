@@ -720,7 +720,21 @@ export class ProjectsComponent implements OnInit, OnDestroy {
 
   // ── Ports ──────────────────────────────────────────────────────────────────
 
+  // Ports shown to the user. Prefers the live ports actually published by the
+  // running container(s) — the source of truth, matching the Containers page —
+  // and only falls back to the declared mapping when nothing is running yet. This
+  // keeps the display correct even when the declared string has drifted (e.g.
+  // after a port override).
   parsedPorts(): { host: string; container: string }[] {
+    const live = this.selected?.published_ports;
+    if (live?.length) return live.map(p => ({ host: p.host, container: p.container }));
+    return this.declaredPorts();
+  }
+
+  // The declared host:container mappings from the project's saved configuration —
+  // what the port editor edits and what drives the next build/run, independent of
+  // what's currently exposed.
+  declaredPorts(): { host: string; container: string }[] {
     if (!this.selected?.ports) return [];
     return this.selected.ports.split(',').map(s => s.trim()).filter(Boolean).map(s => {
       const [h, c] = s.split(':');
@@ -738,7 +752,8 @@ export class ProjectsComponent implements OnInit, OnDestroy {
 
   togglePortEditor(): void {
     if (!this.portsEditing) {
-      this.portRows = this.parsedPorts().map(p => ({ ...p }));
+      // Seed from the declared config (what we're editing), not the live ports.
+      this.portRows = this.declaredPorts().map(p => ({ ...p }));
       if (this.portRows.length === 0) this.portRows.push({ host: '', container: '' });
     }
     this.portsEditing = !this.portsEditing;

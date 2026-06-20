@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"docker-manager/backend/storage"
+
+	"github.com/docker/docker/api/types/container"
 )
 
 func TestBuildCommandArgs(t *testing.T) {
@@ -162,4 +164,40 @@ func TestComputePortConflicts(t *testing.T) {
 			t.Errorf("expected 2 port results, got %d", len(results))
 		}
 	})
+}
+
+func TestReplaceDeclaredHostPort(t *testing.T) {
+	cases := []struct {
+		ports, oldP, newP, want string
+	}{
+		{"8080:80", "8080", "9090", "9090:80"},
+		{"8080:80, 5432:5432", "5432", "5433", "8080:80, 5433:5432"},
+		// Must remap only the host side, never a digit-substring of another mapping:
+		// remapping "80" must NOT corrupt "8080:80".
+		{"8080:80", "80", "9090", "8080:80"},
+		// Unknown port leaves the string untouched.
+		{"8080:80", "1234", "9090", "8080:80"},
+	}
+	for _, c := range cases {
+		if got := replaceDeclaredHostPort(c.ports, c.oldP, c.newP); got != c.want {
+			t.Errorf("replaceDeclaredHostPort(%q, %q, %q) = %q, want %q", c.ports, c.oldP, c.newP, got, c.want)
+		}
+	}
+}
+
+func TestPublishedMappings(t *testing.T) {
+	ports := []container.Port{
+		{PrivatePort: 80, PublicPort: 8080, Type: "tcp", IP: "0.0.0.0"},
+		{PrivatePort: 80, PublicPort: 8080, Type: "tcp", IP: "::"}, // IPv6 dup → collapses
+		{PrivatePort: 5432, PublicPort: 5432, Type: "tcp"},
+		{PrivatePort: 9000, PublicPort: 0, Type: "tcp"}, // not published → dropped
+	}
+	got := publishedMappings(ports)
+	want := []storage.PortMapping{
+		{Host: "5432", Container: "5432", Protocol: "tcp"},
+		{Host: "8080", Container: "80", Protocol: "tcp"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("publishedMappings() = %+v, want %+v", got, want)
+	}
 }

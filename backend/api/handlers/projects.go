@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -462,10 +463,12 @@ func (h *ProjectHandlers) List(w http.ResponseWriter, r *http.Request) {
 		projs = []storage.Project{}
 	}
 	// Strip logs from list response (they can be large).
+	idx := h.livePortIndex(r.Context())
 	for i := range projs {
 		projs[i].BuildLog = ""
 		projs[i].RunLog = ""
 		projs[i].Branch = getProjectBranch(projs[i].Path)
+		attachLivePorts(&projs[i], idx)
 	}
 	writeJSON(w, projs)
 }
@@ -478,6 +481,7 @@ func (h *ProjectHandlers) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	proj.Branch = getProjectBranch(proj.Path)
+	attachLivePorts(proj, h.livePortIndex(r.Context()))
 	writeJSON(w, proj)
 }
 
@@ -891,6 +895,20 @@ func parsePorts(ports string) []string {
 	return result
 }
 
+// replaceDeclaredHostPort rewrites the host side of any "host:container" mapping
+// whose host port exactly equals oldPort. Unlike a naive substring replace it
+// won't corrupt unrelated digits (e.g. remapping "80" must not touch "8080:80").
+func replaceDeclaredHostPort(ports, oldPort, newPort string) string {
+	mappings := parsePorts(ports)
+	for i, m := range mappings {
+		parts := strings.SplitN(m, ":", 2)
+		if len(parts) == 2 && strings.Trim(parts[0], `"'`) == oldPort {
+			mappings[i] = newPort + ":" + parts[1]
+		}
+	}
+	return strings.Join(mappings, ", ")
+}
+
 // parseComposePorts returns a map of serviceName→containerPort for every service
 // in the compose YAML that exposes the given host port.
 func parseComposePorts(content, hostPort string) map[string]string {
@@ -974,7 +992,7 @@ func (h *ProjectHandlers) PortOverride(w http.ResponseWriter, r *http.Request) {
 	// Keep the DB ports field in sync. For non-compose projects this is the change
 	// that actually takes effect at `docker run`.
 	if proj.Ports != "" {
-		newPorts := strings.ReplaceAll(proj.Ports, body.OldPort+":", body.NewPort+":")
+		newPorts := replaceDeclaredHostPort(proj.Ports, body.OldPort, body.NewPort)
 		h.db.UpdateProjectPorts(proj.ID, newPorts) //nolint:errcheck
 	}
 	writeJSON(w, map[string]string{"status": "ok"})
@@ -1124,6 +1142,110 @@ func (h *ProjectHandlers) usedHostPorts(ctx context.Context) (map[int]portHolder
 		}
 	}
 	return used, nil
+}
+
+// livePortIndex returns the published host→container port mappings of every
+// running container, indexed by BOTH compose-project name (label) and container
+// name — so a project can be matched however it was launched (compose stack or a
+// single `docker run` container). Built from a single ContainerList call.
+func (h *ProjectHandlers) livePortIndex(ctx context.Context) map[string][]storage.PortMapping {
+	idx := map[string][]storage.PortMapping{}
+	if h.docker == nil {
+		return idx
+	}
+	containers, err := h.docker.ContainerList(ctx, container.ListOptions{})
+	if err != nil {
+		return idx
+	}
+	for _, c := range containers {
+		mappings := publishedMappings(c.Ports)
+		if len(mappings) == 0 {
+			continue
+		}
+		if proj := c.Labels["com.docker.compose.project"]; proj != "" {
+			idx[proj] = append(idx[proj], mappings...)
+		}
+		for _, name := range c.Names {
+			n := strings.TrimPrefix(name, "/")
+			idx[n] = append(idx[n], mappings...)
+		}
+	}
+	return idx
+}
+
+// publishedMappings turns a container's port list into deduped host→container
+// mappings, keeping only ports actually published to the host. Docker often
+// reports the same binding twice (IPv4 + IPv6); those collapse to one entry.
+func publishedMappings(ports []container.Port) []storage.PortMapping {
+	var out []storage.PortMapping
+	seen := map[string]bool{}
+	for _, p := range ports {
+		if p.PublicPort == 0 {
+			continue
+		}
+		proto := strings.ToLower(p.Type)
+		key := fmt.Sprintf("%d:%d/%s", p.PublicPort, p.PrivatePort, proto)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, storage.PortMapping{
+			Host:      strconv.Itoa(int(p.PublicPort)),
+			Container: strconv.Itoa(int(p.PrivatePort)),
+			Protocol:  proto,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, _ := strconv.Atoi(out[i].Host)
+		b, _ := strconv.Atoi(out[j].Host)
+		return a < b
+	})
+	return out
+}
+
+// attachLivePorts populates proj.PublishedPorts from the live-port index when the
+// project is running, so the UI can show the ports actually exposed rather than
+// only the declared (and possibly stale) Ports string.
+func attachLivePorts(proj *storage.Project, idx map[string][]storage.PortMapping) {
+	if proj.Status != "running" {
+		return
+	}
+	var key string
+	switch proj.Type {
+	case "compose":
+		key = composeProjectName(proj.Name)
+	default:
+		key = proj.ContainerID
+	}
+	if key == "" {
+		return
+	}
+	proj.PublishedPorts = dedupePortMappings(idx[key])
+}
+
+// dedupePortMappings removes duplicate host:container/proto entries that can arise
+// when aggregating across the multiple containers of a compose stack, preserving
+// the (already host-port-sorted) order.
+func dedupePortMappings(in []storage.PortMapping) []storage.PortMapping {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []storage.PortMapping
+	for _, m := range in {
+		key := m.Host + ":" + m.Container + "/" + m.Protocol
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, m)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, _ := strconv.Atoi(out[i].Host)
+		b, _ := strconv.Atoi(out[j].Host)
+		return a < b
+	})
+	return out
 }
 
 // suggestFreePort returns the first host port above `from` not already bound by a
