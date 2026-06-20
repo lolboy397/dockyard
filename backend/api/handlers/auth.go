@@ -148,6 +148,13 @@ func isRoleMutation(method, p string) bool {
 	return isMutating(method) && strings.HasPrefix(p, "/api/v1/roles")
 }
 
+// isEventFilterMutation flags a write to the global event mute rules. These are
+// shared across all users and hide entries from the audit feed, so changing them
+// is admin-only even though reading them (and the events) is open to any user.
+func isEventFilterMutation(method, p string) bool {
+	return isMutating(method) && strings.HasPrefix(p, "/api/v1/events/filters")
+}
+
 func isMutating(method string) bool {
 	switch method {
 	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
@@ -170,8 +177,8 @@ func (h *AuthHandlers) Authorize(next http.Handler) http.Handler {
 			return
 		}
 		tier := userTier(u)
-		// Member administration (and role mutations) require the admin tier.
-		if (isAdminPath(r.URL.Path) || isRoleMutation(r.Method, r.URL.Path)) && tier != "admin" {
+		// Member administration (and role / event-filter mutations) require admin.
+		if (isAdminPath(r.URL.Path) || isRoleMutation(r.Method, r.URL.Path) || isEventFilterMutation(r.Method, r.URL.Path)) && tier != "admin" {
 			writeError(w, http.StatusForbidden, errMsg("admin role required"))
 			return
 		}

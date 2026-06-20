@@ -102,6 +102,9 @@ func Open(path string) (*DB, error) {
 	if err := db.migrateV23(); err != nil {
 		return nil, fmt.Errorf("migrateV23: %w", err)
 	}
+	if err := db.migrateV24(); err != nil {
+		return nil, fmt.Errorf("migrateV24: %w", err)
+	}
 	initSecretKey(path)
 	return db, nil
 }
@@ -283,10 +286,54 @@ func (db *DB) PruneEvents(keepSeconds int) (int64, error) {
 	return n, nil
 }
 
+// eventNoiseFilter excludes noisy low-level Docker events that add no signal.
+const eventNoiseFilter = `(kind NOT LIKE 'exec_%' AND kind NOT LIKE 'health_status%' AND kind != 'top')`
+
 // GetEvents returns events with optional kind filter, newest first.
 func (db *DB) GetEvents(kind string, limit int) ([]Event, error) {
-	// Always exclude noisy low-level Docker events that add no signal.
-	noiseFilter := ` (kind NOT LIKE 'exec_%' AND kind NOT LIKE 'health_status%' AND kind != 'top')`
+	return db.getEvents(kind, limit, "", nil)
+}
+
+// GetEventsFiltered returns events, applying the given mute rules unless
+// includeMuted is set. Muting happens in SQL so the result window stays filled
+// with un-muted events instead of being thinned out after the fact.
+func (db *DB) GetEventsFiltered(kind string, limit int, rules []EventFilter, includeMuted bool) ([]Event, error) {
+	if includeMuted {
+		return db.getEvents(kind, limit, "", nil)
+	}
+	clause, args := muteExclusionSQL(rules)
+	if clause != "" {
+		clause = "NOT " + clause
+	}
+	return db.getEvents(kind, limit, clause, args)
+}
+
+// CountMutedEvents returns how many (non-noise) events are currently hidden by the
+// given enabled rules — the "N events hidden" figure shown in the UI.
+func (db *DB) CountMutedEvents(rules []EventFilter) (int, error) {
+	clause, args := muteExclusionSQL(rules)
+	if clause == "" {
+		return 0, nil
+	}
+	var n int
+	err := db.conn.QueryRow(
+		`SELECT COUNT(*) FROM events WHERE `+eventNoiseFilter+` AND `+clause, args...).Scan(&n)
+	return n, err
+}
+
+// getEvents is the shared query core. extraWhere (with its args) is ANDed into the
+// WHERE clause when non-empty.
+func (db *DB) getEvents(kind string, limit int, extraWhere string, extraArgs []any) ([]Event, error) {
+	conds := []string{eventNoiseFilter}
+	args := []any{}
+	if kind != "" {
+		conds = append(conds, "kind = ?")
+		args = append(args, kind)
+	}
+	if extraWhere != "" {
+		conds = append(conds, extraWhere)
+		args = append(args, extraArgs...)
+	}
 
 	query := `SELECT id, created_at, kind,
 			COALESCE(actor,'engine'),
@@ -295,15 +342,7 @@ func (db *DB) GetEvents(kind string, limit int) ([]Event, error) {
 			COALESCE(container_id,''),
 			COALESCE(image,''),
 			COALESCE(message,'')
-		FROM events`
-	args := []any{}
-	if kind != "" {
-		query += ` WHERE` + noiseFilter + ` AND kind = ?`
-		args = append(args, kind)
-	} else {
-		query += ` WHERE` + noiseFilter
-	}
-	query += ` ORDER BY created_at DESC LIMIT ?`
+		FROM events WHERE ` + strings.Join(conds, " AND ") + ` ORDER BY created_at DESC LIMIT ?`
 	args = append(args, limit)
 
 	rows, err := db.conn.Query(query, args...)

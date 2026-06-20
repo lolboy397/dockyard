@@ -1,11 +1,13 @@
-﻿import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { DockerService } from '../../services/docker.service';
 import { RealtimeService } from '../../services/realtime.service';
 import { NotificationService } from '../../services/notification.service';
-import { AppEvent } from '../../models/docker.models';
+import { ContextMenuService, ContextMenuItem } from '../../services/context-menu.service';
+import { AuthService } from '../../auth/auth.service';
+import { AppEvent, EventFilter } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 
 @Component({
@@ -21,15 +23,33 @@ export class EventsComponent implements OnInit, OnDestroy {
   live = true;
   q = '';
   eventFilter: 'all' | 'container' | 'image' | 'project' | 'network' | 'error' = 'all';
+
+  // ── Global mute rules ───────────────────────────────────────────────────────
+  rules: EventFilter[] = [];
+  mutedCount = 0;       // total events hidden by the active rules
+  showMuted = false;    // reveal muted events (greyed) instead of hiding them
+  showRules = false;    // filter-management panel open
+  newName = '';         // add-rule form: object-name pattern
+  newKind = '';         // add-rule form: event kind
+
   private pollSub?: Subscription;
 
   get displayed(): AppEvent[] {
     return this.filtered.slice(0, 200);
   }
 
-  constructor(private docker: DockerService, private realtime: RealtimeService, private notify: NotificationService) {}
+  get isAdmin(): boolean { return this.auth.isAdmin(); }
+
+  constructor(
+    private docker: DockerService,
+    private realtime: RealtimeService,
+    private notify: NotificationService,
+    private menu: ContextMenuService,
+    private auth: AuthService,
+  ) {}
 
   ngOnInit(): void {
+    this.loadRules();
     this.load();
     this.startPoll();
   }
@@ -37,9 +57,16 @@ export class EventsComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void { this.pollSub?.unsubscribe(); }
 
   load(): void {
-    this.docker.getEvents().subscribe({
-      next: evs => { this.events = evs; this.filter(); },
+    this.docker.getEventsWithMeta(undefined, this.showMuted).subscribe({
+      next: res => { this.events = res.events; this.mutedCount = res.muted; this.filter(); },
       error: () => { /* silent on refresh */ },
+    });
+  }
+
+  loadRules(): void {
+    this.docker.getEventFilters().subscribe({
+      next: rs => { this.rules = rs; },
+      error: () => { /* non-fatal */ },
     });
   }
 
@@ -52,6 +79,11 @@ export class EventsComponent implements OnInit, OnDestroy {
   toggleLive(): void {
     this.live = !this.live;
     if (this.live) this.load();
+  }
+
+  toggleShowMuted(): void {
+    this.showMuted = !this.showMuted;
+    this.load();
   }
 
   setFilter(f: typeof this.eventFilter): void {
@@ -79,6 +111,86 @@ export class EventsComponent implements OnInit, OnDestroy {
           (e.object_name || '').toLowerCase().includes(s) ||
           (e.image || '').toLowerCase().includes(s))
       : [...base];
+  }
+
+  // ── Muting ──────────────────────────────────────────────────────────────────
+
+  // Mirrors the backend rule semantics so muted rows can be greyed client-side
+  // when "show muted" is on.
+  isMuted(e: AppEvent): boolean {
+    return this.rules.some(f => f.enabled &&
+      (!f.object_name || (e.object_name || '').toLowerCase().includes(f.object_name.toLowerCase())) &&
+      (!f.kind || e.kind === f.kind));
+  }
+
+  // Right-click an event → quick mute options (admin only).
+  openEventMenu(ev: MouseEvent, e: AppEvent): void {
+    if (!this.isAdmin) return;
+    const name = e.object_name || '';
+    const kindLabel = this.formatKind(e.kind);
+    const items: ContextMenuItem[] = [{ type: 'label', label: 'Mute events like this' }];
+    if (name) {
+      items.push(
+        { label: `Mute all from “${name}”`, icon: 'bell-off', onSelect: () => this.addRule(name, '') },
+        { label: `Mute “${kindLabel}” from “${name}”`, icon: 'bell-off', onSelect: () => this.addRule(name, e.kind) },
+      );
+    }
+    items.push({ label: `Mute all “${kindLabel}” events`, icon: 'bell-off', onSelect: () => this.addRule('', e.kind) });
+    items.push({ type: 'separator' });
+    items.push({ label: 'Manage filters…', icon: 'filter', onSelect: () => { this.showRules = true; } });
+    this.menu.open(ev, items, { header: { name: kindLabel, meta: name || e.object_type, icon: 'bell-off' } });
+  }
+
+  addRule(objectName: string, kind: string): void {
+    this.docker.createEventFilter(objectName, kind).subscribe({
+      next: () => {
+        this.notify.success('Filter added');
+        this.loadRules();
+        this.load();
+      },
+      error: err => this.notify.error('Failed to add filter: ' + (err.error?.error ?? err.message)),
+    });
+  }
+
+  addRuleFromForm(): void {
+    if (!this.newName.trim() && !this.newKind.trim()) {
+      this.notify.error('Set a name pattern, a kind, or both');
+      return;
+    }
+    this.docker.createEventFilter(this.newName.trim(), this.newKind.trim()).subscribe({
+      next: () => {
+        this.newName = ''; this.newKind = '';
+        this.notify.success('Filter added');
+        this.loadRules();
+        this.load();
+      },
+      error: err => this.notify.error('Failed to add filter: ' + (err.error?.error ?? err.message)),
+    });
+  }
+
+  toggleRule(f: EventFilter): void {
+    this.docker.setEventFilterEnabled(f.id, !f.enabled).subscribe({
+      next: () => { f.enabled = !f.enabled; this.load(); },
+      error: err => this.notify.error('Failed to update filter: ' + (err.error?.error ?? err.message)),
+    });
+  }
+
+  removeRule(f: EventFilter): void {
+    this.docker.deleteEventFilter(f.id).subscribe({
+      next: () => {
+        this.rules = this.rules.filter(r => r.id !== f.id);
+        this.notify.success('Filter removed');
+        this.load();
+      },
+      error: err => this.notify.error('Failed to remove filter: ' + (err.error?.error ?? err.message)),
+    });
+  }
+
+  ruleLabel(f: EventFilter): string {
+    const kind = f.kind ? this.formatKind(f.kind) : '';
+    if (f.object_name && f.kind) return `${kind} · ${f.object_name}`;
+    if (f.object_name) return `all · ${f.object_name}`;
+    return `${kind} · any`;
   }
 
   formatKind(kind: string): string {
@@ -116,4 +228,3 @@ export class EventsComponent implements OnInit, OnDestroy {
     return 'activity';
   }
 }
-

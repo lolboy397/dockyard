@@ -225,6 +225,11 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 
 		// Events / audit log
 		r.Get("/events", events.GetEvents)
+		// Global event mute rules (read open to authed users; mutations admin-only).
+		r.Get("/events/filters", events.ListFilters)
+		r.Post("/events/filters", events.CreateFilter)
+		r.Patch("/events/filters/{id}", events.UpdateFilter)
+		r.Delete("/events/filters/{id}", events.DeleteFilter)
 
 		// Alert rules
 		r.Get("/alerts", alerts.List)

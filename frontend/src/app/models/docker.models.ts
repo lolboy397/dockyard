@@ -169,6 +169,17 @@ export interface AppEvent {
   message: string;
 }
 
+// EventFilter is a global mute rule for the events feed. An event is hidden when
+// its object name contains object_name (when set) AND its kind equals kind (when
+// set). At least one of the two is always set.
+export interface EventFilter {
+  id: number;
+  object_name: string;
+  kind: string;
+  enabled: boolean;
+  created_at: string;
+}
+
 export interface WatchedImage {
   id?: number;
   container_id: string;

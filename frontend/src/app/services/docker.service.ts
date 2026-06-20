@@ -9,8 +9,9 @@ import {
   StackSummary, StackDetail, Build, BuildDefinition, RegistryItem, RegistryImage,
   GitRepo, GitFileStatus, GitCommit, GitBranch,
   Project, ProjectLogs, ProjectFileNode, ProjectPortCheck,
-  UpdateStatus
+  UpdateStatus, EventFilter
 } from '../models/docker.models';
+import { map } from 'rxjs/operators';
 
 export interface MetricSample {
   ts: string;
@@ -407,6 +408,35 @@ export class DockerService {
     let params = new HttpParams();
     if (kind) params = params.set('kind', kind);
     return this.http.get<AppEvent[]>(`${this.base}/events`, { params });
+  }
+
+  // Events plus the count of entries hidden by mute rules (read from a response
+  // header so the body keeps its plain-array shape). includeMuted returns muted
+  // events too, for the "show muted" toggle.
+  getEventsWithMeta(kind?: string, includeMuted = false): Observable<{ events: AppEvent[]; muted: number }> {
+    let params = new HttpParams();
+    if (kind) params = params.set('kind', kind);
+    if (includeMuted) params = params.set('include_muted', 'true');
+    return this.http.get<AppEvent[]>(`${this.base}/events`, { params, observe: 'response' }).pipe(
+      map(resp => ({
+        events: resp.body ?? [],
+        muted: Number(resp.headers.get('X-Events-Muted-Count') ?? 0),
+      })),
+    );
+  }
+
+  // ---- Event mute rules ------------------------------------------------------
+  getEventFilters(): Observable<EventFilter[]> {
+    return this.http.get<EventFilter[]>(`${this.base}/events/filters`);
+  }
+  createEventFilter(object_name: string, kind: string): Observable<EventFilter> {
+    return this.http.post<EventFilter>(`${this.base}/events/filters`, { object_name, kind });
+  }
+  setEventFilterEnabled(id: number, enabled: boolean): Observable<unknown> {
+    return this.http.patch(`${this.base}/events/filters/${id}`, { enabled });
+  }
+  deleteEventFilter(id: number): Observable<unknown> {
+    return this.http.delete(`${this.base}/events/filters/${id}`);
   }
 
   // ---- Watcher ---------------------------------------------------------------

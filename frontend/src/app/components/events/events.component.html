@@ -14,6 +14,10 @@
           live
         </span>
       }
+      <button class="btn btn-sm btn-ghost" [class.on]="showRules" (click)="showRules = !showRules">
+        <dy-icon name="filter" [size]="13"></dy-icon> Filters
+        @if (rules.length) { <span class="pill-count">{{ rules.length }}</span> }
+      </button>
       <button class="btn btn-sm btn-ghost" (click)="toggleLive()">
         <dy-icon [name]="live ? 'pause' : 'play'" [size]="13"></dy-icon>
         {{ live ? 'Pause' : 'Resume' }}
@@ -26,6 +30,51 @@
       </button>
     </div>
   </div>
+
+  <!-- Mute-rules panel -->
+  @if (showRules) {
+    <div class="rules-panel">
+      <div class="rules-head">
+        <span class="eyebrow">Muted events</span>
+        <span class="rules-sub">
+          Hidden globally for everyone.
+          @if (!isAdmin) { <span class="rules-note">Admins manage these.</span> }
+        </span>
+      </div>
+
+      @if (rules.length === 0) {
+        <div class="rules-empty">No filters yet. Right-click an event to mute things like it{{ isAdmin ? ', or add a rule below' : '' }}.</div>
+      } @else {
+        <div class="rule-chips">
+          @for (f of rules; track f.id) {
+            <div class="rule-chip" [class.off]="!f.enabled">
+              <button class="rule-toggle" [title]="f.enabled ? 'Disable' : 'Enable'"
+                      [disabled]="!isAdmin" (click)="toggleRule(f)">
+                <dy-icon [name]="f.enabled ? 'bell-off' : 'bell'" [size]="12"></dy-icon>
+              </button>
+              <span class="rule-text">{{ ruleLabel(f) }}</span>
+              @if (isAdmin) {
+                <button class="rule-remove" title="Remove" (click)="removeRule(f)">
+                  <dy-icon name="x" [size]="12"></dy-icon>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      @if (isAdmin) {
+        <div class="rule-add">
+          <input class="rule-input" [(ngModel)]="newName" placeholder="name contains… (e.g. watchtower)" />
+          <input class="rule-input rule-input-sm" [(ngModel)]="newKind" placeholder="kind (e.g. start)" />
+          <button class="btn btn-sm btn-primary" (click)="addRuleFromForm()">
+            <dy-icon name="plus" [size]="13"></dy-icon> Add filter
+          </button>
+        </div>
+        <div class="rule-hint">Set a name pattern, a kind, or both. A blank field matches anything.</div>
+      }
+    </div>
+  }
 
   <div class="content-toolbar">
     <div class="pills">
@@ -48,6 +97,13 @@
         Errors <span class="pill-count">{{ countByType('error') }}</span>
       </button>
     </div>
+
+    @if (mutedCount > 0) {
+      <button class="muted-toggle" [class.on]="showMuted" (click)="toggleShowMuted()">
+        <dy-icon [name]="showMuted ? 'eye' : 'eye-off'" [size]="12"></dy-icon>
+        {{ showMuted ? 'Hide' : 'Show' }} {{ mutedCount }} muted
+      </button>
+    }
   </div>
 
   <div class="events-list">
@@ -55,7 +111,8 @@
       <div class="events-empty">No events yet</div>
     }
     @for (e of displayed; track e.id) {
-      <div class="event-row">
+      <div class="event-row" [class.muted]="showMuted && isMuted(e)"
+           (contextmenu)="openEventMenu($event, e)">
         <span class="event-ts">{{ e.created_at | date:'HH:mm:ss' }}</span>
         <span [class]="'event-rail event-rail-' + eventTone(e)">
           <dy-icon [name]="eventIcon(e)" [size]="12"></dy-icon>
@@ -77,7 +134,15 @@
         } @else {
           <span class="event-note"></span>
         }
-        <span class="event-by">{{ e.actor || 'engine' }}</span>
+        <span class="event-by">
+          @if (showMuted && isMuted(e)) { <span class="muted-tag">muted</span> }
+          {{ e.actor || 'engine' }}
+        </span>
+        @if (isAdmin) {
+          <button class="event-mute" title="Mute events like this" (click)="openEventMenu($event, e)">
+            <dy-icon name="bell-off" [size]="12"></dy-icon>
+          </button>
+        }
       </div>
     }
   </div>

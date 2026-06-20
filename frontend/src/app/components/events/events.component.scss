@@ -35,12 +35,13 @@
 /* ── Event row ──────────────────────────────────────────────── */
 .event-row {
   display: grid;
-  grid-template-columns: 84px 24px 90px 1.4fr 1fr 140px;
+  grid-template-columns: 84px 24px 90px 1.4fr 1fr 132px 26px;
   align-items: center;
   gap: 12px;
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-subtle);
   line-height: 1.4;
+  position: relative;
 
   &:last-child {
     border-bottom: 0;
@@ -49,6 +50,47 @@
   &:hover {
     background: var(--bg-hover);
   }
+
+  /* Muted entries (only visible when "show muted" is on) read as de-emphasised. */
+  &.muted {
+    opacity: 0.5;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent, transparent 7px,
+      var(--bg-hover) 7px, var(--bg-hover) 8px
+    );
+  }
+}
+
+/* Quick-mute affordance — revealed on row hover (admins only). */
+.event-mute {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+
+  .event-row:hover & { opacity: 1; pointer-events: auto; }
+  &:hover { color: var(--warn-400); background: rgba(245,158,11,0.12); }
+}
+
+.muted-tag {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn-400);
+  background: rgba(245,158,11,0.12);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin-right: 4px;
 }
 
 /* Timestamp */
@@ -115,6 +157,146 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ── Filters button active state ────────────────────────────── */
+.btn-ghost.on {
+  color: var(--fg-default);
+  background: var(--bg-hover);
+}
+
+/* ── Mute-rules panel ───────────────────────────────────────── */
+.rules-panel {
+  margin: 0 16px 12px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+.rules-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.rules-sub {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.rules-note { color: var(--fg-subtle); }
+
+.rules-empty {
+  font-size: 12.5px;
+  color: var(--fg-subtle);
+  padding: 4px 0 2px;
+}
+
+.rule-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+
+  &.off {
+    opacity: 0.5;
+    .rule-text { text-decoration: line-through; }
+  }
+}
+
+.rule-text {
+  font-family: var(--font-mono);
+  color: var(--fg-default);
+}
+
+.rule-toggle,
+.rule-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg-subtle);
+  cursor: pointer;
+
+  &:hover:not(:disabled) { color: var(--fg-default); background: var(--bg-hover); }
+  &:disabled { cursor: default; }
+}
+
+.rule-toggle { color: var(--warn-400); }
+.rule-chip.off .rule-toggle { color: var(--fg-subtle); }
+.rule-remove:hover { color: var(--danger-400); background: rgba(239,68,68,0.12); }
+
+.rule-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.rule-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--fg-default);
+
+  &:focus { outline: none; border-color: var(--accent-500, var(--info-400)); }
+  &::placeholder { color: var(--fg-subtle); }
+}
+
+.rule-input-sm { flex: 0 0 160px; min-width: 120px; }
+
+.rule-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--fg-subtle);
+}
+
+/* ── Toolbar: pills left, muted-toggle right ────────────────── */
+.content-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.muted-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover { color: var(--fg-default); border-color: var(--border-strong, var(--border)); }
+  &.on { color: var(--warn-400); border-color: var(--warn-400); background: rgba(245,158,11,0.10); }
 }
 
 /* On phones, scroll the table horizontally instead of collapsing columns */

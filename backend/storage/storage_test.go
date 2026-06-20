@@ -236,6 +236,96 @@ func TestPruneEvents(t *testing.T) {
 	}
 }
 
+func TestEventFilters(t *testing.T) {
+	db := newTestDB(t)
+
+	// Two noisy watchtower events + one real signal event.
+	db.LogEvent("start", "engine", "container", "watchtower", "c1", "containrrr/watchtower", "") //nolint:errcheck
+	db.LogEvent("die", "engine", "container", "watchtower", "c1", "containrrr/watchtower", "")   //nolint:errcheck
+	db.LogEvent("start", "engine", "container", "web_1", "c2", "nginx", "")                       //nolint:errcheck
+
+	// Reject a rule that would mute everything.
+	if _, err := db.CreateEventFilter("", ""); err != ErrEmptyEventFilter {
+		t.Fatalf("empty filter err = %v, want ErrEmptyEventFilter", err)
+	}
+
+	// Mute everything from watchtower (name substring, any kind).
+	f, err := db.CreateEventFilter("watchtower", "")
+	if err != nil {
+		t.Fatalf("create filter: %v", err)
+	}
+
+	rules, err := db.EnabledEventFilters()
+	if err != nil {
+		t.Fatalf("enabled filters: %v", err)
+	}
+
+	// Default (muted excluded) → only the web event remains.
+	got, err := db.GetEventsFiltered("", 100, rules, false)
+	if err != nil {
+		t.Fatalf("filtered: %v", err)
+	}
+	if len(got) != 1 || got[0].ObjectName != "web_1" {
+		t.Errorf("filtered events = %+v, want only web_1", got)
+	}
+
+	// Count of hidden events.
+	if n, _ := db.CountMutedEvents(rules); n != 2 {
+		t.Errorf("muted count = %d, want 2", n)
+	}
+
+	// include_muted → all three returned.
+	if all, _ := db.GetEventsFiltered("", 100, rules, true); len(all) != 3 {
+		t.Errorf("include_muted events = %d, want 3", len(all))
+	}
+
+	// Disabling the rule reveals everything again.
+	if err := db.SetEventFilterEnabled(f.ID, false); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	rules, _ = db.EnabledEventFilters()
+	if got, _ := db.GetEventsFiltered("", 100, rules, false); len(got) != 3 {
+		t.Errorf("after disable events = %d, want 3", len(got))
+	}
+
+	// The LIKE pattern must match literally: "web_1" must not match "webX1".
+	// (Underscore is a LIKE wildcard; it should be escaped.)
+	db.SetEventFilterEnabled(f.ID, true) //nolint:errcheck
+	db.LogEvent("start", "engine", "container", "webX1", "c3", "nginx", "") //nolint:errcheck
+	exact, err := db.CreateEventFilter("web_1", "")
+	if err != nil {
+		t.Fatalf("create exact filter: %v", err)
+	}
+	rules, _ = db.EnabledEventFilters()
+	got, _ = db.GetEventsFiltered("", 100, rules, false)
+	for _, e := range got {
+		if e.ObjectName == "web_1" {
+			t.Errorf("web_1 should be muted by the web_1 rule")
+		}
+	}
+	foundWebX1 := false
+	for _, e := range got {
+		if e.ObjectName == "webX1" {
+			foundWebX1 = true
+		}
+	}
+	if !foundWebX1 {
+		t.Error("webX1 must NOT be muted by the literal web_1 rule (underscore wildcard escaped)")
+	}
+	_ = exact
+
+	// Delete removes the rule.
+	if err := db.DeleteEventFilter(f.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	all, _ := db.ListEventFilters()
+	for _, r := range all {
+		if r.ID == f.ID {
+			t.Error("deleted filter still present")
+		}
+	}
+}
+
 func TestMetricSamples(t *testing.T) {
 	db := newTestDB(t)
 	if err := db.InsertMetricSample(MetricSample{CPUPct: 12.5, MemUsed: 100, MemTotal: 1000}); err != nil {
