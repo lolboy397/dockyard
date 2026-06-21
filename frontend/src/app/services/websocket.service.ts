@@ -34,6 +34,8 @@ export interface ContainerStatSummary {
   cpu: number;
   mem: number;
   mem_limit: number;
+  net_rx: number;   // cumulative received bytes (delta → throughput)
+  net_tx: number;   // cumulative transmitted bytes
 }
 
 @Injectable({ providedIn: 'root' })

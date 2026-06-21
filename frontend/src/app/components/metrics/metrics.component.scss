@@ -20,4 +20,16 @@
     .cpu-tip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
     .cpu-tip-name { color: var(--fg-muted); font-size: 11px; flex: 1; min-width: 110px; }
     .cpu-tip-v { font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+
+    /* Memory + network breakdowns, side by side. */
+    .metrics-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .bars-empty { padding: 20px; color: var(--fg-subtle); font-size: 12px; }
+
+    /* Network bar values (↓rx ↑tx) need a wider value column than the default. */
+    .bars-net .bar-row { grid-template-columns: 120px 1fr 150px; }
+    .bars-net .bar-val { font-size: 10.5px; color: var(--fg-muted); white-space: nowrap; }
+
+    @media (max-width: 860px) {
+      .metrics-split { grid-template-columns: 1fr; }
+    }
   

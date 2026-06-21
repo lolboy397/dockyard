@@ -12,23 +12,29 @@
 
       <div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:18px;">
 
-        <!-- Sparkline grid -->
+        <!-- Host metric cards (CPU / Memory / Disk — seeded from history; Network — live rate) -->
         <div class="metrics-grid">
-          @for (m of metrics; track m.label; let i = $index) {
+          @for (m of metrics; track m.key; let i = $index) {
             <div class="m-card">
               <div class="m-top">
                 <span class="eyebrow">{{ m.label }}</span>
                 <span class="m-val mono">{{ m.value }}</span>
               </div>
-              <svg [attr.viewBox]="'0 0 200 60'" preserveAspectRatio="none" style="width:100%;height:60px;overflow:visible;">
+              <svg [attr.viewBox]="'0 0 200 60'" preserveAspectRatio="none"
+                   style="width:100%;height:60px;overflow:visible;cursor:crosshair;"
+                   (mousemove)="onSparkMove($event, i, m)" (mouseleave)="onSparkLeave()">
                 <defs>
                   <linearGradient [id]="'sg-' + i" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" [attr.stop-color]="m.color" stop-opacity="0.28"/>
                     <stop offset="100%" [attr.stop-color]="m.color" stop-opacity="0"/>
                   </linearGradient>
                 </defs>
-                <path [attr.d]="fillPath(m.series)" [attr.fill]="'url(#sg-' + i + ')'" style="transition:d 0.8s cubic-bezier(0.4,0,0.2,1)"/>
-                <path [attr.d]="linePath(m.series)" fill="none" [attr.stroke]="m.color" stroke-width="1.5" style="transition:d 0.8s cubic-bezier(0.4,0,0.2,1)"/>
+                @if (m.series.length > 1) {
+                  <path [attr.d]="fillPath(m.series, m.unit)" [attr.fill]="'url(#sg-' + i + ')'" style="transition:d 0.8s cubic-bezier(0.4,0,0.2,1)"/>
+                  <path [attr.d]="linePath(m.series, m.unit)" fill="none" [attr.stroke]="m.color" stroke-width="1.5" style="transition:d 0.8s cubic-bezier(0.4,0,0.2,1)"/>
+                } @else {
+                  <text x="100" y="34" text-anchor="middle" style="font-size:9px;fill:var(--fg-subtle);">collecting…</text>
+                }
               </svg>
               <div class="m-foot mono">{{ m.foot }}</div>
             </div>
@@ -39,7 +45,7 @@
         <div class="metrics-wide">
           <div class="m-card">
             <div class="m-top">
-              <span class="eyebrow">CPU by container · last 3m</span>
+              <span class="eyebrow">CPU by container · live</span>
               <div class="legend">
                 @for (c of topContainers.slice(0,4); track c.id) {
                   <span class="leg-it">
@@ -68,19 +74,17 @@
               <line x1="0" y1="130" x2="600" y2="130" stroke="var(--border-subtle)"/>
             </svg>
             <div class="m-foot mono" style="display:flex;justify-content:space-between;">
-              @for (label of timeAxisLabels(); track label) {
+              @for (label of timeAxisLabels(); track $index) {
                 <span>{{ label }}</span>
               }
             </div>
           </div>
         </div>
 
-        <!-- Top containers by memory -->
-        <div class="metrics-wide">
+        <!-- Container breakdowns: memory + network -->
+        <div class="metrics-split">
           <div class="m-card">
-            <div class="m-top">
-              <span class="eyebrow">Top containers · memory</span>
-            </div>
+            <div class="m-top"><span class="eyebrow">Top containers · memory</span></div>
             <div class="bars">
               @for (c of topContainers; track c.id) {
                 <div class="bar-row">
@@ -94,7 +98,27 @@
                 </div>
               }
               @if (topContainers.length === 0) {
-                <div style="padding:20px;color:var(--fg-subtle);font-size:12px;">No running containers.</div>
+                <div class="bars-empty">No running containers.</div>
+              }
+            </div>
+          </div>
+
+          <div class="m-card">
+            <div class="m-top"><span class="eyebrow">Top containers · network</span></div>
+            <div class="bars bars-net">
+              @for (n of topNet; track n.id) {
+                <div class="bar-row">
+                  <span class="bar-name">{{ n.name }}</span>
+                  <span class="bar-track">
+                    <span class="bar-fill"
+                          [style.width.%]="maxNet > 0 ? ((n.rx + n.tx) / maxNet) * 100 : 0"
+                          [style.background]="containerColor(n.id)"></span>
+                  </span>
+                  <span class="bar-val mono">↓{{ formatRate(n.rx) }} ↑{{ formatRate(n.tx) }}</span>
+                </div>
+              }
+              @if (topNet.length === 0) {
+                <div class="bars-empty">No network activity.</div>
               }
             </div>
           </div>
@@ -120,4 +144,3 @@
         </div>
       }
     </div>
-  

@@ -306,12 +306,16 @@ func (h *WSHandlers) StreamExec(w http.ResponseWriter, r *http.Request) {
 }
 
 // ContainerStatSummary is a lightweight stats snapshot for one container.
+// NetRx/NetTx are cumulative byte counters (summed across the container's
+// interfaces); the client derives throughput from the delta between samples.
 type ContainerStatSummary struct {
 	ID       string  `json:"id"`
 	Name     string  `json:"name"`
 	CPU      float64 `json:"cpu"`
 	Mem      uint64  `json:"mem"`
 	MemLimit uint64  `json:"mem_limit"`
+	NetRx    uint64  `json:"net_rx"`
+	NetTx    uint64  `json:"net_tx"`
 }
 
 // StreamAllStats upgrades to WebSocket and sends aggregated stats for all running containers every 3 seconds.
@@ -409,6 +413,10 @@ func (h *WSHandlers) collectAllStats(ctx context.Context) []ContainerStatSummary
 					Usage uint64 `json:"usage"`
 					Limit uint64 `json:"limit"`
 				} `json:"memory_stats"`
+				Networks map[string]struct {
+					RxBytes uint64 `json:"rx_bytes"`
+					TxBytes uint64 `json:"tx_bytes"`
+				} `json:"networks"`
 			}
 
 			if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
@@ -432,12 +440,20 @@ func (h *WSHandlers) collectAllStats(ctx context.Context) []ContainerStatSummary
 				name = strings.TrimPrefix(c.Names[0], "/")
 			}
 
+			var rx, tx uint64
+			for _, n := range raw.Networks {
+				rx += n.RxBytes
+				tx += n.TxBytes
+			}
+
 			ch <- result{s: ContainerStatSummary{
 				ID:       c.ID,
 				Name:     name,
 				CPU:      cpu,
 				Mem:      raw.MemoryStats.Usage,
 				MemLimit: raw.MemoryStats.Limit,
+				NetRx:    rx,
+				NetTx:    tx,
 			}}
 		}()
 	}
