@@ -1631,12 +1631,39 @@ mark {
 .logs-stream {
   flex: 1;
   overflow-y: auto;
+  overflow-x: auto;
   background: var(--bg-inset);
   padding: 10px 14px;
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.7;
 }
+/* Single line per log entry by default (scroll sideways); the Wrap toggle wraps. */
+.logs-stream .lline { white-space: nowrap; }
+.logs-stream.wrap { overflow-x: hidden; }
+.logs-stream.wrap .lline { white-space: normal; }
+
+/* Logs sidebar bulk select + toolbar tail selector + active ghost button. */
+.src-bulk {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px 2px;
+  font-size: 11px; color: var(--fg-subtle);
+}
+.src-bulk button {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--accent); font-size: 11px;
+}
+.src-bulk button:hover { text-decoration: underline; }
+.logs-tail {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--fg-subtle);
+}
+.logs-tail select {
+  background: var(--bg-raised); border: 1px solid var(--border);
+  border-radius: 5px; color: var(--fg-default);
+  font-size: 11px; padding: 2px 4px; cursor: pointer;
+}
+.btn-ghost.on { background: var(--bg-hover); color: var(--fg); }
 
 /* =========================================================================
    METRICS PAGE

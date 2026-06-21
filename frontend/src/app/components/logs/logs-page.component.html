@@ -5,6 +5,14 @@
           <h2 class="content-title">Logs</h2>
         </div>
         <div class="content-actions">
+          <button class="btn btn-sm btn-ghost" [class.on]="wrap" (click)="wrap = !wrap" title="Toggle line wrap">
+            <dy-icon name="wrap-text" [size]="13"></dy-icon>
+            Wrap
+          </button>
+          <button class="btn btn-sm btn-ghost" (click)="download()" [disabled]="filteredLines.length === 0" title="Download visible lines">
+            <dy-icon name="download" [size]="13"></dy-icon>
+            Download
+          </button>
           <button class="btn btn-sm btn-ghost" (click)="clearLines()">
             <dy-icon name="eraser" [size]="13"></dy-icon>
             Clear
@@ -23,6 +31,13 @@
             <span class="eyebrow">Sources</span>
             <span class="mono" style="font-size:10px;color:var(--fg-subtle);">{{ activeSources.length }} of {{ sources.length }}</span>
           </div>
+          @if (sources.length > 1) {
+            <div class="src-bulk">
+              <button (click)="setAll(true)">All</button>
+              <span>·</span>
+              <button (click)="setAll(false)">None</button>
+            </div>
+          }
           @for (s of sources; track s.id) {
             <label class="src-row" [class.is-off]="!s.on">
               <input type="checkbox" [(ngModel)]="s.on" (change)="toggleSource(s)">
@@ -54,12 +69,18 @@
                 </button>
               }
             </div>
+            <label class="logs-tail" title="History fetched per container when it starts streaming">
+              <span>tail</span>
+              <select [ngModel]="tail" (ngModelChange)="setTail($event)">
+                @for (t of tails; track t) { <option [value]="t">{{ t }}</option> }
+              </select>
+            </label>
             <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--running-400);display:inline-flex;align-items:center;gap:5px;">
               @if (!paused) { <dy-dot tone="running" [size]="5"></dy-dot> live · {{ lps }} lines/s }
               @else { <dy-dot tone="idle" [size]="5"></dy-dot> paused }
             </span>
           </div>
-          <div class="logs-stream" #logStream>
+          <div class="logs-stream" [class.wrap]="wrap" #logStream>
             @for (line of filteredLines; track $index) {
               <div class="lline">
                 <span class="lts">{{ line.ts }}</span>

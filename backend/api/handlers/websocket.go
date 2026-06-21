@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -114,6 +115,178 @@ func (h *WSHandlers) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
+	}
+}
+
+// logFrame is one multiplexed log line tagged with its source container.
+type logFrame struct {
+	ID   string `json:"id"`
+	Data string `json:"data"`
+}
+
+// logSub tracks one container's follow goroutine. The generation lets a follower
+// that exits on its own (container stopped / stream ended) clean up only its own
+// slot, so a later re-subscribe of the same container isn't clobbered.
+type logSub struct {
+	cancel context.CancelFunc
+	gen    int64
+}
+
+// maxMultiLogSubs caps how many containers a single multiplexed connection may
+// follow, bounding the Docker log streams one client can open.
+const maxMultiLogSubs = 200
+
+// StreamMultiLogs streams logs from MANY containers over a SINGLE WebSocket,
+// replacing the previous one-socket-per-container approach (e.g. 30 sockets for a
+// 30-container page → 1). The client controls which containers are followed with
+// JSON control messages:
+//
+//	{"action":"subscribe","id":"<cid>","tail":"50"}     (or "ids":[...])
+//	{"action":"unsubscribe","id":"<cid>"}               (or "ids":[...])
+//
+// Each log line is delivered as {"id":"<cid>","data":"<line>"} so the client
+// demultiplexes by id. The backend still follows each container's log stream
+// (Docker has no multi-container logs API), but that is cheap server-side and
+// centrally managed behind the one connection.
+func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	// Single writer goroutine — gorilla/websocket forbids concurrent writes, so
+	// every follower funnels frames through this buffered channel.
+	out := make(chan []byte, 512)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-out:
+				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	var mu sync.Mutex
+	var gen int64
+	subs := map[string]logSub{}
+
+	subscribe := func(id, tail string) {
+		if id == "" {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if _, ok := subs[id]; ok || len(subs) >= maxMultiLogSubs {
+			return
+		}
+		gen++
+		myGen := gen
+		sctx, scancel := context.WithCancel(ctx)
+		subs[id] = logSub{cancel: scancel, gen: myGen}
+		go func() {
+			h.followLogs(sctx, id, tail, out)
+			// Follower ended (unsubscribed, container stopped, or stream closed):
+			// drop our own slot so the container can be followed again later.
+			mu.Lock()
+			if s, ok := subs[id]; ok && s.gen == myGen {
+				delete(subs, id)
+			}
+			mu.Unlock()
+		}()
+	}
+	unsubscribe := func(id string) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s, ok := subs[id]; ok {
+			s.cancel()
+			delete(subs, id)
+		}
+	}
+
+	// Control read loop; a ReadMessage error means the client went away, which
+	// cancels ctx and tears down every follower.
+	for {
+		_, data, readErr := conn.ReadMessage()
+		if readErr != nil {
+			cancel()
+			return
+		}
+		var ctrl struct {
+			Action string   `json:"action"`
+			ID     string   `json:"id"`
+			IDs    []string `json:"ids"`
+			Tail   string   `json:"tail"`
+		}
+		if json.Unmarshal(data, &ctrl) != nil {
+			continue
+		}
+		switch ctrl.Action {
+		case "subscribe":
+			subscribe(ctrl.ID, ctrl.Tail)
+			for _, id := range ctrl.IDs {
+				subscribe(id, ctrl.Tail)
+			}
+		case "unsubscribe":
+			unsubscribe(ctrl.ID)
+			for _, id := range ctrl.IDs {
+				unsubscribe(id)
+			}
+		}
+	}
+}
+
+// followLogs follows one container's logs and emits tagged, line-framed frames to
+// out until ctx is cancelled.
+func (h *WSHandlers) followLogs(ctx context.Context, id, tail string, out chan []byte) {
+	if tail == "" {
+		tail = "50"
+	}
+	rc, err := h.docker.ContainerLogs(ctx, id, container.LogsOptions{
+		ShowStdout: true, ShowStderr: true, Follow: true, Tail: tail, Timestamps: true,
+	})
+	if err != nil {
+		emitLogFrame(ctx, out, id, fmt.Sprintf("error: %s", err))
+		return
+	}
+	defer rc.Close()
+
+	pr, pw := io.Pipe()
+	go func() {
+		_, copyErr := stdcopy.StdCopy(pw, pw, rc)
+		pw.CloseWithError(copyErr)
+	}()
+
+	reader := bufio.NewReader(pr)
+	for {
+		line, readErr := reader.ReadString('\n')
+		if line != "" {
+			emitLogFrame(ctx, out, id, strings.TrimRight(line, "\r\n"))
+		}
+		if readErr != nil {
+			return
+		}
+	}
+}
+
+// emitLogFrame marshals one tagged log line and queues it, respecting ctx so a
+// cancelled follower never blocks on a full channel.
+func emitLogFrame(ctx context.Context, out chan []byte, id, data string) {
+	frame, err := json.Marshal(logFrame{ID: id, Data: data})
+	if err != nil {
+		return
+	}
+	select {
+	case out <- frame:
+	case <-ctx.Done():
 	}
 }
 

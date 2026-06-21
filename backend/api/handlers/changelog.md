@@ -15,6 +15,7 @@ its own history. Add a new "##" block at the top when you cut a release.
 
 ### Changed
 - **Metrics overhaul** — the Metrics page now shows real host CPU, memory and disk (seeded from saved history so the charts aren't empty on load) plus live network throughput, with per-container memory and network breakdowns. Replaces the old placeholder "net in / net out" tiles.
+- **Efficient multi-container logs** — the Logs page now streams every container over a single WebSocket instead of one per container (a 30-container page used to open 30 sockets), and adds select-all/none, an adjustable tail depth, line-wrap, and a download button.
 
 ### Added
 - **App icon** — Dockyard now ships a stacked shipping-containers icon, used as the favicon and browser-tab icon.

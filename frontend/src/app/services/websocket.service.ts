@@ -38,6 +38,20 @@ export interface ContainerStatSummary {
   net_tx: number;   // cumulative transmitted bytes
 }
 
+/** One multiplexed log line, tagged with the container it came from. */
+export interface MultiLogFrame {
+  id: string;
+  data: string;
+}
+
+/** Controller for a single multiplexed log WebSocket (see streamMultiLogs). */
+export interface MultiLogStream {
+  frames$: Observable<MultiLogFrame>;
+  subscribe(id: string, tail?: string): void;
+  unsubscribe(id: string): void;
+  close(): void;
+}
+
 @Injectable({ providedIn: 'root' })
 export class WebSocketService {
   // Match the page protocol: wss:// when served over HTTPS, ws:// otherwise.
@@ -56,6 +70,55 @@ export class WebSocketService {
 
   streamLogs(containerId: string, tail = '100'): Observable<string> {
     return this.connect(`${this.wsBase}/ws/logs?id=${containerId}&tail=${tail}`);
+  }
+
+  /**
+   * Opens ONE WebSocket that multiplexes logs from many containers, instead of one
+   * socket per container. Drive it with subscribe/unsubscribe; demultiplex the
+   * emitted frames by `id`. Reconnects with backoff and re-subscribes the active
+   * set automatically.
+   */
+  streamMultiLogs(): MultiLogStream {
+    const frames$ = new Subject<MultiLogFrame>();
+    const active = new Map<string, string>();   // containerId → tail
+    let ws: WebSocket | undefined;
+    let closed = false;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const send = (obj: unknown) => {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+    };
+
+    const open = () => {
+      ws = new WebSocket(this.withToken(`${this.wsBase}/ws/logs/multi`));
+      ws.onopen = () => {
+        attempt = 0;
+        active.forEach((tail, id) => send({ action: 'subscribe', id, tail }));
+      };
+      ws.onmessage = (evt) => {
+        try { frames$.next(JSON.parse(evt.data) as MultiLogFrame); } catch { /* ignore */ }
+      };
+      ws.onerror = () => { /* close handler reconnects */ };
+      ws.onclose = () => {
+        if (closed) return;
+        attempt++;
+        timer = setTimeout(() => { if (!closed) open(); }, Math.min(1000 * 2 ** attempt, 15000));
+      };
+    };
+    open();
+
+    return {
+      frames$: frames$.asObservable(),
+      subscribe: (id: string, tail = '50') => { active.set(id, tail); send({ action: 'subscribe', id, tail }); },
+      unsubscribe: (id: string) => { active.delete(id); send({ action: 'unsubscribe', id }); },
+      close: () => {
+        closed = true;
+        if (timer) clearTimeout(timer);
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close();
+        frames$.complete();
+      },
+    };
   }
 
   streamStats(containerId: string): Observable<string> {

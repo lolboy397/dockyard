@@ -329,6 +329,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireAuth)
 		r.Get("/ws/logs", wsH.StreamLogs)
+		r.Get("/ws/logs/multi", wsH.StreamMultiLogs)
 		r.Get("/ws/stats", wsH.StreamStats)
 		r.Get("/ws/events", wsH.StreamEvents)
 		r.Get("/ws/exec", wsH.StreamExec)
