@@ -11,13 +11,20 @@ This file is embedded into the backend binary, so the running build always ships
 its own history. Add a new "##" block at the top when you cut a release.
 -->
 
+## 0.0.4 — 2026-06-21
+
+### Changed
+- **Metrics overhaul** — the Metrics page now shows real host CPU, memory and disk (seeded from saved history so the charts aren't empty on load) plus live network throughput, with per-container memory and network breakdowns. Replaces the old placeholder "net in / net out" tiles.
+
+### Added
+- **App icon** — Dockyard now ships a stacked shipping-containers icon, used as the favicon and browser-tab icon.
+
 ## 0.0.3 — 2026-06-21
 
 ### Added
 - **Event mute filters** — silence noisy events (e.g. a watchtower that constantly starts and exits). Right-click any event to mute things like it, manage rules from the new Filters panel, and toggle muted events back into view at any time.
 - **Live project ports** — the Projects page now shows the ports a project's container is actually publishing, matching the Containers page, instead of only the declared configuration.
 - **Changelog** — the Updates page now lists the features and fixes included in each release.
-- **Metrics overhaul** — the Metrics page now shows real host CPU, memory and disk (seeded from saved history so the charts aren't empty on load) plus live network throughput, with per-container memory and network breakdowns. Replaces the old placeholder "net in / net out" tiles.
 
 ### Fixed
 - Triggering a build twice in quick succession (or a deploy-on-push during a build) could start two builds at once and orphan the cancel handle — builds are now guarded so only one runs per project.
