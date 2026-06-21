@@ -48,8 +48,26 @@ func (h *UpdateHandlers) Changelog(w http.ResponseWriter, r *http.Request) {
 // the backing array.
 func parseChangelog(md string) []ChangelogEntry {
 	var entries []ChangelogEntry
+	inComment := false
 	for _, raw := range strings.Split(md, "\n") {
 		line := strings.TrimSpace(raw)
+
+		// Skip HTML comment blocks. Their contents include example "##"/"###"/"-"
+		// lines (the format help) that must not be parsed as real entries — and
+		// TrimSpace above would otherwise expose those markers.
+		if inComment {
+			if strings.Contains(line, "-->") {
+				inComment = false
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "<!--") {
+			if !strings.Contains(line, "-->") {
+				inComment = true
+			}
+			continue
+		}
+
 		switch {
 		case strings.HasPrefix(line, "## "):
 			version, date := splitVersionDate(strings.TrimSpace(line[3:]))

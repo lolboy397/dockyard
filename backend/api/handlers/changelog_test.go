@@ -3,7 +3,12 @@ package handlers
 import "testing"
 
 func TestParseChangelog(t *testing.T) {
-	md := `<!-- a comment, ignored -->
+	md := `<!--
+A multi-line comment whose example lines must NOT be parsed as entries:
+  ## <version> — <YYYY-MM-DD>
+  ### <Category>
+  - <text>
+-->
 ## 0.0.3 — 2026-06-21
 
 ### Added
