@@ -103,15 +103,23 @@ func ComputeHostStats(ctx context.Context, cli *client.Client) (HostStatsSample,
 		}
 	}
 
-	// Disk: filesystem stats for the Docker root dir. diskStats is
-	// platform-specific (statfs on Unix, a no-op stub on Windows) so the
-	// package compiles and its tests run on every OS — the real values are
-	// only meaningful inside the Linux container the backend ships in.
-	root := info.DockerRootDir
-	if root == "" {
-		root = "/var/lib/docker"
+	// Disk: statfs the first reachable candidate path. info.DockerRootDir is the
+	// host's Docker data dir (e.g. /var/lib/docker) — accurate on bare metal, but
+	// inside the backend container that host path doesn't exist (we talk to Docker
+	// over the socket proxy, not a mounted dir), so statfs there fails and returns
+	// zero. Fall back to Dockyard's own data volume (/data) and finally the
+	// container root (/) — both live in the container and report the underlying
+	// Docker filesystem, which is the disk that actually matters.
+	diskTotal, diskUsed := int64(0), int64(0)
+	for _, p := range []string{info.DockerRootDir, appDataDir, "/"} {
+		if p == "" {
+			continue
+		}
+		if t, u := diskStats(p); t > 0 {
+			diskTotal, diskUsed = t, u
+			break
+		}
 	}
-	diskTotal, diskUsed := diskStats(root)
 
 	return HostStatsSample{
 		CPUCores:  info.NCPU,
