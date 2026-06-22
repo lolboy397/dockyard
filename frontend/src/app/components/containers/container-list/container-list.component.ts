@@ -14,11 +14,12 @@ import { ContextMenuService, ContextMenuItem } from '../../../services/context-m
 import { IconComponent } from '../../shared/icon/icon.component';
 import { ModalComponent } from '../../shared/modal/modal.component';
 import { StatusDotComponent, statusTone } from '../../shared/status-dot/status-dot.component';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 
 @Component({
   selector: 'app-container-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, StatusDotComponent, ModalComponent],
+  imports: [CommonModule, FormsModule, IconComponent, StatusDotComponent, ModalComponent, ScrollingModule],
   templateUrl: './container-list.component.html',
 })
 export class ContainerListComponent implements OnInit, OnDestroy, AfterViewChecked {
@@ -293,6 +294,9 @@ export class ContainerListComponent implements OnInit, OnDestroy, AfterViewCheck
       : [...base];
     this.containerState.patch({ containerFilter: this.containerFilter, searchQuery: this.searchQuery });
   }
+
+  // Stable identity for *cdkVirtualFor so only changed rows re-render.
+  trackById = (_: number, c: ContainerSummary): string => c.Id;
 
   select(c: ContainerSummary): void {
     if (this.selectedContainer?.Id === c.Id) { this.closeDetail(); return; }

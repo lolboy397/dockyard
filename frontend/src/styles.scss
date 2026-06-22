@@ -732,6 +732,23 @@ input[type=checkbox] {
   font-size: 13px;
 }
 
+/* Virtualized container table: the head stays fixed and the rows scroll inside a
+   CDK viewport that renders only what's visible. The table fills the content-area
+   (flex:1) so the viewport — not the page — is the scroller. */
+.ctable-virtual {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ctable-vp {
+  flex: 1;
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+/* CDK wraps each row; keep rows full-width so the grid columns line up. */
+.ctable-vp .cdk-virtual-scroll-content-wrapper { width: 100%; }
+
 /* =========================================================================
    DETAIL PANEL / CARDS
    ========================================================================= */

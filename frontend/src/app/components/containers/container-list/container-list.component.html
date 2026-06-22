@@ -53,7 +53,7 @@
             }
           </div>
         } @else {
-          <div class="ctable">
+          <div class="ctable ctable-virtual">
             <div class="ctable-head ctable-cols">
               <span></span>
               <span>Name</span>
@@ -67,38 +67,42 @@
             </div>
             @if (filtered.length === 0) {
               <div class="ctable-empty">No containers found</div>
-            }
-            @for (c of filtered; track c.Id) {
-              <div class="ctable-row ctable-cols"
-                   [class.sel]="selectedContainer?.Id === c.Id"
-                   (click)="select(c)"
-                   (contextmenu)="rowMenu($event, c)">
-                <div class="col col-check" (click)="$event.stopPropagation()">
-                  <input type="checkbox">
-                </div>
-                <div class="col col-name">
-                  <span class="row-name">{{ c.Names[0]?.replace('/','') }}</span>
-                  <span class="row-id mono">{{ c.Id.slice(0,8) }}</span>
-                </div>
-                <span class="col col-image mono">{{ c.Image }}</span>
-                <span class="col col-status">
-                  <span class="badge"
-                        [style.background]="badgeBg(statusTone(c.State))"
-                        [style.color]="badgeFg(statusTone(c.State))">
-                    <dy-dot [tone]="statusTone(c.State)" [size]="5"></dy-dot>
-                    {{ c.State }}
+            } @else {
+              <!-- Virtualized: only the visible rows are rendered, so hundreds of
+                   containers stay smooth. Row height is fixed at 42px (itemSize). -->
+              <cdk-virtual-scroll-viewport class="ctable-vp" [itemSize]="42" minBufferPx="420" maxBufferPx="840">
+                <div class="ctable-row ctable-cols"
+                     *cdkVirtualFor="let c of filtered; trackBy: trackById"
+                     [class.sel]="selectedContainer?.Id === c.Id"
+                     (click)="select(c)"
+                     (contextmenu)="rowMenu($event, c)">
+                  <div class="col col-check" (click)="$event.stopPropagation()">
+                    <input type="checkbox">
+                  </div>
+                  <div class="col col-name">
+                    <span class="row-name">{{ c.Names[0]?.replace('/','') }}</span>
+                    <span class="row-id mono">{{ c.Id.slice(0,8) }}</span>
+                  </div>
+                  <span class="col col-image mono">{{ c.Image }}</span>
+                  <span class="col col-status">
+                    <span class="badge"
+                          [style.background]="badgeBg(statusTone(c.State))"
+                          [style.color]="badgeFg(statusTone(c.State))">
+                      <dy-dot [tone]="statusTone(c.State)" [size]="5"></dy-dot>
+                      {{ c.State }}
+                    </span>
                   </span>
-                </span>
-                <span class="col col-port mono">{{ formatPorts(c.Ports) }}</span>
-                <span class="col col-cpu mono">{{ containerCpu(c.Id) }}</span>
-                <span class="col col-mem mono">{{ containerMem(c.Id) }}</span>
-                <span class="col col-time mono">{{ timeAgo(c.Created) }}</span>
-                <div class="col col-act" (click)="$event.stopPropagation()">
-                  <button class="icon-btn sm ghost" (click)="ellipsisMenu($event, c)" title="Actions">
-                    <dy-icon name="ellipsis" [size]="14"></dy-icon>
-                  </button>
+                  <span class="col col-port mono">{{ formatPorts(c.Ports) }}</span>
+                  <span class="col col-cpu mono">{{ containerCpu(c.Id) }}</span>
+                  <span class="col col-mem mono">{{ containerMem(c.Id) }}</span>
+                  <span class="col col-time mono">{{ timeAgo(c.Created) }}</span>
+                  <div class="col col-act" (click)="$event.stopPropagation()">
+                    <button class="icon-btn sm ghost" (click)="ellipsisMenu($event, c)" title="Actions">
+                      <dy-icon name="ellipsis" [size]="14"></dy-icon>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </cdk-virtual-scroll-viewport>
             }
           </div>
         }

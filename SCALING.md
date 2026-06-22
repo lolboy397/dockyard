@@ -44,10 +44,18 @@ endpoints — Containers list, Stacks list + Get, project port enrichment
 container lifecycle events in the Docker event consumer (`main.go`), not on
 exec/health noise. Tested: `TestContainerCache`.
 
-## Phase 4 — Pagination + frontend rendering ☐
-Container/event lists are fetched and rendered whole; default change detection
-re-runs list getters every cycle.
-- Server-side pagination; virtual scroll / `OnPush` / `trackBy`.
+## Phase 4 — Frontend rendering (virtualization) ◑
+Container/event lists rendered every row, so hundreds of rows meant hundreds of
+DOM nodes checked each change-detection cycle. Chosen approach: **frontend
+virtualization first** (no API change), with server-side pagination left as a
+later option only if payload size becomes the issue.
+- Containers list: CDK `cdk-virtual-scroll-viewport` renders only visible rows
+  (`itemSize: 42`, exact under the global `box-sizing: border-box`), `trackBy: Id`. ☑
+- Events list already caps render at 200 rows; OnPush deferred (risky on the
+  complex container component). ☐ (optional follow-up)
+
+Note: build-verified; the layout change (viewport becomes the table's internal
+scroller) should be eyeballed on the Containers page after deploy.
 
 ## Phase 5 — Event ingestion-time filtering + batching ☐
 Every Docker event is INSERTed (mute filters are read-time), serialized on the one
