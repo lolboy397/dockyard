@@ -48,7 +48,7 @@ func (db *DB) migrateV24() error {
 
 // ListEventFilters returns every mute rule, newest first.
 func (db *DB) ListEventFilters() ([]EventFilter, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.read.Query(
 		`SELECT id, object_name, kind, enabled, created_at FROM event_filters ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (db *DB) EnabledEventFilters() ([]EventFilter, error) {
 
 // GetEventFilter returns a single rule by id.
 func (db *DB) GetEventFilter(id int64) (*EventFilter, error) {
-	row := db.conn.QueryRow(
+	row := db.read.QueryRow(
 		`SELECT id, object_name, kind, enabled, created_at FROM event_filters WHERE id=?`, id)
 	f, err := scanEventFilter(row)
 	if err != nil {

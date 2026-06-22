@@ -10,18 +10,24 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// DB is the application database wrapper.
+// DB is the application database wrapper. Writes (and transactions) go through the
+// single-connection `conn` handle; reads go through the `read` pool. WAL lets many
+// readers run concurrently with the one writer, so read-heavy load (e.g. the
+// per-request session lookup) no longer queues behind every other query.
 type DB struct {
-	conn *sql.DB
+	conn *sql.DB // single writer
+	read *sql.DB // concurrent readers (shares `conn` for in-memory DBs)
 }
 
 // Open opens (or creates) the SQLite database at the given path and runs migrations.
 func Open(path string) (*DB, error) {
+	inMemory := path == ":memory:" || strings.HasPrefix(path, "file::memory:")
+
 	dsn := path
 	// For on-disk databases, enable WAL (better read/write concurrency and
 	// durability) and a busy_timeout so a transient lock waits briefly instead
 	// of failing immediately. Skipped for the in-memory test DB.
-	if path != ":memory:" && !strings.HasPrefix(path, "file::memory:") {
+	if !inMemory {
 		dsn = path + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"
 	}
 	conn, err := sql.Open("sqlite", dsn)
@@ -29,7 +35,9 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	conn.SetMaxOpenConns(1) // SQLite is single-writer
-	db := &DB{conn: conn}
+	// In-memory databases are per-connection, so reads must share the one handle;
+	// the on-disk read pool is wired up after migrations (below).
+	db := &DB{conn: conn, read: conn}
 	if err := db.migrate(); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -105,6 +113,20 @@ func Open(path string) (*DB, error) {
 	if err := db.migrateV24(); err != nil {
 		return nil, fmt.Errorf("migrateV24: %w", err)
 	}
+
+	// On-disk: open a separate read pool now that WAL + the schema are in place.
+	// query_only(true) makes accidental writes on the read handle fail loudly.
+	if !inMemory {
+		read, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=query_only(true)")
+		if err != nil {
+			conn.Close() //nolint:errcheck
+			return nil, fmt.Errorf("open read pool: %w", err)
+		}
+		read.SetMaxOpenConns(8)
+		read.SetMaxIdleConns(8)
+		db.read = read
+	}
+
 	initSecretKey(path)
 	return db, nil
 }
@@ -195,8 +217,11 @@ func (db *DB) migrate() error {
 	return err
 }
 
-// Close closes the database connection.
+// Close closes the database connections.
 func (db *DB) Close() error {
+	if db.read != nil && db.read != db.conn {
+		db.read.Close() //nolint:errcheck
+	}
 	return db.conn.Close()
 }
 
@@ -316,7 +341,7 @@ func (db *DB) CountMutedEvents(rules []EventFilter) (int, error) {
 		return 0, nil
 	}
 	var n int
-	err := db.conn.QueryRow(
+	err := db.read.QueryRow(
 		`SELECT COUNT(*) FROM events WHERE `+eventNoiseFilter+` AND `+clause, args...).Scan(&n)
 	return n, err
 }
@@ -345,7 +370,7 @@ func (db *DB) getEvents(kind string, limit int, extraWhere string, extraArgs []a
 		FROM events WHERE ` + strings.Join(conds, " AND ") + ` ORDER BY created_at DESC LIMIT ?`
 	args = append(args, limit)
 
-	rows, err := db.conn.Query(query, args...)
+	rows, err := db.read.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -368,7 +393,7 @@ func (db *DB) getEvents(kind string, limit int, extraWhere string, extraArgs []a
 // (username), newest first — backing a member's Activity tab.
 func (db *DB) EventsByActor(actor string, limit int) ([]Event, error) {
 	noiseFilter := ` (kind NOT LIKE 'exec_%' AND kind NOT LIKE 'health_status%' AND kind != 'top')`
-	rows, err := db.conn.Query(`
+	rows, err := db.read.Query(`
 		SELECT id, created_at, kind,
 			COALESCE(actor,''), COALESCE(object_type,''), COALESCE(object_name,''),
 			COALESCE(container_id,''), COALESCE(image,''), COALESCE(message,'')
@@ -478,7 +503,7 @@ func (db *DB) TouchWatchedImageChecked(containerID string) error {
 // GetWatchedImage returns a single watched image by container ID, or nil if the
 // container is not being watched.
 func (db *DB) GetWatchedImage(containerID string) (*WatchedImage, error) {
-	row := db.conn.QueryRow(`SELECT `+watchedCols+` FROM watched_images WHERE container_id = ?`, containerID)
+	row := db.read.QueryRow(`SELECT `+watchedCols+` FROM watched_images WHERE container_id = ?`, containerID)
 	w, err := scanWatchedImage(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -488,7 +513,7 @@ func (db *DB) GetWatchedImage(containerID string) (*WatchedImage, error) {
 
 // GetWatchedImages returns all watched image entries.
 func (db *DB) GetWatchedImages() ([]WatchedImage, error) {
-	rows, err := db.conn.Query(`SELECT ` + watchedCols + ` FROM watched_images ORDER BY container_name`)
+	rows, err := db.read.Query(`SELECT ` + watchedCols + ` FROM watched_images ORDER BY container_name`)
 	if err != nil {
 		return nil, err
 	}
@@ -575,7 +600,7 @@ func (db *DB) UpdateBuildProgress(id string, progress int, step string, currentS
 
 // GetBuild returns a build by ID.
 func (db *DB) GetBuild(id string) (*Build, error) {
-	row := db.conn.QueryRow(`
+	row := db.read.QueryRow(`
 		SELECT id, name, tag, status, progress, step, total_steps, current_step,
 		       duration_ms, cache_pct, initiated_by, logs,
 		       started_at, finished_at, created_at, definition_id
@@ -586,7 +611,7 @@ func (db *DB) GetBuild(id string) (*Build, error) {
 
 // ListBuilds returns all builds newest first.
 func (db *DB) ListBuilds() ([]Build, error) {
-	rows, err := db.conn.Query(`
+	rows, err := db.read.Query(`
 		SELECT id, name, tag, status, progress, step, total_steps, current_step,
 		       duration_ms, cache_pct, initiated_by, logs,
 		       started_at, finished_at, created_at, definition_id
@@ -640,7 +665,7 @@ type Registry struct {
 
 // ListRegistries returns all configured registries.
 func (db *DB) ListRegistries() ([]Registry, error) {
-	rows, err := db.conn.Query(`
+	rows, err := db.read.Query(`
 		SELECT id, name, url, type, username, images_count, status, created_at
 		FROM registries ORDER BY id
 	`)
@@ -723,7 +748,7 @@ func (db *DB) CreateDefinition(d *BuildDefinition) error {
 
 // GetDefinition returns a single build definition by ID.
 func (db *DB) GetDefinition(id string) (*BuildDefinition, error) {
-	row := db.conn.QueryRow(`
+	row := db.read.QueryRow(`
 		SELECT id, name, tag, source_type, git_url, git_branch, dockerfile_path,
 		       dockerfile, push_to_registry, registry_url, created_at
 		FROM build_definitions WHERE id=?
@@ -740,7 +765,7 @@ func (db *DB) GetDefinition(id string) (*BuildDefinition, error) {
 
 // ListDefinitions returns all build definitions with computed run statistics.
 func (db *DB) ListDefinitions() ([]BuildDefinition, error) {
-	rows, err := db.conn.Query(`
+	rows, err := db.read.Query(`
 		SELECT
 			d.id, d.name, d.tag, d.source_type, d.git_url, d.git_branch,
 			d.dockerfile_path, d.dockerfile, d.push_to_registry, d.registry_url, d.created_at,
@@ -799,7 +824,7 @@ func (db *DB) DeleteDefinition(id string) error {
 
 // ListBuildsByDefinition returns all build runs for a specific definition.
 func (db *DB) ListBuildsByDefinition(defID string) ([]Build, error) {
-	rows, err := db.conn.Query(`
+	rows, err := db.read.Query(`
 		SELECT id, name, tag, status, progress, step, total_steps, current_step,
 		       duration_ms, cache_pct, initiated_by, logs,
 		       started_at, finished_at, created_at, definition_id
@@ -896,7 +921,7 @@ func (db *DB) CreateGitRepo(r GitRepo) (*GitRepo, error) {
 
 // GetGitRepo returns a git repo by ID.
 func (db *DB) GetGitRepo(id int64) (*GitRepo, error) {
-	row := db.conn.QueryRow(`
+	row := db.read.QueryRow(`
 		SELECT id, created_at, name, path, remote_url, username, token, author_name, author_email, description
 		FROM git_repos WHERE id=?
 	`, id)
@@ -905,7 +930,7 @@ func (db *DB) GetGitRepo(id int64) (*GitRepo, error) {
 
 // GetGitRepoByPath returns the git repo whose path matches exactly, or nil if none.
 func (db *DB) GetGitRepoByPath(path string) (*GitRepo, error) {
-	row := db.conn.QueryRow(`
+	row := db.read.QueryRow(`
 		SELECT id, created_at, name, path, remote_url, username, token, author_name, author_email, description
 		FROM git_repos WHERE path=?
 	`, path)
@@ -921,7 +946,7 @@ func (db *DB) GetGitRepoByPath(path string) (*GitRepo, error) {
 
 // ListGitRepos returns all git repos ordered by name.
 func (db *DB) ListGitRepos() ([]GitRepo, error) {
-	rows, err := db.conn.Query(`
+	rows, err := db.read.Query(`
 		SELECT id, created_at, name, path, remote_url, username, token, author_name, author_email, description
 		FROM git_repos ORDER BY name
 	`)
@@ -1056,7 +1081,7 @@ func (db *DB) CreateProject(p Project) (*Project, error) {
 
 // GetProject returns a project by ID.
 func (db *DB) GetProject(id int64) (*Project, error) {
-	row := db.conn.QueryRow(`
+	row := db.read.QueryRow(`
 		SELECT id, created_at, updated_at, name, description, path, type,
 		       status, image_tag, ports, container_id, build_log, run_log, repo_id
 		FROM projects WHERE id=?
@@ -1066,7 +1091,7 @@ func (db *DB) GetProject(id int64) (*Project, error) {
 
 // ListProjects returns all projects ordered by name.
 func (db *DB) ListProjects() ([]Project, error) {
-	rows, err := db.conn.Query(`
+	rows, err := db.read.Query(`
 		SELECT id, created_at, updated_at, name, description, path, type,
 		       status, image_tag, ports, container_id, build_log, run_log, repo_id
 		FROM projects ORDER BY name

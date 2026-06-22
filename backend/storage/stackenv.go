@@ -26,7 +26,7 @@ func (db *DB) migrateV13() error {
 
 // GetStackEnv returns a stack's environment variables with values decrypted.
 func (db *DB) GetStackEnv(stack string) ([]StackEnvVar, error) {
-	rows, err := db.conn.Query(`SELECT key, value, is_secret FROM stack_env WHERE stack_name=? ORDER BY key`, stack)
+	rows, err := db.read.Query(`SELECT key, value, is_secret FROM stack_env WHERE stack_name=? ORDER BY key`, stack)
 	if err != nil {
 		return nil, err
 	}

@@ -23,7 +23,7 @@ func (db *DB) migrateV16() error {
 // webhook token (stable across re-enables).
 func (db *DB) EnableProjectDeploy(projectID int64) (string, error) {
 	var token string
-	if err := db.conn.QueryRow(`SELECT token FROM project_deploy WHERE project_id=?`, projectID).Scan(&token); err != nil || token == "" {
+	if err := db.read.QueryRow(`SELECT token FROM project_deploy WHERE project_id=?`, projectID).Scan(&token); err != nil || token == "" {
 		b := make([]byte, 24)
 		if _, e := rand.Read(b); e != nil {
 			return "", e
@@ -50,7 +50,7 @@ func (db *DB) DisableProjectDeploy(projectID int64) error {
 func (db *DB) GetProjectDeploy(projectID int64) (bool, string, bool) {
 	var token string
 	var enabled int
-	if err := db.conn.QueryRow(`SELECT enabled, token FROM project_deploy WHERE project_id=?`, projectID).Scan(&enabled, &token); err != nil {
+	if err := db.read.QueryRow(`SELECT enabled, token FROM project_deploy WHERE project_id=?`, projectID).Scan(&enabled, &token); err != nil {
 		if err == sql.ErrNoRows {
 			return false, "", false
 		}

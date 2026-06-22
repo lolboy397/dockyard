@@ -289,7 +289,7 @@ func (db *DB) ListRoles() ([]Role, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.conn.Query(`SELECT ` + roleCols + ` FROM roles ORDER BY type='custom', sort, name`)
+	rows, err := db.read.Query(`SELECT ` + roleCols + ` FROM roles ORDER BY type='custom', sort, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +308,7 @@ func (db *DB) ListRoles() ([]Role, error) {
 
 // GetRole returns a single role with its live member count, or nil if absent.
 func (db *DB) GetRole(id string) (*Role, error) {
-	row := db.conn.QueryRow(`SELECT `+roleCols+` FROM roles WHERE id=?`, id)
+	row := db.read.QueryRow(`SELECT `+roleCols+` FROM roles WHERE id=?`, id)
 	r, err := scanRole(row, 0)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -327,7 +327,7 @@ func (db *DB) GetRole(id string) (*Role, error) {
 // RoleExists reports whether a role id is defined (system or custom).
 func (db *DB) RoleExists(id string) (bool, error) {
 	var n int
-	err := db.conn.QueryRow(`SELECT COUNT(*) FROM roles WHERE id=?`, id).Scan(&n)
+	err := db.read.QueryRow(`SELECT COUNT(*) FROM roles WHERE id=?`, id).Scan(&n)
 	return n > 0, err
 }
 
@@ -339,7 +339,7 @@ func (db *DB) RoleTier(id string) string {
 		return "operator"
 	}
 	var tier string
-	if err := db.conn.QueryRow(`SELECT tier FROM roles WHERE id=?`, id).Scan(&tier); err != nil {
+	if err := db.read.QueryRow(`SELECT tier FROM roles WHERE id=?`, id).Scan(&tier); err != nil {
 		return "viewer"
 	}
 	return tier
@@ -395,12 +395,12 @@ func (db *DB) DeleteRole(id string) error {
 // CountUsersByRole returns the number of accounts holding a role.
 func (db *DB) CountUsersByRole(role string) (int, error) {
 	var n int
-	err := db.conn.QueryRow(`SELECT COUNT(*) FROM users WHERE role=?`, role).Scan(&n)
+	err := db.read.QueryRow(`SELECT COUNT(*) FROM users WHERE role=?`, role).Scan(&n)
 	return n, err
 }
 
 func (db *DB) roleMemberCounts() (map[string]int, error) {
-	rows, err := db.conn.Query(`SELECT role, COUNT(*) FROM users GROUP BY role`)
+	rows, err := db.read.Query(`SELECT role, COUNT(*) FROM users GROUP BY role`)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +419,7 @@ func (db *DB) roleMemberCounts() (map[string]int, error) {
 
 // ListUsersByRole returns the accounts assigned a given role, id order.
 func (db *DB) ListUsersByRole(role string) ([]User, error) {
-	rows, err := db.conn.Query(`SELECT `+userCols+` FROM users WHERE role=? ORDER BY id`, role)
+	rows, err := db.read.Query(`SELECT `+userCols+` FROM users WHERE role=? ORDER BY id`, role)
 	if err != nil {
 		return nil, err
 	}

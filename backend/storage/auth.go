@@ -78,7 +78,7 @@ const userCols = `id, created_at, full_name, email, username, password_hash, rol
 // CountUsers returns the number of accounts in the system.
 func (db *DB) CountUsers() (int, error) {
 	var n int
-	err := db.conn.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n)
+	err := db.read.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&n)
 	return n, err
 }
 
@@ -101,13 +101,13 @@ func (db *DB) CreateUser(u User) (*User, error) {
 
 // GetUserByID returns a user by primary key.
 func (db *DB) GetUserByID(id int64) (*User, error) {
-	row := db.conn.QueryRow(`SELECT `+userCols+` FROM users WHERE id=?`, id)
+	row := db.read.QueryRow(`SELECT `+userCols+` FROM users WHERE id=?`, id)
 	return scanUser(row)
 }
 
 // GetUserByUsername returns a user by username, or nil if not found.
 func (db *DB) GetUserByUsername(username string) (*User, error) {
-	row := db.conn.QueryRow(`SELECT `+userCols+` FROM users WHERE username=?`, username)
+	row := db.read.QueryRow(`SELECT `+userCols+` FROM users WHERE username=?`, username)
 	u, err := scanUser(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -173,7 +173,7 @@ func DefaultInstanceConfig() InstanceConfig {
 // GetInstanceConfig returns the stored instance configuration, falling back to
 // defaults when setup has not yet been run.
 func (db *DB) GetInstanceConfig() (*InstanceConfig, error) {
-	row := db.conn.QueryRow(`
+	row := db.read.QueryRow(`
 		SELECT instance_name, docker_host, data_dir, bind_addr,
 		       tls, auto_update, telemetry, registry, setup_complete
 		FROM instance_config WHERE id=1
@@ -260,7 +260,7 @@ type Session struct {
 // ListSessionsForUser returns a user's non-expired sessions, newest first. The
 // session matching currentToken is flagged so the UI can mark "this device".
 func (db *DB) ListSessionsForUser(userID int64, currentToken string) ([]Session, error) {
-	rows, err := db.conn.Query(`
+	rows, err := db.read.Query(`
 		SELECT token, COALESCE(user_agent,''), COALESCE(ip,''), created_at, expires_at
 		FROM sessions WHERE user_id=? AND expires_at >= ?
 		ORDER BY created_at DESC
@@ -292,7 +292,7 @@ func (db *DB) GetSessionUser(token string) (*User, error) {
 	}
 	var userID int64
 	var expires string
-	err := db.conn.QueryRow(
+	err := db.read.QueryRow(
 		`SELECT user_id, expires_at FROM sessions WHERE token=?`, token,
 	).Scan(&userID, &expires)
 	if err != nil {
@@ -357,7 +357,7 @@ func (db *DB) migrateV20() error {
 
 // ListUsers returns all accounts ordered by id.
 func (db *DB) ListUsers() ([]User, error) {
-	rows, err := db.conn.Query(`SELECT ` + userCols + ` FROM users ORDER BY id`)
+	rows, err := db.read.Query(`SELECT ` + userCols + ` FROM users ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +435,7 @@ func (db *DB) DeleteUser(id int64) error {
 // the last administrator from deletion or demotion.
 func (db *DB) CountAdmins() (int, error) {
 	var n int
-	err := db.conn.QueryRow(`
+	err := db.read.QueryRow(`
 		SELECT COUNT(*) FROM users u
 		JOIN roles r ON u.role = r.id
 		WHERE r.tier = 'admin' AND u.active = 1

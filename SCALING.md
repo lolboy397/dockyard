@@ -18,12 +18,17 @@ Done: `statsHub` in `websocket.go` (shared collect loop + latest-wins fan-out +
 subscriber-gated lifecycle); `/ws/allstats` wire format unchanged. Tested:
 `TestStatsHubFanOutAndLifecycle`.
 
-## Phase 2 — Database read concurrency ☐
-`SetMaxOpenConns(1)` serializes every read and write on one connection, and every
+## Phase 2 — Database read concurrency ☑
+`SetMaxOpenConns(1)` serialized every read and write on one connection, and every
 authenticated request does a session lookup through it. WAL already allows
 concurrent reads.
-- Split into a read pool (`MaxOpenConns > 1`) + a dedicated single-writer handle,
-  or cache the per-request session lookup.
+- Split into a read pool (`MaxOpenConns = 8`, `query_only`) + the single-writer
+  handle. ☑
+
+Done: `DB.read` pool routes all 49 `Query`/`QueryRow` reads; writes/transactions
+stay on `conn` (single writer, so no write-lock contention). In-memory DBs share
+one handle (per-connection isolation). Tested: `TestReadPoolSplitAndConsistency`
+(separate pool, read-after-write consistency, concurrent reads, query_only guard).
 
 ## Phase 3 — Shared ContainerList cache ☐
 Many handlers do a full `ContainerList(All:true)` per request (stacks, project port

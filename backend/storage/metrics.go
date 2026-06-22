@@ -43,7 +43,7 @@ func (db *DB) InsertMetricSample(s MetricSample) error {
 
 // GetMetricHistory returns samples newer than `sinceSeconds` ago, oldest first.
 func (db *DB) GetMetricHistory(sinceSeconds int) ([]MetricSample, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.read.Query(
 		`SELECT ts, cpu_pct, mem_used, mem_total, disk_used, disk_total
 		 FROM metric_samples WHERE ts >= datetime('now', ?) ORDER BY ts ASC`,
 		fmt.Sprintf("-%d seconds", sinceSeconds),

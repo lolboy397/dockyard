@@ -52,7 +52,7 @@ func (db *DB) CreateVolumeBackup(vol, file string, size int64, consistent bool, 
 
 // ListVolumeBackups returns a volume's backups, newest first.
 func (db *DB) ListVolumeBackups(vol string) ([]VolumeBackup, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.read.Query(
 		`SELECT id, volume_name, file, size_bytes, consistent, note, created_at
 		 FROM volume_backups WHERE volume_name=? ORDER BY id DESC`, vol)
 	if err != nil {
@@ -72,7 +72,7 @@ func (db *DB) ListVolumeBackups(vol string) ([]VolumeBackup, error) {
 
 // GetVolumeBackup returns a single backup by id.
 func (db *DB) GetVolumeBackup(id int64) (*VolumeBackup, error) {
-	row := db.conn.QueryRow(
+	row := db.read.QueryRow(
 		`SELECT id, volume_name, file, size_bytes, consistent, note, created_at FROM volume_backups WHERE id=?`, id)
 	return scanVolumeBackup(row)
 }
@@ -89,7 +89,7 @@ func (db *DB) PruneVolumeBackups(vol string, keepN int) ([]string, error) {
 	if keepN < 1 {
 		keepN = 1
 	}
-	rows, err := db.conn.Query(
+	rows, err := db.read.Query(
 		`SELECT file FROM volume_backups
 		 WHERE volume_name=? AND id NOT IN (
 			SELECT id FROM volume_backups WHERE volume_name=? ORDER BY id DESC LIMIT ?
@@ -172,7 +172,7 @@ func (db *DB) migrateV22() error {
 
 // GetBackupSchedule returns a volume's schedule, or nil if none is configured.
 func (db *DB) GetBackupSchedule(vol string) (*BackupSchedule, error) {
-	row := db.conn.QueryRow(
+	row := db.read.QueryRow(
 		`SELECT volume_name, enabled, interval_hours, keep, stop_container, last_run_at, updated_at
 		 FROM volume_backup_schedules WHERE volume_name=?`, vol)
 	sc, err := scanBackupSchedule(row)
@@ -200,7 +200,7 @@ func (db *DB) UpsertBackupSchedule(s BackupSchedule) error {
 
 // ListEnabledBackupSchedules returns every schedule with Enabled=true (for the scheduler).
 func (db *DB) ListEnabledBackupSchedules() ([]BackupSchedule, error) {
-	rows, err := db.conn.Query(
+	rows, err := db.read.Query(
 		`SELECT volume_name, enabled, interval_hours, keep, stop_container, last_run_at, updated_at
 		 FROM volume_backup_schedules WHERE enabled=1`)
 	if err != nil {

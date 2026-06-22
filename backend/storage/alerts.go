@@ -81,7 +81,7 @@ func scanAlertRule(s scanner) (*AlertRule, error) {
 
 // ListAlertRules returns all alert rules.
 func (db *DB) ListAlertRules() ([]AlertRule, error) {
-	rows, err := db.conn.Query(`SELECT ` + alertCols + ` FROM alert_rules ORDER BY id`)
+	rows, err := db.read.Query(`SELECT ` + alertCols + ` FROM alert_rules ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (db *DB) CreateAlertRule(a AlertRule) (*AlertRule, error) {
 		return nil, err
 	}
 	id, _ := res.LastInsertId()
-	row := db.conn.QueryRow(`SELECT `+alertCols+` FROM alert_rules WHERE id=?`, id)
+	row := db.read.QueryRow(`SELECT `+alertCols+` FROM alert_rules WHERE id=?`, id)
 	return scanAlertRule(row)
 }
 

@@ -38,7 +38,7 @@ func (db *DB) RecordStackDeploy(name, content string) error {
 
 // GetStackDeploys returns a stack's recent compose snapshots, newest first.
 func (db *DB) GetStackDeploys(name string) ([]StackDeploy, error) {
-	rows, err := db.conn.Query(`SELECT id, stack_name, content, created_at FROM stack_deploys WHERE stack_name=? ORDER BY id DESC LIMIT 20`, name)
+	rows, err := db.read.Query(`SELECT id, stack_name, content, created_at FROM stack_deploys WHERE stack_name=? ORDER BY id DESC LIMIT 20`, name)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (db *DB) GetStackDeploys(name string) ([]StackDeploy, error) {
 
 // GetStackDeploy returns one snapshot by id.
 func (db *DB) GetStackDeploy(id int64) (*StackDeploy, error) {
-	row := db.conn.QueryRow(`SELECT id, stack_name, content, created_at FROM stack_deploys WHERE id=?`, id)
+	row := db.read.QueryRow(`SELECT id, stack_name, content, created_at FROM stack_deploys WHERE id=?`, id)
 	var d StackDeploy
 	var ts string
 	if err := row.Scan(&d.ID, &d.StackName, &d.Content, &ts); err != nil {

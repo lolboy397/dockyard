@@ -42,7 +42,7 @@ func (db *DB) migrateV23() error {
 
 // GetAppBackupSchedule returns the schedule, or a disabled default when none is set.
 func (db *DB) GetAppBackupSchedule() (AppBackupSchedule, error) {
-	row := db.conn.QueryRow(
+	row := db.read.QueryRow(
 		`SELECT enabled, interval_hours, keep, last_run_at, updated_at FROM app_backup_schedule WHERE id=1`)
 	var sc AppBackupSchedule
 	var enabled int

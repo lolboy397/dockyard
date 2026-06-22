@@ -22,7 +22,7 @@ func (db *DB) migrateV15() error {
 // request.
 func (db *DB) EnsureStackWebhook(name string) (string, error) {
 	var token string
-	if err := db.conn.QueryRow(`SELECT token FROM stack_webhooks WHERE stack_name=?`, name).Scan(&token); err == nil && token != "" {
+	if err := db.read.QueryRow(`SELECT token FROM stack_webhooks WHERE stack_name=?`, name).Scan(&token); err == nil && token != "" {
 		return token, nil
 	}
 	b := make([]byte, 24)
@@ -40,7 +40,7 @@ func (db *DB) EnsureStackWebhook(name string) (string, error) {
 // (constant-time).
 func (db *DB) ValidateStackWebhook(name, token string) bool {
 	var stored string
-	if err := db.conn.QueryRow(`SELECT token FROM stack_webhooks WHERE stack_name=?`, name).Scan(&stored); err != nil {
+	if err := db.read.QueryRow(`SELECT token FROM stack_webhooks WHERE stack_name=?`, name).Scan(&stored); err != nil {
 		return false
 	}
 	return stored != "" && subtle.ConstantTimeCompare([]byte(stored), []byte(token)) == 1
