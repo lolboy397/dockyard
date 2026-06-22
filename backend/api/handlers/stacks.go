@@ -171,6 +171,8 @@ var composeDangerPatterns = []struct {
 	{"host user namespace", regexp.MustCompile(`(?im)^\s*userns_mode\s*:\s*["']?host["']?\s*$`)},
 	{"unconfined security profile", regexp.MustCompile(`(?i)(?:seccomp|apparmor)\s*[:=]\s*["']?unconfined`)},
 	{"host root bind mount", regexp.MustCompile(`(?im)(?:^\s*-\s*["']?/:|^\s*source\s*:\s*["']?/["']?\s*$)`)},
+	{"host network mode", regexp.MustCompile(`(?im)^\s*network_mode\s*:\s*["']?host["']?\s*$`)},
+	{"device passthrough (devices)", regexp.MustCompile(`(?im)^\s*devices\s*:\s*$`)},
 }
 
 // composePrivilegedDirective returns the name of the first host-root-equivalent

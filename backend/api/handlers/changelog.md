@@ -20,6 +20,10 @@ its own history. Add a new "##" block at the top when you cut a release.
 ### Added
 - **App icon** — Dockyard now ships a stacked shipping-containers icon, used as the favicon and browser-tab icon.
 
+### Fixed
+- Image auto-update (watched images) now preserves a container's network aliases and recreates it safely (creating the replacement before removing the old one), so updating a container on a custom/compose network no longer breaks service-name DNS or risks leaving it down.
+- Deploying a stack that uses `network_mode: host` or device passthrough (`devices:`) now requires the admin role, matching the other privileged-compose directives.
+
 ## 0.0.3 — 2026-06-21
 
 ### Added

@@ -4,7 +4,6 @@ import { Subscription, interval } from 'rxjs';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 import { WebSocketService, ContainerStatSummary } from '../../services/websocket.service';
 import { DockerService } from '../../services/docker.service';
-import { HostStats } from '../../models/docker.models';
 
 interface SparkMetric {
   key: 'cpu' | 'mem' | 'disk' | 'net';
@@ -27,7 +26,6 @@ interface NetRate { id: string; name: string; rx: number; tx: number; }
 })
 export class MetricsComponent implements OnInit, OnDestroy {
   updateInterval = 3;
-  host: HostStats | null = null;
   topContainers: ContainerStatSummary[] = [];   // CPU-sorted (chart + memory bars)
   topNet: NetRate[] = [];                        // network-sorted
 
@@ -98,7 +96,6 @@ export class MetricsComponent implements OnInit, OnDestroy {
   private loadHost(): void {
     this.docker.getHostStats().subscribe({
       next: h => {
-        this.host = h;
         const memPct = h.mem_total ? (h.mem_used / h.mem_total) * 100 : 0;
         const diskPct = h.disk_total ? (h.disk_used / h.disk_total) * 100 : 0;
         this.pushSeries('cpu', h.cpu_pct);

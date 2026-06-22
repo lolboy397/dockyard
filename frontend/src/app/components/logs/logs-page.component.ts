@@ -115,13 +115,18 @@ export class LogsPageComponent implements OnInit, OnDestroy, AfterViewChecked {
         if (!nextIds.has(id)) this.stream?.unsubscribe(id);
       }
 
-      this.sources = containers.map((c, i) => ({
-        id: c.Id,
-        name: c.Names[0]?.replace('/', '') ?? c.Id.slice(0, 8),
-        color: SOURCE_COLORS[i % SOURCE_COLORS.length],
-        on: c.State === 'running',
-        count: this.sourceById.get(c.Id)?.count ?? 0,
-      }));
+      this.sources = containers.map((c, i) => {
+        // Preserve the user's prior on/off choice across a refresh; only default a
+        // newly-seen container to on when it's running.
+        const prev = this.sourceById.get(c.Id);
+        return {
+          id: c.Id,
+          name: c.Names[0]?.replace('/', '') ?? c.Id.slice(0, 8),
+          color: SOURCE_COLORS[i % SOURCE_COLORS.length],
+          on: prev ? prev.on : c.State === 'running',
+          count: prev?.count ?? 0,
+        };
+      });
       this.sourceById = new Map(this.sources.map(s => [s.id, s]));
 
       // Subscribe the running ones. The backend ignores a duplicate subscribe, so

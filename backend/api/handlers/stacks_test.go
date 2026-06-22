@@ -38,6 +38,8 @@ func TestComposePrivilegedDirective(t *testing.T) {
 		"services:\n  x:\n    image: a\n    userns_mode: host",
 		"services:\n  x:\n    image: a\n    security_opt:\n      - seccomp:unconfined",
 		"services:\n  x:\n    image: a\n    volumes:\n      - /:/host",
+		"services:\n  x:\n    image: a\n    network_mode: host",
+		"services:\n  x:\n    image: a\n    devices:\n      - /dev/snd:/dev/snd",
 	}
 	for i, c := range dangerous {
 		if d := composePrivilegedDirective(c); d == "" {

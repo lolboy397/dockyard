@@ -4,17 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	dockerpkg "docker-manager/backend/docker"
 	"docker-manager/backend/storage"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
 
@@ -226,59 +224,23 @@ func (w *Watcher) checkItem(ctx context.Context, item storage.WatchedImage) {
 	log.Printf("[watcher] successfully updated %s (%s)", item.ContainerName, item.Image)
 }
 
-// performUpdate pulls the new image, stops the container, recreates it with the same
-// configuration, and starts it again.
+// performUpdate pulls the new image and recreates the container in place,
+// preserving its configuration AND its network attachments + aliases (so
+// service-name DNS keeps working), creating the replacement before removing the
+// old one so a bad image leaves the current container running.
 func (w *Watcher) performUpdate(ctx context.Context, item storage.WatchedImage, newDigest string) error {
-	// 1. Pull the new image.
-	rc, err := w.docker.ImagePull(ctx, item.Image, image.PullOptions{})
+	newID, err := dockerpkg.RecreateContainer(ctx, w.docker, item.ContainerID, dockerpkg.RecreateOptions{Pull: true})
 	if err != nil {
-		return fmt.Errorf("image pull: %w", err)
-	}
-	io.Copy(io.Discard, rc) //nolint:errcheck
-	rc.Close()
-
-	// 2. Inspect existing container to capture its configuration.
-	info, err := w.docker.ContainerInspect(ctx, item.ContainerID)
-	if err != nil {
-		return fmt.Errorf("inspect: %w", err)
+		return err
 	}
 
-	// 3. Stop the existing container.
-	timeout := 30
-	if err := w.docker.ContainerStop(ctx, item.ContainerID, container.StopOptions{Timeout: &timeout}); err != nil {
-		return fmt.Errorf("stop: %w", err)
-	}
-
-	// 4. Remove the existing container (keep volumes).
-	if err := w.docker.ContainerRemove(ctx, item.ContainerID, container.RemoveOptions{}); err != nil {
-		return fmt.Errorf("remove old: %w", err)
-	}
-
-	// 5. Recreate container with the same config.
-	newID, err := w.docker.ContainerCreate(
-		ctx,
-		info.Config,
-		info.HostConfig,
-		nil,
-		nil,
-		info.Name,
-	)
-	if err != nil {
-		return fmt.Errorf("create: %w", err)
-	}
-
-	// 6. Start the new container.
-	if err := w.docker.ContainerStart(ctx, newID.ID, container.StartOptions{}); err != nil {
-		return fmt.Errorf("start: %w", err)
-	}
-
-	// 7. Re-key the watched_images row onto the new container ID and reset its
-	//    state — it now runs the latest digest, so no update is available.
-	w.db.DeleteWatchedImage(item.ContainerID) //nolint:errcheck
-	item.ContainerID = newID.ID
+	// Re-key the watched_images row onto the new container ID and reset its state —
+	// it now runs the latest digest, so no update is available.
+	w.db.DeleteWatchedImage(item.ContainerID)            //nolint:errcheck
+	item.ContainerID = newID
 	item.CurrentDigest = newDigest
-	w.db.UpsertWatchedImage(item)                           //nolint:errcheck
-	w.db.UpdateWatchedImageState(newID.ID, newDigest, false) //nolint:errcheck
+	w.db.UpsertWatchedImage(item)                        //nolint:errcheck
+	w.db.UpdateWatchedImageState(newID, newDigest, false) //nolint:errcheck
 
 	return nil
 }
