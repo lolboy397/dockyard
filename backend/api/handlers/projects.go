@@ -1170,7 +1170,7 @@ func (h *ProjectHandlers) livePortIndex(ctx context.Context) map[string][]storag
 	if h.docker == nil {
 		return idx
 	}
-	containers, err := h.docker.ContainerList(ctx, container.ListOptions{})
+	containers, err := sharedContainers.list(ctx, h.docker, false)
 	if err != nil {
 		return idx
 	}

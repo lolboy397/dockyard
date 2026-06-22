@@ -30,11 +30,19 @@ stay on `conn` (single writer, so no write-lock contention). In-memory DBs share
 one handle (per-connection isolation). Tested: `TestReadPoolSplitAndConsistency`
 (separate pool, read-after-write consistency, concurrent reads, query_only guard).
 
-## Phase 3 — Shared ContainerList cache ☐
-Many handlers do a full `ContainerList(All:true)` per request (stacks, project port
-enrichment, port checks, alerts, logs). Polling × users multiplies redundant scans.
-- Short-TTL (~1–2s) shared, mutex-guarded cache, invalidated by the existing event
-  stream.
+## Phase 3 — Shared ContainerList cache ☑
+Many handlers do a full `ContainerList` per request, and the realtime UI refetches
+on every Docker event — so M users on a busy host = M× redundant scans in the same
+instant.
+- Short-TTL (1.5s) shared, mutex-guarded cache, invalidated by the event stream. ☑
+
+Done: `containerCache` (`containercache.go`) with double-checked per-key locking
+(no thundering herd), errors never cached. Applied to the high-traffic list
+endpoints — Containers list, Stacks list + Get, project port enrichment
+(`livePortIndex`). **Left direct on purpose:** port-conflict checks
+(`usedHostPorts`), alerts, watcher (correctness/low-frequency). Invalidated on real
+container lifecycle events in the Docker event consumer (`main.go`), not on
+exec/health noise. Tested: `TestContainerCache`.
 
 ## Phase 4 — Pagination + frontend rendering ☐
 Container/event lists are fetched and rendered whole; default change detection

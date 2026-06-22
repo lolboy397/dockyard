@@ -239,6 +239,11 @@ func consumeDockerEvents(ctx context.Context, cli *client.Client, db *storage.DB
 			if isNoise(string(e.Action)) {
 				continue
 			}
+			// A real container lifecycle event means the cached container list is
+			// stale — drop it so the refetch this event triggers sees fresh data.
+			if e.Type == dockerevents.ContainerEventType {
+				handlers.InvalidateContainerCache()
+			}
 			persistDockerEvent(db, e)
 		}
 	}

@@ -14,7 +14,6 @@ import (
 
 	"docker-manager/backend/storage"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/go-chi/chi/v5"
 )
@@ -202,7 +201,7 @@ func requireAdminForPrivilegedCompose(w http.ResponseWriter, r *http.Request, co
 // List returns all stacks: those inferred from running container labels plus
 // any that have a stored compose file in STACKS_PATH.
 func (h *StackHandlers) List(w http.ResponseWriter, r *http.Request) {
-	containers, err := h.docker.ContainerList(r.Context(), container.ListOptions{All: true})
+	containers, err := sharedContainers.list(r.Context(), h.docker, true)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -282,7 +281,7 @@ func (h *StackHandlers) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allContainers, err := h.docker.ContainerList(r.Context(), container.ListOptions{All: true})
+	allContainers, err := sharedContainers.list(r.Context(), h.docker, true)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return

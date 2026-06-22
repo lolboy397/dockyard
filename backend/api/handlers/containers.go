@@ -26,7 +26,7 @@ func NewContainerHandlers(cli *client.Client) *ContainerHandlers {
 // List returns all containers (running + stopped by default, all=true for all states).
 func (h *ContainerHandlers) List(w http.ResponseWriter, r *http.Request) {
 	all := r.URL.Query().Get("all") == "true"
-	containers, err := h.docker.ContainerList(r.Context(), container.ListOptions{All: all})
+	containers, err := sharedContainers.list(r.Context(), h.docker, all)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
