@@ -44,10 +44,11 @@ func checkSameOrigin(r *http.Request) bool {
 
 type WSHandlers struct {
 	docker *client.Client
+	stats  *statsHub
 }
 
 func NewWSHandlers(cli *client.Client) *WSHandlers {
-	return &WSHandlers{docker: cli}
+	return &WSHandlers{docker: cli, stats: newStatsHub(cli)}
 }
 
 // StreamLogs upgrades to WebSocket and streams container logs in real time.
@@ -491,7 +492,8 @@ type ContainerStatSummary struct {
 	NetTx    uint64  `json:"net_tx"`
 }
 
-// StreamAllStats upgrades to WebSocket and sends aggregated stats for all running containers every 3 seconds.
+// StreamAllStats upgrades to WebSocket and forwards the shared all-container stats
+// snapshot (collected once for every viewer) as it is produced.
 func (h *WSHandlers) StreamAllStats(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -511,27 +513,18 @@ func (h *WSHandlers) StreamAllStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	ticker := time.NewTicker(3 * time.Second)
-	defer ticker.Stop()
-
-	// Send one immediately on connect
-	if summaries := h.collectAllStats(ctx); summaries != nil {
-		data, _ := json.Marshal(summaries)
-		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			return
-		}
-	}
+	snapshots, unsubscribe := h.stats.subscribe()
+	defer unsubscribe()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			summaries := h.collectAllStats(ctx)
-			if summaries == nil {
-				continue
+		case snap, ok := <-snapshots:
+			if !ok {
+				return
 			}
-			data, _ := json.Marshal(summaries)
+			data, _ := json.Marshal(snap)
 			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 				return
 			}
@@ -539,8 +532,94 @@ func (h *WSHandlers) StreamAllStats(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *WSHandlers) collectAllStats(ctx context.Context) []ContainerStatSummary {
-	containers, err := h.docker.ContainerList(ctx, container.ListOptions{})
+// statsContainerConcurrency caps how many ContainerStats calls run at once during a
+// single collection, so a host with hundreds of containers doesn't burst that many
+// simultaneous requests at the Docker socket proxy.
+const statsContainerConcurrency = 24
+
+// statsHub runs ONE all-container stats collection loop shared by every
+// /ws/allstats subscriber, instead of each WebSocket polling the daemon
+// independently (M users would otherwise mean M× the load). The loop runs only
+// while at least one subscriber is connected.
+type statsHub struct {
+	docker    *client.Client
+	collectFn func(context.Context) []ContainerStatSummary // overridable for tests
+	mu        sync.Mutex
+	subs      map[chan []ContainerStatSummary]struct{}
+	cancel    context.CancelFunc
+}
+
+func newStatsHub(cli *client.Client) *statsHub {
+	h := &statsHub{docker: cli, subs: map[chan []ContainerStatSummary]struct{}{}}
+	h.collectFn = h.collect
+	return h
+}
+
+// subscribe registers a receiver and starts the shared loop if it isn't running.
+// The returned func unsubscribes and stops the loop when the last subscriber leaves.
+func (s *statsHub) subscribe() (<-chan []ContainerStatSummary, func()) {
+	ch := make(chan []ContainerStatSummary, 1)
+	s.mu.Lock()
+	s.subs[ch] = struct{}{}
+	if s.cancel == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		s.cancel = cancel
+		go s.run(ctx)
+	}
+	s.mu.Unlock()
+
+	var once sync.Once
+	return ch, func() {
+		once.Do(func() {
+			s.mu.Lock()
+			delete(s.subs, ch)
+			close(ch)
+			if len(s.subs) == 0 && s.cancel != nil {
+				s.cancel()
+				s.cancel = nil
+			}
+			s.mu.Unlock()
+		})
+	}
+}
+
+func (s *statsHub) run(ctx context.Context) {
+	defer safe.Recover("ws-statshub")
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	s.broadcast(s.collectFn(ctx))
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.broadcast(s.collectFn(ctx))
+		}
+	}
+}
+
+// broadcast delivers a snapshot to every subscriber without blocking: each channel
+// buffers only the latest snapshot, so a slow consumer just misses a tick (it gets
+// the next one) and never stalls collection for the others.
+func (s *statsHub) broadcast(snap []ContainerStatSummary) {
+	if snap == nil {
+		return
+	}
+	s.mu.Lock()
+	for ch := range s.subs {
+		select {
+		case ch <- snap:
+		default:
+		}
+	}
+	s.mu.Unlock()
+}
+
+func (s *statsHub) collect(ctx context.Context) []ContainerStatSummary {
+	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	containers, err := s.docker.ContainerList(cctx, container.ListOptions{})
 	if err != nil {
 		return nil
 	}
@@ -553,6 +632,7 @@ func (h *WSHandlers) collectAllStats(ctx context.Context) []ContainerStatSummary
 		err error
 	}
 	ch := make(chan result, len(containers))
+	sem := make(chan struct{}, statsContainerConcurrency)
 
 	var wg sync.WaitGroup
 	for i := range containers {
@@ -561,7 +641,14 @@ func (h *WSHandlers) collectAllStats(ctx context.Context) []ContainerStatSummary
 		go func() {
 			defer wg.Done()
 			defer safe.Recover("ws-allstats-worker")
-			resp, err := h.docker.ContainerStats(ctx, c.ID, false)
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-cctx.Done():
+				ch <- result{err: cctx.Err()}
+				return
+			}
+			resp, err := s.docker.ContainerStats(cctx, c.ID, false)
 			if err != nil {
 				ch <- result{err: err}
 				return
@@ -637,7 +724,7 @@ func (h *WSHandlers) collectAllStats(ctx context.Context) []ContainerStatSummary
 	}()
 
 	summaries := make([]ContainerStatSummary, 0, len(containers))
-	timeout := time.After(4 * time.Second)
+	timeout := time.After(6 * time.Second)
 	for {
 		select {
 		case r, ok := <-ch:
@@ -649,7 +736,7 @@ func (h *WSHandlers) collectAllStats(ctx context.Context) []ContainerStatSummary
 			}
 		case <-timeout:
 			return summaries
-		case <-ctx.Done():
+		case <-cctx.Done():
 			return summaries
 		}
 	}
