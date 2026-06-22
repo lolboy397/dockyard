@@ -236,6 +236,43 @@ func TestPruneEvents(t *testing.T) {
 	}
 }
 
+func TestLogEventsBatch(t *testing.T) {
+	db := newTestDB(t)
+
+	batch := []Event{
+		{Kind: "start", ObjectType: "container", ObjectName: "a", ContainerID: "c1"},
+		{Kind: "die", ObjectType: "container", ObjectName: "b", ContainerID: "c2"},
+		{Kind: "pull", Actor: "user", ObjectType: "image", ObjectName: "nginx"},
+	}
+	if err := db.LogEventsBatch(batch); err != nil {
+		t.Fatalf("batch insert: %v", err)
+	}
+
+	got, err := db.GetEvents("", 100)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("events after batch = %d, want 3", len(got))
+	}
+
+	byName := map[string]Event{}
+	for _, e := range got {
+		byName[e.ObjectName] = e
+	}
+	if byName["a"].Actor != "engine" {
+		t.Errorf("empty actor should default to 'engine', got %q", byName["a"].Actor)
+	}
+	if byName["nginx"].Actor != "user" {
+		t.Errorf("explicit actor should be preserved, got %q", byName["nginx"].Actor)
+	}
+
+	// An empty batch is a no-op, not an error.
+	if err := db.LogEventsBatch(nil); err != nil {
+		t.Errorf("empty batch should be a no-op, got %v", err)
+	}
+}
+
 func TestEventFilters(t *testing.T) {
 	db := newTestDB(t)
 

@@ -57,11 +57,20 @@ later option only if payload size becomes the issue.
 Note: build-verified; the layout change (viewport becomes the table's internal
 scroller) should be eyeballed on the Containers page after deploy.
 
-## Phase 5 — Event ingestion-time filtering + batching ☐
-Every Docker event is INSERTed (mute filters are read-time), serialized on the one
-DB connection; a churny host produces a high write rate + table growth.
-- Optional ingestion-time drop for muted kinds; batched inserts; configurable
-  retention.
+## Phase 5 — Event write batching + retention ☑
+Every Docker event was its own INSERT (its own transaction) on the single writer;
+a churny host produces a high write rate + unbounded table growth (90-day prune).
+- **Batched inserts** — the daemon event firehose is coalesced into one
+  transaction per ~250ms (or per 200 events). ☑
+- **Configurable retention** — `EVENT_RETENTION_DAYS` (default 90). ☑
+- Ingestion-time mute dropping intentionally NOT done — the mute feature is
+  read-time by design ("show muted" reveals them), so dropping at ingest would
+  break it.
+
+Done: `LogEventsBatch` (one tx for N events); `consumeDockerEvents` buffers +
+flushes on a 250ms ticker / 200-event cap (and on shutdown/stream-drop); retention
+env wired in the prune loop + documented in `.env.example`. Tested:
+`TestLogEventsBatch`.
 
 ## Phase 6 — Structural HA / horizontal scale ☐ (deferred)
 Single stateful backend (local SQLite + in-memory hubs/cancels) — no failover or

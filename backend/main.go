@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -129,6 +130,16 @@ func envOrDefault(key, def string) string {
 	return def
 }
 
+// envIntOrDefault reads a positive integer env var, falling back to def.
+func envIntOrDefault(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
+}
+
 // noiseActions are high-frequency exec/health event prefixes we skip to keep the log clean.
 // Docker includes the command in exec action strings, e.g. "exec_create: wget -qO- ..."
 var noiseActionPrefixes = []string{
@@ -166,6 +177,10 @@ func runSessionSweeper(ctx context.Context, db *storage.DB) {
 // runMetricsSampler periodically records host load into the metrics time-series
 // and prunes samples older than 7 days.
 func runMetricsSampler(ctx context.Context, cli *client.Client, db *storage.DB) {
+	// Events/audit retention is configurable (default 90 days) — a busy host can
+	// generate a lot of daemon events, so operators may want a shorter window.
+	eventRetentionSec := envIntOrDefault("EVENT_RETENTION_DAYS", 90) * 24 * 3600
+
 	sample := func() {
 		s, err := handlers.ComputeHostStats(ctx, cli)
 		if err != nil {
@@ -189,9 +204,9 @@ func runMetricsSampler(ctx context.Context, cli *client.Client, db *storage.DB) 
 			sample()
 		case <-prune.C:
 			_ = db.PruneMetricSamples(7 * 24 * 3600)
-			// Retain ~90 days of events/audit history; the table is otherwise
-			// unbounded (every audited mutation + daemon event).
-			if n, err := db.PruneEvents(90 * 24 * 3600); err != nil {
+			// Retain events/audit history for the configured window; the table is
+			// otherwise unbounded (every audited mutation + daemon event).
+			if n, err := db.PruneEvents(eventRetentionSec); err != nil {
 				log.Printf("[events] prune error: %v", err)
 			} else if n > 0 {
 				log.Printf("[events] pruned %d old event(s)", n)
@@ -223,17 +238,41 @@ func runDockerEventConsumer(ctx context.Context, cli *client.Client, db *storage
 
 func consumeDockerEvents(ctx context.Context, cli *client.Client, db *storage.DB) {
 	eventsCh, errCh := cli.Events(ctx, dockerevents.ListOptions{})
+
+	// Coalesce the event firehose into batched inserts — one transaction per flush
+	// instead of one per event — which matters on a churny host. The realtime UI
+	// gets events straight from the daemon stream, so a short DB-write delay only
+	// affects the persisted audit log, not live updates.
+	const maxBatch = 200
+	buf := make([]storage.Event, 0, maxBatch)
+	flush := time.NewTicker(250 * time.Millisecond)
+	defer flush.Stop()
+	doFlush := func() {
+		if len(buf) == 0 {
+			return
+		}
+		if err := db.LogEventsBatch(buf); err != nil {
+			log.Printf("[events] batch write error: %v", err)
+		}
+		buf = buf[:0]
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
+			doFlush()
 			return
 		case err := <-errCh:
 			if err != nil {
 				log.Printf("[events] stream error: %v", err)
 			}
+			doFlush()
 			return
+		case <-flush.C:
+			doFlush()
 		case e, ok := <-eventsCh:
 			if !ok {
+				doFlush()
 				return
 			}
 			if isNoise(string(e.Action)) {
@@ -244,13 +283,16 @@ func consumeDockerEvents(ctx context.Context, cli *client.Client, db *storage.DB
 			if e.Type == dockerevents.ContainerEventType {
 				handlers.InvalidateContainerCache()
 			}
-			persistDockerEvent(db, e)
+			buf = append(buf, dockerEventRecord(e))
+			if len(buf) >= maxBatch {
+				doFlush()
+			}
 		}
 	}
 }
 
-func persistDockerEvent(db *storage.DB, e dockerevents.Message) {
-	objectType := string(e.Type)
+// dockerEventRecord converts a daemon event into the row to persist.
+func dockerEventRecord(e dockerevents.Message) storage.Event {
 	objectName := e.Actor.Attributes["name"]
 	if objectName == "" {
 		objectName = shortID(e.Actor.ID)
@@ -269,10 +311,14 @@ func persistDockerEvent(db *storage.DB, e dockerevents.Message) {
 		}
 	}
 
-	message := buildEventMessage(e)
-
-	if err := db.LogEvent(string(e.Action), "engine", objectType, objectName, containerID, imageRef, message); err != nil {
-		log.Printf("[events] db write error: %v", err)
+	return storage.Event{
+		Kind:        string(e.Action),
+		Actor:       "engine",
+		ObjectType:  string(e.Type),
+		ObjectName:  objectName,
+		ContainerID: containerID,
+		Image:       imageRef,
+		Message:     buildEventMessage(e),
 	}
 }
 

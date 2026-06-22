@@ -296,6 +296,37 @@ func (db *DB) LogEvent(kind, actor, objectType, objectName, containerID, image, 
 	return err
 }
 
+// LogEventsBatch inserts many events in a single transaction. The Docker event
+// consumer uses it to coalesce the daemon firehose into far fewer write
+// transactions on a busy host (one commit per flush instead of one per event).
+func (db *DB) LogEventsBatch(events []Event) error {
+	if len(events) == 0 {
+		return nil
+	}
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return err
+	}
+	stmt, err := tx.Prepare(
+		`INSERT INTO events (kind, actor, object_type, object_name, container_id, image, message) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		tx.Rollback() //nolint:errcheck
+		return err
+	}
+	defer stmt.Close()
+	for _, e := range events {
+		actor := e.Actor
+		if actor == "" {
+			actor = "engine"
+		}
+		if _, err := stmt.Exec(e.Kind, actor, e.ObjectType, e.ObjectName, e.ContainerID, e.Image, e.Message); err != nil {
+			tx.Rollback() //nolint:errcheck
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // PruneEvents deletes events older than keepSeconds. The events table is
 // append-only (every audited mutation + daemon event), so without pruning it
 // grows without bound. Returns the number of rows deleted.
