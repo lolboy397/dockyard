@@ -66,7 +66,7 @@
               <!-- git URL -->
               <div class="field">
                 <label class="label">Git URL</label>
-                <input type="text" class="input input-sm" [(ngModel)]="form.gitUrl" placeholder="https://github.com/user/repo.git" />
+                <input type="url" inputmode="url" autocapitalize="off" class="input input-sm" [(ngModel)]="form.gitUrl" placeholder="https://github.com/user/repo.git" />
               </div>
               <!-- branch + dockerfile path -->
               <div class="field-row" style="grid-template-columns:1fr 1fr;">

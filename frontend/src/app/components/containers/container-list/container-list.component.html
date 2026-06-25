@@ -29,7 +29,7 @@
           <div class="toolbar-meta mono">live &middot; updates on change</div>
         </div>
 
-        @if (loading) {
+        @if (loading && !isMobile) {
           <div class="ctable">
             <div class="ctable-head ctable-cols">
               <span></span><span>Name</span><span>Image</span><span>Status</span>
@@ -55,7 +55,14 @@
         } @else if (isMobile) {
           <!-- Mobile: card list (no virtual scroll — a fixed itemSize can't fit a multi-line card) -->
           <div class="ccards">
-            @if (filtered.length === 0) {
+            @if (loading) {
+              @for (i of skeletonRows; track i) {
+                <div class="gcard" style="pointer-events:none;">
+                  <span class="skel" style="width:60%;height:14px;border-radius:3px;"></span>
+                  <span class="skel" style="width:40%;height:10px;border-radius:3px;"></span>
+                </div>
+              }
+            } @else if (filtered.length === 0) {
               <div class="ctable-empty">No containers found</div>
             } @else {
               @for (c of filtered; track c.Id) {

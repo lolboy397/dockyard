@@ -194,7 +194,7 @@
                   </div>
                   <div class="field">
                     <label class="label">Author email</label>
-                    <input class="input input-sm" [(ngModel)]="authorEmail" placeholder="you@example.com" />
+                    <input class="input input-sm" type="email" inputmode="email" autocapitalize="off" [(ngModel)]="authorEmail" placeholder="you@example.com" />
                   </div>
                 </div>
               }
@@ -362,7 +362,7 @@
     @if (addCloneMode) {
       <div class="field">
         <label class="label">Repository URL</label>
-        <input class="input input-sm" [(ngModel)]="addForm.clone_url"
+        <input class="input input-sm" type="url" inputmode="url" autocapitalize="off" [(ngModel)]="addForm.clone_url"
           placeholder="https://github.com/user/repo.git" />
       </div>
       <div class="field-row" style="grid-template-columns:1fr 1fr;">
@@ -393,7 +393,7 @@
       </div>
       <div class="field">
         <label class="label">Git author email</label>
-        <input class="input input-sm" [(ngModel)]="addForm.author_email" placeholder="you@example.com" />
+        <input class="input input-sm" type="email" inputmode="email" autocapitalize="off" [(ngModel)]="addForm.author_email" placeholder="you@example.com" />
       </div>
     </div>
 

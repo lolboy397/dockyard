@@ -414,3 +414,10 @@
   .span-4, .span-5, .span-7, .span-8 { grid-column: span 12; }
   .node-strip { grid-template-columns: repeat(7, 1fr); }
 }
+
+/* Small phones: let the resource rings wrap, trim the headline. */
+@media (max-width: 600px) {
+  .rings { flex-wrap: wrap; gap: 12px 18px; justify-content: center; }
+  .dash-h1 { font-size: 22px; }
+  .node-strip { grid-template-columns: repeat(4, 1fr); }
+}

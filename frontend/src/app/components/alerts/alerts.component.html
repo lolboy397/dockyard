@@ -108,7 +108,7 @@
           @if (form.channel === 'webhook') {
             <div class="field">
               <label class="label">Webhook URL</label>
-              <input class="input input-sm" [(ngModel)]="form.webhook_url" placeholder="https://hooks.slack.com/…" />
+              <input class="input input-sm" type="url" inputmode="url" autocapitalize="off" [(ngModel)]="form.webhook_url" placeholder="https://hooks.slack.com/…" />
             </div>
           }
           <div modal-footer>

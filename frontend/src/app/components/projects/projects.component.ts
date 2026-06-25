@@ -1171,8 +1171,18 @@ export class ProjectsComponent implements OnInit, OnDestroy {
   }
 
   @ViewChild('folderInput') private folderInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('zipInput') private zipInputRef!: ElementRef<HTMLInputElement>;
 
   openFolderPicker(): void {
+    // iOS Safari has no folder picker (webkitdirectory is inert) — fall back to
+    // the .zip flow with a hint instead of opening a dialog that does nothing.
+    const ua = navigator.userAgent;
+    const isIos = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIos) {
+      this.notify.info?.('Folder upload isn’t available on iOS — choose a .zip archive instead.');
+      this.zipInputRef?.nativeElement.click();
+      return;
+    }
     this.uploadPending = true;
     this.folderInputRef.nativeElement.click();
     // When the native browser dialog closes (confirm or cancel), window regains
