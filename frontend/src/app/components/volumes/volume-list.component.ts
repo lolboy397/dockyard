@@ -10,6 +10,7 @@ import { VolumeSummary } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
 import { ResponsiveService } from '../../services/responsive.service';
+import { PruneDialogService } from '../../services/prune-dialog.service';
 import { VolumeExplorerComponent } from './volume-explorer.component';
 import { ExplorerVolume } from './volume-explorer.data';
 
@@ -75,7 +76,7 @@ export class VolumeListComponent implements OnInit {
     return b + ' B';
   }
 
-  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService, public responsive: ResponsiveService) {}
+  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService, public responsive: ResponsiveService, private pruneDialog: PruneDialogService) {}
   ngOnInit(): void { this.load(); }
 
   // ── Context menu ───────────────────────────────────────────────────────────────
@@ -137,16 +138,22 @@ export class VolumeListComponent implements OnInit {
   }
 
   async prune(): Promise<void> {
-    const ok = await this.confirm.confirm({
-      title: 'Prune unused volumes?',
-      message: 'All volumes not in use by a container will be permanently removed.',
-      confirmLabel: 'Prune',
-      danger: true,
+    const isAnon = (name: string) => /^[0-9a-f]{64}$/.test(name);
+    const orphaned = this.volumes.filter(v => this.isOrphaned(v));
+    const anonUnused = orphaned.filter(v => isAnon(v.Name));
+    const bytes = (arr: VolumeSummary[]) => arr.reduce((s, v) => s + (v.UsageData?.Size ?? 0), 0);
+
+    const changed = await this.pruneDialog.open({
+      kind: 'volumes',
+      title: 'Prune volumes',
+      noun: 'volume',
+      scopes: [
+        { all: false, label: 'Anonymous only', count: anonUnused.length, bytes: bytes(anonUnused), note: 'Docker-generated unused volumes' },
+        { all: true,  label: 'All unused',      count: orphaned.length,   bytes: bytes(orphaned),   note: 'Includes named volumes', danger: true },
+      ],
+      warning: 'Removes ALL unused volumes including named ones. Their data is permanently deleted and cannot be recovered.',
+      run: (all) => this.docker.pruneVolumes(all),
     });
-    if (!ok) return;
-    this.docker.pruneVolumes().subscribe({
-      next: () => { this.notify.success('Unused volumes pruned'); this.load(); },
-      error: () => this.notify.error('Prune failed'),
-    });
+    if (changed) this.load();
   }
 }

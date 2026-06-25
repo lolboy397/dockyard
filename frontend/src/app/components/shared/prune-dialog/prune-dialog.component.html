@@ -1,0 +1,109 @@
+@if (visible && config) {
+  <app-modal [title]="config.title" [eyebrow]="'prune · ' + config.kind" size="md" (close)="onClose()">
+
+    <!-- ── REVIEW ─────────────────────────────────────────────────────────── -->
+    @if (phase === 'review') {
+      <div class="pd-review">
+        @if (hasToggle) {
+          <div class="pd-seg" role="tablist">
+            @for (s of config.scopes; track s.all) {
+              <button class="pd-seg-btn" [class.active]="s.all === all" (click)="select(s.all)">
+                {{ s.label }}
+              </button>
+            }
+          </div>
+        }
+
+        <div class="pd-estimate">
+          <div class="pd-est-num">{{ scope?.count ?? 0 }}</div>
+          <div class="pd-est-meta">
+            <div class="pd-est-label">
+              {{ plural(scope?.count ?? 0) }} to remove
+              @if ((scope?.bytes ?? 0) > 0) { <span class="pd-est-bytes">· ~{{ formatBytes(scope!.bytes) }}</span> }
+            </div>
+            @if (scope?.note) { <div class="pd-est-note">{{ scope?.note }}</div> }
+          </div>
+        </div>
+
+        @if (scope?.danger && config.warning) {
+          <div class="pd-warn">
+            <dy-icon name="triangle-alert" [size]="15" [style.color]="'var(--warn-400, #FBBF24)'"></dy-icon>
+            <span>{{ config.warning }}</span>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── RUNNING ────────────────────────────────────────────────────────── -->
+    @if (phase === 'running') {
+      <div class="pd-running">
+        <div class="pd-orb"></div>
+        <div class="pd-running-text">
+          <div class="pd-running-title">Pruning {{ plural(scope?.count ?? 0) }}…</div>
+          <div class="pd-running-sub">Removing unused {{ config.kind }} — this can take a moment.</div>
+        </div>
+      </div>
+      <div class="pd-bar"></div>
+    }
+
+    <!-- ── SUMMARY ────────────────────────────────────────────────────────── -->
+    @if (phase === 'summary') {
+      @if (error) {
+        <div class="pd-warn pd-error">
+          <dy-icon name="circle-alert" [size]="15" [style.color]="'var(--danger-400, #F87171)'"></dy-icon>
+          <span>{{ error }}</span>
+        </div>
+      } @else {
+        <div class="pd-summary-head">
+          <dy-icon [name]="removed.length ? 'circle-check' : 'minus'" [size]="16"
+                   [style.color]="removed.length ? 'var(--running-400)' : 'var(--fg-subtle)'"></dy-icon>
+          <span>{{ summaryLine() }}</span>
+        </div>
+
+        @if (removed.length) {
+          <div class="pd-list-label">Removed</div>
+          <div class="pd-list">
+            @for (it of removed; track it.id) {
+              <div class="pd-row">
+                <dy-icon name="circle-check" [size]="13" [style.color]="'var(--running-400)'"></dy-icon>
+                <span class="pd-row-name" [title]="it.name">{{ it.name }}</span>
+                @if (it.size) { <span class="pd-row-size mono">{{ formatBytes(it.size) }}</span> }
+              </div>
+            }
+          </div>
+        }
+
+        @if (skipped.length) {
+          <div class="pd-list-label">Skipped</div>
+          <div class="pd-list">
+            @for (it of skipped; track it.id) {
+              <div class="pd-row pd-row-skip">
+                <dy-icon name="circle-x" [size]="13" [style.color]="'var(--fg-subtle)'"></dy-icon>
+                <span class="pd-row-name" [title]="it.name">{{ it.name }}</span>
+                @if (it.reason) { <span class="pd-row-reason" [title]="it.reason">{{ it.reason }}</span> }
+              </div>
+            }
+          </div>
+        }
+
+        @if (!removed.length && !skipped.length) {
+          <div class="pd-empty">Nothing needed removing — you're already clean.</div>
+        }
+      }
+    }
+
+    <!-- Single footer slot (avoids multi-node @if projection issues) -->
+    <div modal-footer>
+      @if (phase === 'review') {
+        <button class="btn btn-sm btn-ghost" (click)="onClose()">Cancel</button>
+        <button class="btn btn-sm btn-danger" [disabled]="(scope?.count ?? 0) === 0" (click)="start()">
+          <dy-icon name="trash-2" [size]="13"></dy-icon> {{ confirmLabel() }}
+        </button>
+      }
+      @if (phase === 'summary') {
+        <button class="btn btn-sm btn-primary" (click)="onClose()">Done</button>
+      }
+    </div>
+
+  </app-modal>
+}

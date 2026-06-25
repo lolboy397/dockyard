@@ -10,6 +10,7 @@ import { NetworkResource } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
 import { ResponsiveService } from '../../services/responsive.service';
+import { PruneDialogService } from '../../services/prune-dialog.service';
 
 const SYSTEM_NETS = new Set(['bridge', 'host', 'none']);
 
@@ -35,7 +36,7 @@ export class NetworkListComponent implements OnInit {
     return c > 0 ? String(c) : '—';
   }
 
-  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService, public responsive: ResponsiveService) {}
+  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService, public responsive: ResponsiveService, private pruneDialog: PruneDialogService) {}
   ngOnInit(): void { this.load(); }
 
   // ── Context menu ───────────────────────────────────────────────────────────────
@@ -93,17 +94,17 @@ export class NetworkListComponent implements OnInit {
   }
 
   async prune(): Promise<void> {
-    const ok = await this.confirm.confirm({
-      title: 'Prune unused networks?',
-      message: 'All networks not in use by a container will be removed.',
-      confirmLabel: 'Prune',
-      danger: true,
+    const unused = this.networks.filter(n => !this.isSystem(n) && (!n.Containers || Object.keys(n.Containers).length === 0));
+    const changed = await this.pruneDialog.open({
+      kind: 'networks',
+      title: 'Prune networks',
+      noun: 'network',
+      scopes: [
+        { all: false, label: 'Unused', count: unused.length, bytes: 0, note: 'User-defined networks with no containers attached' },
+      ],
+      run: () => this.docker.pruneNetworks(),
     });
-    if (!ok) return;
-    this.docker.pruneNetworks().subscribe({
-      next: () => { this.notify.success('Unused networks pruned'); this.load(); },
-      error: () => this.notify.error('Prune failed'),
-    });
+    if (changed) this.load();
   }
 
   subnet(n: NetworkResource): string {

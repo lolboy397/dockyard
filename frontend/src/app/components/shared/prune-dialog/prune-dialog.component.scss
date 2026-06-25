@@ -1,0 +1,115 @@
+:host { display: contents; }
+
+/* ── Review ──────────────────────────────────────────────────────────────── */
+.pd-review { display: flex; flex-direction: column; gap: 16px; }
+
+.pd-seg {
+  display: flex; gap: 4px; padding: 3px;
+  background: var(--bg-inset, var(--bg-elevated)); border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+}
+.pd-seg-btn {
+  flex: 1; padding: 7px 10px; border: 0; cursor: pointer;
+  background: transparent; color: var(--fg-subtle);
+  font-size: 12.5px; font-weight: 600; border-radius: calc(var(--r-md) - 3px);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.pd-seg-btn:hover { color: var(--fg-muted); }
+.pd-seg-btn.active { background: var(--bg-raised); color: var(--fg); box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.2)); }
+
+.pd-estimate {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--bg-raised);
+}
+.pd-est-num { font-size: 30px; font-weight: 700; line-height: 1; color: var(--fg); font-variant-numeric: tabular-nums; }
+.pd-est-meta { min-width: 0; }
+.pd-est-label { font-size: 13px; color: var(--fg); }
+.pd-est-bytes { color: var(--fg-muted); }
+.pd-est-note { font-size: 11.5px; color: var(--fg-subtle); margin-top: 3px; }
+
+.pd-warn {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 10px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--warn-700, rgba(251,191,36,0.35));
+  background: var(--warn-soft, rgba(251,191,36,0.08));
+  font-size: 12px; line-height: 1.5; color: var(--fg-muted);
+}
+.pd-warn dy-icon { flex: none; margin-top: 1px; }
+.pd-error {
+  border-color: var(--danger-700, rgba(248,113,113,0.35));
+  background: var(--danger-soft, rgba(248,113,113,0.08));
+}
+
+/* ── Running ─────────────────────────────────────────────────────────────── */
+.pd-running { display: flex; align-items: center; gap: 14px; padding: 8px 2px 4px; }
+.pd-orb {
+  width: 32px; height: 32px; border-radius: 50%; flex: none; position: relative;
+}
+.pd-orb::before {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent, var(--accent));
+  animation: pd-spin 0.9s linear infinite;
+  -webkit-mask: radial-gradient(circle 12px, transparent 98%, #000 100%);
+  mask: radial-gradient(circle 12px, transparent 98%, #000 100%);
+}
+@keyframes pd-spin { to { transform: rotate(360deg); } }
+.pd-running-title { font-size: 13.5px; font-weight: 600; color: var(--fg); }
+.pd-running-sub { font-size: 11.5px; color: var(--fg-subtle); margin-top: 2px; }
+
+.pd-bar {
+  position: relative; height: 4px; margin-top: 14px;
+  background: var(--bg-elevated); border-radius: 3px; overflow: hidden;
+}
+.pd-bar::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: pd-sweep 1.25s ease-in-out infinite;
+}
+@keyframes pd-sweep { 0% { left: -30%; } 100% { left: 100%; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-orb::before { animation: none; background: var(--accent); }
+  .pd-bar::after { animation: none; width: 100%; }
+}
+
+/* ── Summary ─────────────────────────────────────────────────────────────── */
+.pd-summary-head {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 14px; font-weight: 600; color: var(--fg);
+  margin-bottom: 4px;
+}
+.pd-summary-head dy-icon { flex: none; }
+
+.pd-list-label {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--fg-subtle); margin: 14px 0 6px;
+}
+.pd-list {
+  display: flex; flex-direction: column;
+  max-height: 230px; overflow-y: auto;
+  border: 1px solid var(--border-subtle); border-radius: var(--r-md);
+}
+.pd-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px; min-width: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pd-row:last-child { border-bottom: 0; }
+.pd-row dy-icon { flex: none; }
+.pd-row-name {
+  flex: 1; min-width: 0; font-size: 12.5px; color: var(--fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pd-row-skip .pd-row-name { color: var(--fg-muted); }
+.pd-row-size { flex: none; font-size: 11px; color: var(--fg-subtle); }
+.pd-row-reason {
+  flex: none; max-width: 55%; font-size: 11px; color: var(--fg-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.pd-empty {
+  padding: 18px 4px; text-align: center;
+  font-size: 12.5px; color: var(--fg-subtle);
+}

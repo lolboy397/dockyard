@@ -450,3 +450,20 @@ export interface ChangelogEntry {
   current: boolean;         // matches the running build's version
   sections: ChangelogSection[];
 }
+
+// ── Prune ────────────────────────────────────────────────────────────────────
+// Unified, itemized result every prune endpoint returns so the UI can show
+// exactly what was removed, what was skipped, and WHY.
+export interface PruneItem {
+  id: string;
+  name: string;
+  size?: number;            // bytes (omitted/0 for networks)
+  reason?: string;          // why it was skipped (only on skipped items)
+}
+
+export interface PruneResult {
+  kind: 'images' | 'containers' | 'volumes' | 'networks';
+  removed: PruneItem[];
+  skipped: PruneItem[];
+  reclaimed: number;        // total bytes reclaimed
+}

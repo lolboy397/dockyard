@@ -2,9 +2,11 @@ import { Component, Input, Output, EventEmitter, OnChanges, HostListener } from 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { IconComponent } from '../icon/icon.component';
 import { DockerService } from '../../../services/docker.service';
-import { NotificationService } from '../../../services/notification.service';
+import { PruneDialogService } from '../../../services/prune-dialog.service';
+import { ImageSummary, VolumeSummary } from '../../../models/docker.models';
 
 interface PaletteCmd {
   icon: string;
@@ -49,7 +51,7 @@ export class CommandPaletteComponent implements OnChanges {
   constructor(
     private router: Router,
     private docker: DockerService,
-    private notify: NotificationService,
+    private pruneDialog: PruneDialogService,
   ) {}
 
   ngOnChanges(): void {
@@ -90,31 +92,63 @@ export class CommandPaletteComponent implements OnChanges {
     return label.slice(0, i) + `<mark>${label.slice(i, i + this.query.length)}</mark>` + label.slice(i + this.query.length);
   }
 
-  private pruneContainers(): void {
-    this.docker.pruneContainers().subscribe({
-      next: () => this.notify.success('Stopped containers pruned'),
-      error: () => this.notify.error('Prune failed'),
+  // The palette has no list loaded, so each action fetches the counts it needs and
+  // then opens the same shared prune dialog the list pages use (confirm + scope
+  // toggle + itemized result) — no more silent one-keystroke destructive prunes.
+  private async pruneContainers(): Promise<void> {
+    const list = await firstValueFrom(this.docker.listContainers(true)).catch(() => [] as any[]);
+    const stopped = (list || []).filter((c: any) => ['created', 'exited', 'dead'].includes(c.State));
+    await this.pruneDialog.open({
+      kind: 'containers', title: 'Prune stopped containers', noun: 'container',
+      scopes: [{ all: false, label: 'Stopped', count: stopped.length, bytes: 0, note: 'All stopped (exited/created) containers' }],
+      run: () => this.docker.pruneContainers(),
     });
   }
 
-  private pruneImages(): void {
-    this.docker.pruneImages().subscribe({
-      next: () => this.notify.success('Unused images pruned'),
-      error: () => this.notify.error('Prune failed'),
+  private async pruneImages(): Promise<void> {
+    const imgs = await firstValueFrom(this.docker.listImages()).catch(() => [] as ImageSummary[]);
+    const isDangling = (img: ImageSummary) => { const t = img.RepoTags || []; return t.length === 0 || t.every(x => x === '<none>:<none>'); };
+    const danglingUnused = (imgs || []).filter(i => isDangling(i) && i.Containers <= 0);
+    const allUnused = (imgs || []).filter(i => i.Containers <= 0);
+    const sum = (a: ImageSummary[]) => a.reduce((s, i) => s + (i.Size || 0), 0);
+    await this.pruneDialog.open({
+      kind: 'images', title: 'Prune images', noun: 'image',
+      scopes: [
+        { all: false, label: 'Dangling only', count: danglingUnused.length, bytes: sum(danglingUnused), note: 'Untagged leftover layers' },
+        { all: true,  label: 'All unused',     count: allUnused.length,      bytes: sum(allUnused),      note: 'Every image not used by a container', danger: true },
+      ],
+      warning: 'Also removes tagged images not used by ANY container — including base images of stopped stacks (e.g. postgres:16). You may need to re-pull them.',
+      run: (all) => this.docker.pruneImages(all),
     });
   }
 
-  private pruneVolumes(): void {
-    this.docker.pruneVolumes().subscribe({
-      next: () => this.notify.success('Unused volumes pruned'),
-      error: () => this.notify.error('Prune failed'),
+  private async pruneVolumes(): Promise<void> {
+    const resp = await firstValueFrom(this.docker.listVolumes()).catch(() => null);
+    const vols = (resp?.Volumes || []);
+    const isAnon = (n: string) => /^[0-9a-f]{64}$/.test(n);
+    const isOrphan = (v: VolumeSummary) => (v.UsageData?.RefCount ?? -1) === 0;
+    const orphaned = vols.filter(isOrphan);
+    const anonUnused = orphaned.filter(v => isAnon(v.Name));
+    const bytes = (a: VolumeSummary[]) => a.reduce((s, v) => s + (v.UsageData?.Size ?? 0), 0);
+    await this.pruneDialog.open({
+      kind: 'volumes', title: 'Prune volumes', noun: 'volume',
+      scopes: [
+        { all: false, label: 'Anonymous only', count: anonUnused.length, bytes: bytes(anonUnused), note: 'Docker-generated unused volumes' },
+        { all: true,  label: 'All unused',      count: orphaned.length,   bytes: bytes(orphaned),   note: 'Includes named volumes', danger: true },
+      ],
+      warning: 'Removes ALL unused volumes including named ones. Their data is permanently deleted and cannot be recovered.',
+      run: (all) => this.docker.pruneVolumes(all),
     });
   }
 
-  private pruneNetworks(): void {
-    this.docker.pruneNetworks().subscribe({
-      next: () => this.notify.success('Unused networks pruned'),
-      error: () => this.notify.error('Prune failed'),
+  private async pruneNetworks(): Promise<void> {
+    const nets = await firstValueFrom(this.docker.listNetworks()).catch(() => [] as any[]);
+    const SYS = new Set(['bridge', 'host', 'none']);
+    const unused = (nets || []).filter((n: any) => !SYS.has((n.Name || '').toLowerCase()) && (!n.Containers || Object.keys(n.Containers).length === 0));
+    await this.pruneDialog.open({
+      kind: 'networks', title: 'Prune networks', noun: 'network',
+      scopes: [{ all: false, label: 'Unused', count: unused.length, bytes: 0, note: 'User-defined networks with no containers attached' }],
+      run: () => this.docker.pruneNetworks(),
     });
   }
 }

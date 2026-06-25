@@ -122,12 +122,40 @@ func (h *NetworkHandlers) Disconnect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "disconnected"})
 }
 
-// Prune removes all unused networks.
+// Prune removes all unused user-defined networks and returns an itemized result.
+// Networks free no disk, so Reclaimed is always 0.
 func (h *NetworkHandlers) Prune(w http.ResponseWriter, r *http.Request) {
-	report, err := h.docker.NetworksPrune(r.Context(), filters.Args{})
+	ctx := r.Context()
+	// Listed before pruning so we can name what gets removed; without it the
+	// itemized result would be empty even when networks were deleted.
+	nets, err := h.docker.NetworkList(ctx, network.ListOptions{})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, report)
+	report, err := h.docker.NetworksPrune(ctx, filters.Args{})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	deleted := map[string]struct{}{}
+	for _, n := range report.NetworksDeleted {
+		deleted[n] = struct{}{}
+	}
+	// Docker never prunes the three built-in networks; don't list them.
+	predefined := map[string]bool{"bridge": true, "host": true, "none": true}
+	res := PruneResult{Kind: "networks"}
+	for _, n := range nets {
+		if predefined[n.Name] {
+			continue
+		}
+		item := PruneItem{ID: shortID(n.ID), Name: n.Name}
+		if _, ok := deleted[n.Name]; ok {
+			res.Removed = append(res.Removed, item)
+		} else {
+			item.Reason = "in use by a container"
+			res.Skipped = append(res.Skipped, item)
+		}
+	}
+	writeJSON(w, res)
 }

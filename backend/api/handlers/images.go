@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -125,19 +127,106 @@ func (h *ImageHandlers) History(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, history)
 }
 
-// Prune removes unused images.
+// Prune removes unused images and returns an itemized result. With ?all=true it
+// removes every image not referenced by any container (docker image prune -a);
+// the default removes only dangling (untagged) layers. The result lists exactly
+// what was removed and what was skipped (with the reason) so the UI never has to
+// guess.
 func (h *ImageHandlers) Prune(w http.ResponseWriter, r *http.Request) {
-	dangling := r.URL.Query().Get("dangling") != "false"
-	f := filters.NewArgs()
-	if dangling {
-		f.Add("dangling", "true")
-	}
-	report, err := h.docker.ImagesPrune(r.Context(), f)
+	ctx := r.Context()
+	all := r.URL.Query().Get("all") == "true"
+
+	images, err := h.docker.ImageList(ctx, image.ListOptions{All: true})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, report)
+	// Container usage drives both the candidate set and the skip reasons, so a
+	// failure here would silently fabricate "has dependent child images" reasons
+	// for images that are really in use — fail fast instead.
+	containers, err := h.docker.ContainerList(ctx, container.ListOptions{All: true})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// imageID -> names of containers (running OR stopped) referencing it. A
+	// stopped container still protects its image from prune, which is why the old
+	// tag-only client guess was wrong.
+	usedBy := map[string][]string{}
+	for _, c := range containers {
+		name := strings.TrimPrefix(firstName(c.Names), "/")
+		usedBy[c.ImageID] = append(usedBy[c.ImageID], name)
+	}
+
+	type target struct {
+		id, name string
+		size     int64
+	}
+	var targets []target        // images this scope intends to remove
+	var leftoverTagged []target // tagged-but-unused images that dangling scope leaves behind
+	for _, img := range images {
+		dangling := imageIsDangling(img.RepoTags)
+		inUse := len(usedBy[img.ID]) > 0
+		name := imageRepoTag(img.RepoTags, img.ID)
+		switch {
+		case all && !inUse:
+			targets = append(targets, target{img.ID, name, img.Size})
+		case !all && dangling:
+			targets = append(targets, target{img.ID, name, img.Size})
+		case !all && !dangling && !inUse:
+			leftoverTagged = append(leftoverTagged, target{img.ID, name, img.Size})
+		}
+	}
+
+	// Atomic prune: Docker computes the full layer-dependency graph and removes in
+	// the correct order in a single pass.
+	f := filters.NewArgs()
+	f.Add("dangling", strconv.FormatBool(!all))
+	report, err := h.docker.ImagesPrune(ctx, f)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	reclaimed := int64(report.SpaceReclaimed)
+	deleted := map[string]struct{}{}
+	for _, d := range report.ImagesDeleted {
+		if d.Deleted != "" {
+			deleted[trimSHA(d.Deleted)] = struct{}{}
+		}
+	}
+
+	// Dangling scope only: removing a child layer can newly orphan its parent. One
+	// extra pass clears it (the -a scope already handles parents atomically).
+	if !all && len(report.ImagesDeleted) > 0 {
+		if rep2, err2 := h.docker.ImagesPrune(ctx, f); err2 == nil {
+			reclaimed += int64(rep2.SpaceReclaimed)
+			for _, d := range rep2.ImagesDeleted {
+				if d.Deleted != "" {
+					deleted[trimSHA(d.Deleted)] = struct{}{}
+				}
+			}
+		}
+	}
+
+	res := PruneResult{Kind: "images", Reclaimed: reclaimed}
+	for _, t := range targets {
+		if _, ok := deleted[trimSHA(t.id)]; ok {
+			res.Removed = append(res.Removed, PruneItem{ID: shortID(t.id), Name: t.name, Size: t.size})
+			continue
+		}
+		reason := "has dependent child images"
+		if names := usedBy[t.id]; len(names) > 0 {
+			reason = "in use by " + strings.Join(names, ", ")
+		}
+		res.Skipped = append(res.Skipped, PruneItem{ID: shortID(t.id), Name: t.name, Size: t.size, Reason: reason})
+	}
+	// Surface what dangling-only mode is leaving behind so "it rarely clears
+	// everything" is never a mystery — the user can flip to All unused.
+	for _, t := range leftoverTagged {
+		res.Skipped = append(res.Skipped, PruneItem{ID: shortID(t.id), Name: t.name, Size: t.size, Reason: "unused — enable “All unused” to remove"})
+	}
+	writeJSON(w, res)
 }
 
 // Search searches Docker Hub for images matching a term.

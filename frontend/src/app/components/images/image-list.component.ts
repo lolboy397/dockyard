@@ -12,6 +12,7 @@ import { ImageSummary } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
 import { ResponsiveService } from '../../services/responsive.service';
+import { PruneDialogService } from '../../services/prune-dialog.service';
 
 @Component({
   selector: 'app-image-list',
@@ -56,7 +57,7 @@ export class ImageListComponent implements OnInit {
       : `${totalStr} total`;
   }
 
-  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService, public responsive: ResponsiveService) {}
+  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService, public responsive: ResponsiveService, private pruneDialog: PruneDialogService) {}
 
   ngOnInit(): void { this.load(); }
 
@@ -190,35 +191,26 @@ export class ImageListComponent implements OnInit {
   }
 
   async pruneImages(): Promise<void> {
-    const dangling = this.images.filter(img => {
+    const isDangling = (img: ImageSummary) => {
       const tags = img.RepoTags || [];
       return tags.length === 0 || tags.every(t => t === '<none>:<none>');
+    };
+    const danglingUnused = this.images.filter(i => isDangling(i) && i.Containers <= 0);
+    const allUnused = this.images.filter(i => i.Containers <= 0);
+    const sum = (arr: ImageSummary[]) => arr.reduce((s, i) => s + (i.Size || 0), 0);
+
+    const changed = await this.pruneDialog.open({
+      kind: 'images',
+      title: 'Prune images',
+      noun: 'image',
+      scopes: [
+        { all: false, label: 'Dangling only', count: danglingUnused.length, bytes: sum(danglingUnused), note: 'Untagged leftover layers' },
+        { all: true,  label: 'All unused',     count: allUnused.length,      bytes: sum(allUnused),      note: 'Every image not used by a container', danger: true },
+      ],
+      warning: 'Also removes tagged images not used by ANY container — including base images of stopped stacks (e.g. postgres:16). You may need to re-pull them.',
+      run: (all) => this.docker.pruneImages(all),
     });
-    const totalBytes = dangling.reduce((s, i) => s + (i.Size || 0), 0);
-    const count = dangling.length;
-    const message = count === 0
-      ? 'No dangling images found — nothing to remove.'
-      : `${count} dangling image${count > 1 ? 's' : ''} will be removed, freeing ${this.formatSize(totalBytes)}.`;
-    const items = dangling.map(img => {
-      const id = img.Id.replace('sha256:', '').slice(0, 12);
-      return `${id}···${this.formatSize(img.Size || 0)}`;
-    });
-    const ok = await this.confirm.confirm({
-      title: 'Prune dangling images',
-      message,
-      items: items.length ? items : undefined,
-      confirmLabel: 'Prune',
-      danger: true,
-    });
-    if (!ok || count === 0) return;
-    this.docker.pruneImages().subscribe({
-      next: (report: any) => {
-        const freed = report?.SpaceReclaimed ? ` · freed ${this.formatSize(report.SpaceReclaimed)}` : '';
-        this.notify.success(`Pruned ${count} image${count > 1 ? 's' : ''}${freed}`);
-        this.load();
-      },
-      error: () => this.notify.error('Prune failed'),
-    });
+    if (changed) this.load();
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

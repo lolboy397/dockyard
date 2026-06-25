@@ -10,6 +10,7 @@ import { ToastContainerComponent } from './components/shared/toast-container/toa
 import { CommandPaletteComponent } from './components/shared/command-palette/command-palette.component';
 import { ContextMenuComponent } from './components/shared/context-menu/context-menu.component';
 import { ConfirmDialogComponent } from './components/shared/confirm-dialog/confirm-dialog.component';
+import { PruneDialogComponent } from './components/shared/prune-dialog/prune-dialog.component';
 import { DockerService } from './services/docker.service';
 import { RealtimeService } from './services/realtime.service';
 import { AppEvent, HostStats } from './models/docker.models';
@@ -45,7 +46,7 @@ interface NavCounts {
     CommonModule,
     RouterOutlet, RouterLink, RouterLinkActive,
     IconComponent, StatusDotComponent, ToastContainerComponent, CommandPaletteComponent,
-    ContextMenuComponent, ConfirmDialogComponent, AuthComponent, InstallBannerComponent,
+    ContextMenuComponent, ConfirmDialogComponent, PruneDialogComponent, AuthComponent, InstallBannerComponent,
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',

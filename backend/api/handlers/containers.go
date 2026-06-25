@@ -260,12 +260,40 @@ func (h *ContainerHandlers) Exec(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, attach.Reader) //nolint:errcheck
 }
 
-// Prune removes all stopped containers.
+// Prune removes all stopped containers and returns an itemized result (the raw
+// Docker report only carries IDs, so we pre-list to recover names).
 func (h *ContainerHandlers) Prune(w http.ResponseWriter, r *http.Request) {
-	report, err := h.docker.ContainersPrune(r.Context(), filters.Args{})
+	ctx := r.Context()
+	candidates, _ := h.docker.ContainerList(ctx, container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("status", "created"),
+			filters.Arg("status", "exited"),
+			filters.Arg("status", "dead"),
+		),
+	})
+	report, err := h.docker.ContainersPrune(ctx, filters.Args{})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, report)
+	deleted := map[string]struct{}{}
+	for _, id := range report.ContainersDeleted {
+		deleted[id] = struct{}{}
+	}
+	res := PruneResult{Kind: "containers", Reclaimed: int64(report.SpaceReclaimed)}
+	for _, c := range candidates {
+		name := strings.TrimPrefix(firstName(c.Names), "/")
+		if name == "" {
+			name = shortID(c.ID)
+		}
+		item := PruneItem{ID: shortID(c.ID), Name: name}
+		if _, ok := deleted[c.ID]; ok {
+			res.Removed = append(res.Removed, item)
+		} else {
+			item.Reason = "could not be removed"
+			res.Skipped = append(res.Skipped, item)
+		}
+	}
+	writeJSON(w, res)
 }

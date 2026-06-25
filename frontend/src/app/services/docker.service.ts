@@ -9,7 +9,7 @@ import {
   StackSummary, StackDetail, Build, BuildDefinition, RegistryItem, RegistryImage,
   GitRepo, GitFileStatus, GitCommit, GitBranch,
   Project, ProjectLogs, ProjectFileNode, ProjectPortCheck,
-  UpdateStatus, EventFilter, ChangelogEntry
+  UpdateStatus, EventFilter, ChangelogEntry, PruneResult
 } from '../models/docker.models';
 import { map } from 'rxjs/operators';
 
@@ -213,8 +213,8 @@ export class DockerService {
     return this.http.post(`${this.base}/containers/${id}/exec`, { cmd }, { responseType: 'text' });
   }
 
-  pruneContainers(): Observable<any> {
-    return this.http.delete(`${this.base}/containers`);
+  pruneContainers(): Observable<PruneResult> {
+    return this.http.delete<PruneResult>(`${this.base}/containers`);
   }
 
   // ---- Images ----------------------------------------------------------------
@@ -243,9 +243,9 @@ export class DockerService {
     return this.http.get<any[]>(`${this.base}/images/${id}/history`);
   }
 
-  pruneImages(dangling = true): Observable<any> {
-    const params = new HttpParams().set('dangling', String(dangling));
-    return this.http.delete(`${this.base}/images/prune`, { params });
+  pruneImages(all = false): Observable<PruneResult> {
+    const params = new HttpParams().set('all', String(all));
+    return this.http.delete<PruneResult>(`${this.base}/images/prune`, { params });
   }
 
   searchImages(q: string): Observable<any[]> {
@@ -278,8 +278,8 @@ export class DockerService {
     return this.http.post(`${this.base}/networks/${id}/disconnect`, { container_id, force });
   }
 
-  pruneNetworks(): Observable<any> {
-    return this.http.delete(`${this.base}/networks/prune`);
+  pruneNetworks(): Observable<PruneResult> {
+    return this.http.delete<PruneResult>(`${this.base}/networks/prune`);
   }
 
   // ---- Volumes ---------------------------------------------------------------
@@ -300,8 +300,9 @@ export class DockerService {
     return this.http.delete(`${this.base}/volumes/${name}`, { params });
   }
 
-  pruneVolumes(): Observable<any> {
-    return this.http.delete(`${this.base}/volumes/prune`);
+  pruneVolumes(all = false): Observable<PruneResult> {
+    const params = new HttpParams().set('all', String(all));
+    return this.http.delete<PruneResult>(`${this.base}/volumes/prune`, { params });
   }
 
   // ---- Volume file browser ---------------------------------------------------

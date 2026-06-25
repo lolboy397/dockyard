@@ -11,6 +11,7 @@ import { ContainerStateService } from '../../../services/container-state.service
 import { AuthService } from '../../../auth/auth.service';
 import { ContainerSummary, ContainerInspect, ContainerStats, WatchedImage } from '../../../models/docker.models';
 import { ContextMenuService, ContextMenuItem } from '../../../services/context-menu.service';
+import { PruneDialogService } from '../../../services/prune-dialog.service';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { ModalComponent } from '../../shared/modal/modal.component';
 import { StatusDotComponent, statusTone } from '../../shared/status-dot/status-dot.component';
@@ -190,6 +191,7 @@ export class ContainerListComponent implements OnInit, OnDestroy, AfterViewCheck
     private ctxMenu: ContextMenuService,
     public auth: AuthService,
     private realtime: RealtimeService,
+    private pruneDialog: PruneDialogService,
   ) {}
 
   // Resource-limits modal
@@ -685,17 +687,19 @@ export class ContainerListComponent implements OnInit, OnDestroy, AfterViewCheck
   }
 
   async pruneContainers(): Promise<void> {
-    const ok = await this.confirm.confirm({
-      title: 'Prune stopped containers?',
-      message: 'All stopped containers will be permanently removed.',
-      confirmLabel: 'Prune',
-      danger: true,
+    // Match what the backend actually prunes (created/exited/dead) — not every
+    // non-running state (which would over-count restarting/removing).
+    const stopped = this.containers.filter(c => ['created', 'exited', 'dead'].includes(c.State));
+    const changed = await this.pruneDialog.open({
+      kind: 'containers',
+      title: 'Prune stopped containers',
+      noun: 'container',
+      scopes: [
+        { all: false, label: 'Stopped', count: stopped.length, bytes: 0, note: 'All created, exited and dead containers' },
+      ],
+      run: () => this.docker.pruneContainers(),
     });
-    if (!ok) return;
-    this.docker.pruneContainers().subscribe({
-      next: () => { this.notify.success('Stopped containers pruned'); this.load(false); },
-      error: () => this.notify.error('Prune failed'),
-    });
+    if (changed) this.load(false);
   }
 
   formatPorts(ports: any[]): string {
