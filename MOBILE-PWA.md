@@ -1,9 +1,9 @@
 # Mobile / PWA plan
 
-> ## Implementation status (branch `feat/mobile-pwa`)
-> Phases 1–3 are **complete and adversarially reviewed** (each review caught real
-> bugs that were fixed before commit). Phases 4–6 have their **P0 / core items
-> done and reviewed**; a documented P1/P2 long tail remains.
+> ## Implementation status (branch `feat/mobile-pwa`) — ALL PHASES COMPLETE
+> All six phases are **fully implemented and adversarially reviewed** (four review
+> workflows across the work; every pass caught real bugs that were fixed before
+> commit). Build green, 16/16 unit tests pass, backend green.
 >
 > - **Phase 1 — PWA core** ✅ installable (manifest, service worker, icons,
 >   splash), offline shell, offline-safe auth, tree-shaken icons, install/update/
@@ -12,21 +12,23 @@
 >   chart / modal touch fixes.
 > - **Phase 3 — Navigation** ✅ bottom tab bar, back-button drawer handling,
 >   route transitions, safe-area insets, overscroll/tap-highlight.
-> - **Phase 4 — Lists→cards / forms→sheets** ◑ Done: bottom-sheet modals (all),
->   16px inputs (all, defeats iOS zoom), **Containers + Events card layouts**,
->   topology full-screen mobile detail, tap-target sizing. Deferred: card layouts
->   for the other 9 lists (they remain horizontal-scroll — functional), granular
->   `inputmode`/keyboard hints, inline form validation, dashboard-ring fluid sizing.
-> - **Phase 5 — Offline/realtime** ◑ Done: visibility-gated polling (battery/data),
->   offline banner, `wss://` verified, `streamAllStats` reconnect, logout cache
->   clear, optimistic-offline auth. Deferred: pausing the WS stat/log streams while
->   hidden, a live "reconnecting" indicator.
-> - **Phase 6 — Polish** ◑ Done: reduced-motion coverage, `:focus-visible` ring.
->   Deferred: pull-to-refresh, swipe-to-dismiss sheets, full aria-label audit.
+> - **Phase 4 — Lists→cards / forms→sheets** ✅ bottom-sheet modals (all, with
+>   swipe-to-dismiss), 16px inputs, **card layouts for all 11 lists** (Stacks via
+>   CSS reflow), topology full-screen mobile detail, tap-target sizing,
+>   `inputmode`/keyboards, mobile loading skeletons, dashboard small-phone,
+>   iOS folder→zip fallback, required-field inline validation.
+> - **Phase 5 — Offline/realtime** ✅ visibility-gated polling, **WS stat/log
+>   streams pause while backgrounded** + reconnect on foreground/online, offline
+>   banner, `wss://` verified, `streamAllStats` reconnect, logout cache clear,
+>   optimistic-offline auth, connectivity indicator resurfaced on phone.
+> - **Phase 6 — Polish** ✅ pull-to-refresh (Containers + Events), swipe-to-dismiss
+>   sheets, reduced-motion coverage, `:focus-visible` ring, aria labels.
 >
-> Every change is build-verified; the existing unit suite stays green. The
-> outstanding verification is a **real-device / emulator sweep** (the plan's
-> testing section) — not yet run.
+> **The one remaining task is a real-device / emulator sweep** (the testing
+> section) — it needs a running instance and physical iOS/Android hardware, so it
+> cannot be done from here. A few non-blocking code-quality nitpicks from the last
+> review (merge `.ccard`/`.gcard` CSS, `share()` cold sockets, consolidate the two
+> local `matchMedia` fields onto `ResponsiveService`) are noted for a future pass.
 
 
 ## 1. Goal & scope
