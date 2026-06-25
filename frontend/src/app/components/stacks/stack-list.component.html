@@ -99,7 +99,7 @@
             <div class="stack">
 
               <!-- Stack header -->
-              <div class="stack-head" (click)="toggle(stack.name)" (contextmenu)="stackMenu($event, stack)">
+              <div class="stack-head" (click)="toggle(stack.name)" (contextmenu)="stackMenu($event, stack)" (dyLongPress)="stackMenu($event, stack)">
                 <span class="stack-chev" [class.on]="expanded[stack.name]">
                   <dy-icon name="chevron-right" [size]="14"></dy-icon>
                 </span>

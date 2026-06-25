@@ -8,13 +8,14 @@ import { ContextMenuService, ContextMenuItem } from '../../services/context-menu
 import { AuthService } from '../../auth/auth.service';
 import { VolumeSummary } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 import { VolumeExplorerComponent } from './volume-explorer.component';
 import { ExplorerVolume } from './volume-explorer.data';
 
 @Component({
   selector: 'app-volume-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, VolumeExplorerComponent],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective, VolumeExplorerComponent],
   templateUrl: './volume-list.component.html',
 })
 export class VolumeListComponent implements OnInit {

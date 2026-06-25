@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angu
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IconComponent } from '../shared/icon/icon.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 import { ModalComponent } from '../shared/modal/modal.component';
 import { DockerService } from '../../services/docker.service';
 import { NotificationService } from '../../services/notification.service';
@@ -25,7 +26,7 @@ interface TreeRow { entry: VEntry; path: string[]; depth: number; key: string; i
 @Component({
   selector: 'app-volume-explorer',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, ModalComponent],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective, ModalComponent],
   templateUrl: './volume-explorer.component.html',
   styleUrls: ['./volume-explorer.component.scss'],
 })

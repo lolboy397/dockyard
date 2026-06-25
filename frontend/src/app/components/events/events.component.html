@@ -113,7 +113,7 @@
     }
     @for (e of displayed; track e.id) {
       <div class="event-row" [class.muted]="showMuted && isMuted(e)"
-           (contextmenu)="openEventMenu($event, e)">
+           (contextmenu)="openEventMenu($event, e)" (dyLongPress)="openEventMenu($event, e)">
         <span class="event-ts">{{ e.created_at | date:'HH:mm:ss' }}</span>
         <span [class]="'event-rail event-rail-' + eventTone(e)">
           <dy-icon [name]="eventIcon(e)" [size]="12"></dy-icon>

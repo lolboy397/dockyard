@@ -43,7 +43,7 @@
           @if (filtered.length === 0) { <div class="ctable-empty">No volumes found</div> }
           @for (vol of filtered; track vol.Name) {
             <div class="gtable-row" style="grid-template-columns:minmax(0,1.8fr) 70px minmax(0,1.6fr) 70px 90px 32px;cursor:pointer;"
-                 (click)="open(vol)" (contextmenu)="volumeMenu($event, vol)" title="Browse files">
+                 (click)="open(vol)" (contextmenu)="volumeMenu($event, vol)" (dyLongPress)="volumeMenu($event, vol)" title="Browse files">
               <div class="col-name">
                 <dy-icon name="database" [size]="14" color="var(--fg-muted)"></dy-icon>
                 <span class="row-name">{{ vol.Name }}</span>

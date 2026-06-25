@@ -10,11 +10,12 @@ import { ContextMenuService, ContextMenuItem } from '../../services/context-menu
 import { AuthService } from '../../auth/auth.service';
 import { ImageSummary } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 
 @Component({
   selector: 'app-image-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective],
   styleUrls: ['./image-list.component.scss'],
   templateUrl: './image-list.component.html',
 })

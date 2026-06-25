@@ -39,7 +39,7 @@
           @if (filtered.length === 0) { <div class="ctable-empty">No networks found</div> }
           @for (n of filtered; track n.Id) {
             <div class="gtable-row" style="grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) 80px minmax(0,1fr) 90px 60px 32px;"
-                 (contextmenu)="networkMenu($event, n)">
+                 (contextmenu)="networkMenu($event, n)" (dyLongPress)="networkMenu($event, n)">
               <div class="col-name">
                 <span class="row-name">{{ n.Name }}</span>
                 <div style="display:flex;gap:4px;margin-top:2px;">

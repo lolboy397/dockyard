@@ -9,11 +9,12 @@ import { ContextMenuService, ContextMenuItem } from '../../services/context-menu
 import { AuthService } from '../../auth/auth.service';
 import { AppEvent, EventFilter } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 
 @Component({
   selector: 'app-events',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective],
   templateUrl: './events.component.html',
   styleUrls: ['./events.component.scss'],
 })

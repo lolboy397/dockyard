@@ -101,7 +101,7 @@
                  style="grid-template-columns:{{ cols }}"
                  [class.sel]="selectedId === img.Id"
                  (click)="select(img)"
-                 (contextmenu)="imageMenu($event, img)">
+                 (contextmenu)="imageMenu($event, img)" (dyLongPress)="imageMenu($event, img)">
 
               <!-- Checkbox -->
               <span (click)="$event.stopPropagation()">

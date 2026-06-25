@@ -75,7 +75,7 @@
                      *cdkVirtualFor="let c of filtered; trackBy: trackById"
                      [class.sel]="selectedContainer?.Id === c.Id"
                      (click)="select(c)"
-                     (contextmenu)="rowMenu($event, c)">
+                     (contextmenu)="rowMenu($event, c)" (dyLongPress)="rowMenu($event, c)">
                   <div class="col col-check" (click)="$event.stopPropagation()">
                     <input type="checkbox">
                   </div>

@@ -159,7 +159,7 @@
           <!-- search results -->
           @if (q) {
             @for (r of results; track r.path) {
-              <div class="ve-row" [class.sel]="isSelected(pathOf(r))" (click)="rowClick(r)" (contextmenu)="rowMenu($event, r)">
+              <div class="ve-row" [class.sel]="isSelected(pathOf(r))" (click)="rowClick(r)" (contextmenu)="rowMenu($event, r)" (dyLongPress)="rowMenu($event, r)">
                 <span class="ve-name">
                   <dy-icon [name]="r.type === 'dir' ? 'folder' : meta(r).icon" [size]="15" [color]="r.type === 'dir' ? 'var(--brand-300)' : 'var(--fg-muted)'"></dy-icon>
                   <span style="min-width:0">
@@ -193,7 +193,7 @@
               @for (node of entries; track node.name) {
                 <div class="ve-row" [class.sel]="node.type === 'file' && isSelected(childPath(node.name))"
                      (click)="rowClick(node)"
-                     (contextmenu)="rowMenu($event, node)">
+                     (contextmenu)="rowMenu($event, node)" (dyLongPress)="rowMenu($event, node)">
                   <span class="ve-name">
                     <dy-icon [name]="node.type === 'dir' ? 'folder' : meta(node).icon" [size]="15" [color]="node.type === 'dir' ? 'var(--brand-300)' : 'var(--fg-muted)'"></dy-icon>
                     <span style="min-width:0"><span class="ve-fname">{{ node.name }}</span></span>

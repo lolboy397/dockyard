@@ -86,7 +86,7 @@
         </div>
         <div class="bkp-policies">
           @for (p of policies; track p.id) {
-            <div class="bkp-policy" [class.off]="!p.enabled" (contextmenu)="policyMenu($event, p)">
+            <div class="bkp-policy" [class.off]="!p.enabled" (contextmenu)="policyMenu($event, p)" (dyLongPress)="policyMenu($event, p)">
               <div class="bkp-policy-top">
                 <span class="bkp-policy-ic"><dy-icon [name]="p.icon" [size]="15"></dy-icon></span>
                 <span class="bkp-policy-name">{{ p.target }}</span>
@@ -139,7 +139,7 @@
               <span>Backup</span><span>Type</span><span>Size</span><span>Destination</span><span>Started</span><span>Status</span><span></span>
             </div>
             @for (b of rows; track b.id) {
-              <div class="gtable-row" style="grid-template-columns:1.6fr 120px 90px 1.2fr 110px 120px 36px;align-items:center;" (contextmenu)="rowMenu($event, b)">
+              <div class="gtable-row" style="grid-template-columns:1.6fr 120px 90px 1.2fr 110px 120px 36px;align-items:center;" (contextmenu)="rowMenu($event, b)" (dyLongPress)="rowMenu($event, b)">
                 <span class="col-name">
                   <dy-icon name="archive" [size]="14" color="var(--fg-muted)"></dy-icon>
                   <span class="row-name">{{ b.target }}</span>

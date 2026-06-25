@@ -17,6 +17,7 @@ import {
   ProjectPortStatus,
 } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 import { LogViewerComponent } from '../shared/log-viewer/log-viewer.component';
 import { ModalComponent } from '../shared/modal/modal.component';
 
@@ -41,7 +42,7 @@ interface DeleteStepState {
 @Component({
   selector: 'app-projects',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, LogViewerComponent, ModalComponent],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective, LogViewerComponent, ModalComponent],
   changeDetection: ChangeDetectionStrategy.Default,
   templateUrl: './projects.component.html',
   styleUrls: ['./projects.component.scss'],

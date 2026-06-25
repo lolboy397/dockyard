@@ -9,6 +9,7 @@ import { ConfirmDialogService } from '../../services/confirm-dialog.service';
 import { ContextMenuService } from '../../services/context-menu.service';
 import { AuthService } from '../../auth/auth.service';
 import { IconComponent } from '../shared/icon/icon.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 
 interface PolicyTarget { id: string; name: string; icon: string; meta: string; kind: 'volume' | 'app'; }
@@ -16,7 +17,7 @@ interface PolicyTarget { id: string; name: string; icon: string; meta: string; k
 @Component({
   selector: 'app-system-backup',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, StatusDotComponent],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective, StatusDotComponent],
   templateUrl: './system-backup.component.html',
   styleUrls: ['./system-backup.component.scss'],
 })

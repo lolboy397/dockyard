@@ -8,13 +8,14 @@ import { ContextMenuService, ContextMenuItem } from '../../services/context-menu
 import { AuthService } from '../../auth/auth.service';
 import { NetworkResource } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 
 const SYSTEM_NETS = new Set(['bridge', 'host', 'none']);
 
 @Component({
   selector: 'app-network-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective],
   templateUrl: './network-list.component.html',
 })
 export class NetworkListComponent implements OnInit {

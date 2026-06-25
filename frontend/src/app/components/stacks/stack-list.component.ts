@@ -8,12 +8,13 @@ import { ContextMenuService, ContextMenuItem } from '../../services/context-menu
 import { AuthService } from '../../auth/auth.service';
 import { StackSummary, StackDetail } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
+import { LongPressDirective } from '../../directives/long-press.directive';
 import { ModalComponent } from '../shared/modal/modal.component';
 
 @Component({
   selector: 'app-stack-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, ModalComponent],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective, ModalComponent],
   templateUrl: './stack-list.component.html',
 })
 export class StackListComponent implements OnInit {

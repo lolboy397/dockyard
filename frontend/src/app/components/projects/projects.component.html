@@ -43,6 +43,7 @@
           [class.on]="selected?.id === proj.id"
           (click)="selectProject(proj)"
           (contextmenu)="projectMenu($event, proj)"
+          (dyLongPress)="projectMenu($event, proj)"
         >
           <span class="proj-dot proj-dot-{{ proj.status }}"></span>
           <div class="proj-item-main">
