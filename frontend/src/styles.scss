@@ -1865,6 +1865,16 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
   -webkit-overflow-scrolling: touch;
 }
 
+/* Reduced motion: drop the mobile sheet / banner / drawer animations (the route
+   transition is already gated via @.disabled in AppComponent). */
+@media (prefers-reduced-motion: reduce) {
+  .modal, .install-banner, .pwa-banner, .ccard, .ecard { animation: none !important; }
+  .sidebar { transition: none !important; }
+}
+
+/* Keyboard focus ring — mouse focus stays ring-free via :focus-visible. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 @keyframes shellFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 @media (max-width: 820px) {

@@ -341,7 +341,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private loadHostStats(): void {
-    if (!this.auth.authed()) return;
+    if (!this.auth.authed() || document.hidden) return;
     this.docker.getHostStats().subscribe({
       next: s => { this.hostStats = s; },
       error: () => { /* leave last reading; status bar just omits disk */ },

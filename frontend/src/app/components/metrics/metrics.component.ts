@@ -94,6 +94,7 @@ export class MetricsComponent implements OnInit, OnDestroy {
 
   // Poll live host CPU/memory/disk and append to the sliding sparkline windows.
   private loadHost(): void {
+    if (document.hidden) return; // pause the 3s poll while backgrounded (battery/data)
     this.docker.getHostStats().subscribe({
       next: h => {
         const memPct = h.mem_total ? (h.mem_used / h.mem_total) * 100 : 0;

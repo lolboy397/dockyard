@@ -39,23 +39,30 @@ export class DashboardComponent implements OnInit, OnDestroy {
   constructor(private docker: DockerService) {}
 
   ngOnInit(): void {
-    this.clockTimer = setInterval(() => { this.now = new Date(); }, 1000);
+    this.clockTimer = setInterval(() => { if (!document.hidden) this.now = new Date(); }, 1000);
     this.load();
     this.loadMetricHistory();
     this.loadDockerDisk();
-    this.statsTimer = setInterval(() => { this.loadHostStats(); }, 5000);
-    // `docker system df` walks every image/container/volume, so refresh it on a
-    // slower cadence than the 5s host-stats poll.
-    this.dfTimer = setInterval(() => { this.loadDockerDisk(); }, 30000);
+    // Polls skip while the tab is hidden (backgrounded / phone asleep) to save
+    // battery + data, and refresh immediately when it becomes visible again.
+    this.statsTimer = setInterval(() => this.loadHostStats(), 5000);
+    this.dfTimer = setInterval(() => this.loadDockerDisk(), 30000);
+    document.addEventListener('visibilitychange', this.onVisible);
   }
 
   ngOnDestroy(): void {
     if (this.clockTimer) clearInterval(this.clockTimer);
     if (this.statsTimer) clearInterval(this.statsTimer);
     if (this.dfTimer) clearInterval(this.dfTimer);
+    document.removeEventListener('visibilitychange', this.onVisible);
   }
 
+  private onVisible = (): void => {
+    if (!document.hidden) { this.now = new Date(); this.loadHostStats(); this.loadDockerDisk(); }
+  };
+
   private loadDockerDisk(): void {
+    if (document.hidden) return;
     this.docker.getDockerDisk().subscribe({
       next: d => { this.dockerDisk = d; },
       error: () => { /* gauge falls back to host-disk % if unavailable */ },
@@ -81,6 +88,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadHostStats(): void {
+    if (document.hidden) return;
     this.docker.getHostStats().subscribe({
       next: stats => {
         this.hostStats = stats;
