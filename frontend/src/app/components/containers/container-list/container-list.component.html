@@ -52,6 +52,32 @@
               </div>
             }
           </div>
+        } @else if (isMobile) {
+          <!-- Mobile: card list (no virtual scroll — a fixed itemSize can't fit a multi-line card) -->
+          <div class="ccards">
+            @if (filtered.length === 0) {
+              <div class="ctable-empty">No containers found</div>
+            } @else {
+              @for (c of filtered; track c.Id) {
+                <div class="ccard" [class.sel]="selectedContainer?.Id === c.Id"
+                     (click)="select(c)"
+                     (contextmenu)="rowMenu($event, c)" (dyLongPress)="rowMenu($event, c)">
+                  <div class="ccard-top">
+                    <dy-dot [tone]="statusTone(c.State)" [size]="7"></dy-dot>
+                    <span class="ccard-name">{{ c.Names[0]?.replace('/','') }}</span>
+                    <span class="badge" [style.background]="badgeBg(statusTone(c.State))" [style.color]="badgeFg(statusTone(c.State))">{{ c.State }}</span>
+                    <button class="icon-btn sm ghost ccard-act" (click)="ellipsisMenu($event, c); $event.stopPropagation()" title="Actions"><dy-icon name="ellipsis" [size]="16"></dy-icon></button>
+                  </div>
+                  <div class="ccard-img mono">{{ c.Image }}</div>
+                  <div class="ccard-meta mono">
+                    <span><dy-icon name="cpu" [size]="11"></dy-icon> {{ containerCpu(c.Id) }}</span>
+                    <span><dy-icon name="memory-stick" [size]="11"></dy-icon> {{ containerMem(c.Id) }}</span>
+                    <span>{{ timeAgo(c.Created) }}</span>
+                  </div>
+                </div>
+              }
+            }
+          </div>
         } @else {
           <div class="ctable ctable-virtual">
             <div class="ctable-head ctable-cols">

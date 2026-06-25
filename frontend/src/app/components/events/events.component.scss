@@ -310,8 +310,17 @@
   &.on { color: var(--warn-400); border-color: var(--warn-400); background: rgba(245,158,11,0.10); }
 }
 
-/* On phones, scroll the table horizontally instead of collapsing columns */
-@media (max-width: 820px) {
-  .events-list { overflow-x: auto; }
-  .event-row { min-width: 640px; }
+/* Phone: stacked event cards (rendered instead of the row grid ≤820px). */
+.ecard {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 11px 14px; border-bottom: 1px solid var(--border-subtle);
+  &:last-child { border-bottom: 0; }
+  &.muted { opacity: 0.5; }
 }
+.ecard-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ecard-l1 { display: flex; align-items: baseline; gap: 8px; }
+.ecard-kind { font-weight: 600; font-size: 13px; }
+.ecard-ts { font-size: 11px; color: var(--fg-subtle); margin-left: auto; flex: none; }
+.ecard-obj { font-size: 12.5px; color: var(--fg-muted); overflow-wrap: anywhere; }
+.ecard-note { font-size: 12px; color: var(--fg-subtle); overflow-wrap: anywhere; }
+.ecard-by { font-size: 11px; color: var(--fg-subtle); }

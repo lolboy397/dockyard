@@ -112,6 +112,26 @@
       <div class="events-empty">No events yet</div>
     }
     @for (e of displayed; track e.id) {
+      @if (isMobile) {
+        <div class="ecard" [class.muted]="showMuted && isMuted(e)"
+             (contextmenu)="openEventMenu($event, e)" (dyLongPress)="openEventMenu($event, e)">
+          <span [class]="'event-rail event-rail-' + eventTone(e)"><dy-icon [name]="eventIcon(e)" [size]="13"></dy-icon></span>
+          <div class="ecard-main">
+            <div class="ecard-l1">
+              <span class="ecard-kind">{{ formatKind(e.kind) }}</span>
+              <span class="ecard-ts mono">{{ e.created_at | date:'HH:mm:ss' }}</span>
+            </div>
+            <div class="ecard-obj">
+              @if (e.object_name) { <span class="obj-type">{{ e.object_type }}</span> {{ e.object_name }} }
+              @else if (e.container_id) { <span class="obj-type">container</span> {{ e.container_id.slice(0, 12) }} }
+              @else if (e.image) { <span class="obj-type">image</span> {{ e.image }} }
+              @else { <span class="obj-type">{{ e.object_type || '—' }}</span> }
+            </div>
+            @if (e.message) { <div class="ecard-note">{{ e.message }}</div> }
+            <div class="ecard-by mono">{{ e.actor || 'engine' }}@if (showMuted && isMuted(e)) { · <span class="muted-tag">muted</span> }</div>
+          </div>
+        </div>
+      } @else {
       <div class="event-row" [class.muted]="showMuted && isMuted(e)"
            (contextmenu)="openEventMenu($event, e)" (dyLongPress)="openEventMenu($event, e)">
         <span class="event-ts">{{ e.created_at | date:'HH:mm:ss' }}</span>
@@ -145,6 +165,7 @@
           </button>
         }
       </div>
+      }
     }
   </div>
 </div>

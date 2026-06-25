@@ -36,6 +36,12 @@ export class ContainerListComponent implements OnInit, OnDestroy, AfterViewCheck
   readonly skeletonRows = [1, 2, 3, 4, 5, 6];
   private pollSub?: Subscription;
 
+  // Phone/tablet: render lightweight cards instead of the virtual-scroll table
+  // (the fixed itemSize=42 can't represent a multi-line card).
+  isMobile = false;
+  private mqlMobile = matchMedia('(max-width: 820px)');
+  private mqlListener = (e: MediaQueryListEvent): void => { this.isMobile = e.matches; };
+
   // All-container stats (for table columns)
   private allStatsSub?: Subscription;
   private allStatsMap: Map<string, ContainerStatSummary> = new Map();
@@ -208,6 +214,8 @@ export class ContainerListComponent implements OnInit, OnDestroy, AfterViewCheck
   }
 
   ngOnInit(): void {
+    this.isMobile = this.mqlMobile.matches;
+    this.mqlMobile.addEventListener('change', this.mqlListener);
     const cached = this.containerState.snapshot;
     if (this.containerState.hasCache) {
       // Restore previous state instantly — no spinner
@@ -255,6 +263,7 @@ export class ContainerListComponent implements OnInit, OnDestroy, AfterViewCheck
     });
     this.pollSub?.unsubscribe();
     this.allStatsSub?.unsubscribe();
+    this.mqlMobile.removeEventListener('change', this.mqlListener);
     this.stopStreams();
     this.disconnectShell();
   }

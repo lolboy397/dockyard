@@ -1802,6 +1802,31 @@ mark {
   --sh-4: 0 8px 40px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
 }
 
+/* Container cards — phone list layout (rendered instead of the table ≤820px). */
+.ccards {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px;
+}
+.ccard {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--bg-elevated); cursor: pointer;
+}
+.ccard.sel { border-color: var(--accent); }
+.ccard-top { display: flex; align-items: center; gap: 8px; }
+.ccard-name {
+  font-weight: 600; font-size: 14px; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ccard-act { flex: none; margin-left: auto; }
+.ccard-img {
+  font-size: 12px; color: var(--fg-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ccard-meta { display: flex; gap: 14px; font-size: 12px; color: var(--fg-subtle); }
+.ccard-meta span { display: inline-flex; align-items: center; gap: 4px; }
+
 /* =========================================================================
    RESPONSIVE SHELL — desktop layout is untouched; below 820px the sidebar
    becomes an off-canvas drawer toggled by a hamburger in the topbar.

@@ -35,6 +35,11 @@ export class EventsComponent implements OnInit, OnDestroy {
 
   private pollSub?: Subscription;
 
+  // Phone: stacked cards instead of the 7-column row grid.
+  isMobile = false;
+  private mqlMobile = matchMedia('(max-width: 820px)');
+  private mqlListener = (e: MediaQueryListEvent): void => { this.isMobile = e.matches; };
+
   get displayed(): AppEvent[] {
     return this.filtered.slice(0, 200);
   }
@@ -50,12 +55,17 @@ export class EventsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.isMobile = this.mqlMobile.matches;
+    this.mqlMobile.addEventListener('change', this.mqlListener);
     this.loadRules();
     this.load();
     this.startPoll();
   }
 
-  ngOnDestroy(): void { this.pollSub?.unsubscribe(); }
+  ngOnDestroy(): void {
+    this.pollSub?.unsubscribe();
+    this.mqlMobile.removeEventListener('change', this.mqlListener);
+  }
 
   load(): void {
     this.docker.getEventsWithMeta(undefined, this.showMuted).subscribe({
