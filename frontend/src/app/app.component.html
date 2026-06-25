@@ -107,7 +107,7 @@
           <span class="ro-pill" title="You have read-only (viewer) access"><dy-icon name="eye" [size]="12"></dy-icon> read-only</span>
         }
         <div class="notif-wrap">
-          <button class="icon-btn ghost" title="Recent activity" (click)="toggleNotif($event)"><dy-icon name="bell" [size]="14"></dy-icon></button>
+          <button class="icon-btn ghost" title="Recent activity" aria-label="Recent activity" (click)="toggleNotif($event)"><dy-icon name="bell" [size]="14"></dy-icon></button>
           @if (notifOpen) {
             <div class="notif-menu" (click)="$event.stopPropagation()">
               <div class="notif-head">Recent activity</div>
@@ -126,7 +126,7 @@
         </div>
         <div class="divider-v"></div>
         <div class="user-menu-wrap">
-          <button class="avatar-btn" (click)="toggleUserMenu($event)" title="Account">
+          <button class="avatar-btn" (click)="toggleUserMenu($event)" title="Account" aria-label="Account menu">
             <span class="avatar">{{ userInitials }}</span>
           </button>
           @if (userMenuOpen) {

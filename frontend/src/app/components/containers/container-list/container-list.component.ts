@@ -16,11 +16,12 @@ import { ModalComponent } from '../../shared/modal/modal.component';
 import { StatusDotComponent, statusTone } from '../../shared/status-dot/status-dot.component';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { LongPressDirective } from '../../../directives/long-press.directive';
+import { PullToRefreshDirective } from '../../../directives/pull-to-refresh.directive';
 
 @Component({
   selector: 'app-container-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, StatusDotComponent, ModalComponent, ScrollingModule, LongPressDirective],
+  imports: [CommonModule, FormsModule, IconComponent, StatusDotComponent, ModalComponent, ScrollingModule, LongPressDirective, PullToRefreshDirective],
   templateUrl: './container-list.component.html',
 })
 export class ContainerListComponent implements OnInit, OnDestroy, AfterViewChecked {

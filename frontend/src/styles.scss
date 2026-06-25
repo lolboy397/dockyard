@@ -1584,6 +1584,9 @@ input[type=checkbox] {
     border-radius: 2px; background: var(--border-strong, var(--border));
   }
   .modal-foot, .amodal-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  /* Swipe-to-dismiss: capture the drag on the head; snap back when released. */
+  .modal-head { touch-action: none; }
+  .modal:not(.modal-dragging) { transition: transform 0.22s var(--ease-out); }
 }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 

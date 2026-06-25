@@ -107,7 +107,7 @@
     }
   </div>
 
-  <div class="events-list">
+  <div class="events-list" dyPullToRefresh (dyPullToRefresh)="load()">
     @if (displayed.length === 0) {
       <div class="events-empty">No events yet</div>
     }

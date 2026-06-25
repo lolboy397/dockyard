@@ -54,7 +54,7 @@
           </div>
         } @else if (isMobile) {
           <!-- Mobile: card list (no virtual scroll — a fixed itemSize can't fit a multi-line card) -->
-          <div class="ccards">
+          <div class="ccards" dyPullToRefresh (dyPullToRefresh)="load(false)">
             @if (loading) {
               @for (i of skeletonRows; track i) {
                 <div class="gcard" style="pointer-events:none;">

@@ -10,11 +10,12 @@ import { AuthService } from '../../auth/auth.service';
 import { AppEvent, EventFilter } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
+import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directive';
 
 @Component({
   selector: 'app-events',
   standalone: true,
-  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective],
+  imports: [CommonModule, FormsModule, IconComponent, LongPressDirective, PullToRefreshDirective],
   templateUrl: './events.component.html',
   styleUrls: ['./events.component.scss'],
 })

@@ -1,10 +1,16 @@
     <div class="modal-backdrop" (click)="onBackdrop($event)">
       <div class="modal"
            [class.modal-sm]="size === 'sm'"
-           [class.modal-lg]="size === 'lg'">
+           [class.modal-lg]="size === 'lg'"
+           [class.modal-dragging]="dragging"
+           [style.transform]="dragY ? 'translateY(' + dragY + 'px)' : null">
 
-        <!-- Header -->
-        <div class="modal-head">
+        <!-- Header (drag handle for swipe-to-dismiss on the phone sheet) -->
+        <div class="modal-head"
+             (touchstart)="onHeadTouchStart($event)"
+             (touchmove)="onHeadTouchMove($event)"
+             (touchend)="onHeadTouchEnd()"
+             (touchcancel)="onHeadTouchEnd()">
           <div class="modal-head-text">
             @if (eyebrow) {
               <div class="eyebrow" style="margin-bottom:5px;">{{ eyebrow }}</div>
