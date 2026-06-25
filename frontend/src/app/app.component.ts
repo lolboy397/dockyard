@@ -322,6 +322,9 @@ export class AppComponent implements OnInit, OnDestroy {
       .subscribe(() => this.refreshCounts());
     // Refresh the status-bar disk readout periodically (capacity moves slowly).
     this.statsPoll = setInterval(() => this.loadHostStats(), 60000);
+    // Refetch on foreground so the readout isn't up to 60s stale, and so the
+    // eager one-shot recovers if the app booted while hidden.
+    document.addEventListener('visibilitychange', this.onVisibleStats);
     this.routeKey = this.router.url; // seed so the very first route doesn't fade in
     this.activeSection = this.sectionFromUrl(this.router.url);
     this.routeSub = this.router.events.pipe(
@@ -338,7 +341,10 @@ export class AppComponent implements OnInit, OnDestroy {
     this.countPoll?.unsubscribe();
     this.routeSub?.unsubscribe();
     if (this.statsPoll) clearInterval(this.statsPoll);
+    document.removeEventListener('visibilitychange', this.onVisibleStats);
   }
+
+  private onVisibleStats = (): void => { if (!document.hidden) this.loadHostStats(); };
 
   private loadHostStats(): void {
     if (!this.auth.authed() || document.hidden) return;

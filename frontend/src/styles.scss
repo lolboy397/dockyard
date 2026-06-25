@@ -589,9 +589,9 @@ app-projects {
 .input-full { width: 100%; }
 
 /* iOS zooms the page when focusing an input whose font-size < 16px. Bump every
-   text control to 16px on phones/tablets to keep forms steady (visual size is
-   barely affected; this only sets the minimum that defeats the auto-zoom). */
-@media (max-width: 820px) {
+   text control to 16px on touch phones/tablets (pointer:coarse so narrow desktop
+   windows don't get a jarring 13→16px jump). */
+@media (max-width: 820px) and (pointer: coarse) {
   .input, .input-sm, .input-lg, .text-input, .search-input,
   .rule-input, .commit-input, .palette-search input, .input-wrap input,
   input[type="text"], input[type="password"], input[type="email"],
@@ -1570,14 +1570,17 @@ input[type=checkbox] {
 @media (max-width: 820px) {
   .modal-backdrop, .amodal-backdrop { align-items: flex-end; }
   .modal, .modal-sm, .modal-lg, .amodal {
+    position: relative;
     width: 100%; max-width: 100%;
     max-height: 92vh; max-height: 92dvh;
     border-radius: var(--r-lg) var(--r-lg) 0 0;
     animation: sheet-up 220ms var(--ease-out);
   }
+  /* Drag-handle pill — absolutely placed so it doesn't consume the flex column's
+     height (the modal-head's top padding leaves room for it). */
   .modal::before {
-    content: ""; flex: none;
-    width: 36px; height: 4px; margin: 8px auto 2px;
+    content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 36px; height: 4px; z-index: 1;
     border-radius: 2px; background: var(--border-strong, var(--border));
   }
   .modal-foot, .amodal-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
@@ -1868,7 +1871,7 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
 /* Reduced motion: drop the mobile sheet / banner / drawer animations (the route
    transition is already gated via @.disabled in AppComponent). */
 @media (prefers-reduced-motion: reduce) {
-  .modal, .install-banner, .pwa-banner, .ccard, .ecard { animation: none !important; }
+  .modal, .amodal, .install-banner, .pwa-banner, .ccard, .ecard { animation: none !important; }
   .sidebar { transition: none !important; }
 }
 
@@ -1908,7 +1911,7 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
      these scrollers are overflow:hidden, so .page-body padding can't propagate —
      each needs its own bottom padding. */
   .page-body { padding-bottom: var(--bottom-tabs-h); }
-  .ctable-vp, .ve-overview, .ve-tree, .ve-list { padding-bottom: var(--bottom-tabs-h); }
+  .ctable-vp, .ve-overview, .ve-tree, .ve-list, .ccards { padding-bottom: var(--bottom-tabs-h); }
   .toast-container { bottom: calc(var(--bottom-tabs-h) + 12px); }
   .pwa-banner { bottom: calc(var(--bottom-tabs-h) + 14px); }
 

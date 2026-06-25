@@ -58,7 +58,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private onVisible = (): void => {
-    if (!document.hidden) { this.now = new Date(); this.loadHostStats(); this.loadDockerDisk(); }
+    if (!document.hidden) { this.now = new Date(); this.load(); this.loadHostStats(); this.loadDockerDisk(); }
   };
 
   private loadDockerDisk(): void {

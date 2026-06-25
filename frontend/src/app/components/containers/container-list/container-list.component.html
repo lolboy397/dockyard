@@ -66,12 +66,13 @@
                     <dy-dot [tone]="statusTone(c.State)" [size]="7"></dy-dot>
                     <span class="ccard-name">{{ c.Names[0]?.replace('/','') }}</span>
                     <span class="badge" [style.background]="badgeBg(statusTone(c.State))" [style.color]="badgeFg(statusTone(c.State))">{{ c.State }}</span>
-                    <button class="icon-btn sm ghost ccard-act" (click)="ellipsisMenu($event, c); $event.stopPropagation()" title="Actions"><dy-icon name="ellipsis" [size]="16"></dy-icon></button>
+                    <button class="icon-btn sm ghost ccard-act" (click)="$event.stopPropagation(); ellipsisMenu($event, c)" title="Actions"><dy-icon name="ellipsis" [size]="16"></dy-icon></button>
                   </div>
                   <div class="ccard-img mono">{{ c.Image }}</div>
                   <div class="ccard-meta mono">
                     <span><dy-icon name="cpu" [size]="11"></dy-icon> {{ containerCpu(c.Id) }}</span>
                     <span><dy-icon name="memory-stick" [size]="11"></dy-icon> {{ containerMem(c.Id) }}</span>
+                    @if (formatPorts(c.Ports) !== '—') { <span><dy-icon name="plug" [size]="11"></dy-icon> {{ formatPorts(c.Ports) }}</span> }
                     <span>{{ timeAgo(c.Created) }}</span>
                   </div>
                 </div>

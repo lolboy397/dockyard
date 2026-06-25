@@ -74,7 +74,11 @@ export class MetricsComponent implements OnInit, OnDestroy {
     document.addEventListener('visibilitychange', this.onVisible);
   }
 
-  private onVisible = (): void => { if (!document.hidden) this.loadHost(); };
+  private onVisible = (): void => {
+    if (document.hidden) return;
+    this.prevNetTime = 0; // avoid a huge net-rate spike from the backgrounded gap
+    this.loadHost();
+  };
 
   ngOnDestroy(): void {
     this.statsSub?.unsubscribe();
@@ -116,6 +120,7 @@ export class MetricsComponent implements OnInit, OnDestroy {
   }
 
   private onStats(stats: ContainerStatSummary[]): void {
+    if (document.hidden) return; // don't churn histories/net-rates while backgrounded
     this.topContainers = [...stats].sort((a, b) => b.cpu - a.cpu).slice(0, 8);
 
     // Per-container CPU history for the line chart.

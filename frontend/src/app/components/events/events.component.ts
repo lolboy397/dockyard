@@ -117,8 +117,8 @@ export class EventsComponent implements OnInit, OnDestroy {
     const s = this.q.toLowerCase();
     this.filtered = s
       ? base.filter(e =>
-          e.message.toLowerCase().includes(s) ||
-          e.kind.toLowerCase().includes(s) ||
+          (e.message || '').toLowerCase().includes(s) ||
+          (e.kind || '').toLowerCase().includes(s) ||
           (e.object_name || '').toLowerCase().includes(s) ||
           (e.image || '').toLowerCase().includes(s))
       : [...base];
