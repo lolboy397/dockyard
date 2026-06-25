@@ -1,5 +1,5 @@
 import {
-  Component, Input, ElementRef, ViewChild, HostListener,
+  Component, Input, ElementRef, ViewChild, HostListener, OnDestroy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IconComponent } from '../icon/icon.component';
@@ -65,7 +65,7 @@ import { ContextMenuService, ContextMenuItem } from '../../../services/context-m
     </div>
   `,
 })
-export class MenuListComponent {
+export class MenuListComponent implements OnDestroy {
   @Input() items: ContextMenuItem[] = [];
   @Input() depth = 0;
 
@@ -102,12 +102,20 @@ export class MenuListComponent {
     e.stopPropagation();
     // Submenu parents open on tap/click — hover-to-open isn't available on touch.
     if (it.items && !it.disabled) {
+      this.clearCloseTimer(); // a click-opened submenu must not be closed by a stray hoverLeave timer
       const idx = this.items.indexOf(it);
       if (this.openSub === idx) { this.openSub = -1; }
       else { this.active = idx; this.positionSub(idx); }
       return;
     }
     this.run(it);
+  }
+
+  ngOnDestroy(): void {
+    // The hover-close timer can outlive the view (the host @if destroys us);
+    // clear it so it doesn't write to a torn-down component.
+    this.clearCloseTimer();
+    this.subPos = null;
   }
 
   private positionSub(idx: number): void {

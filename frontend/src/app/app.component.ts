@@ -52,10 +52,13 @@ interface NavCounts {
   animations: [
     // Subtle enter slide-fade between routes. `* => *` excludes the initial
     // void state, so the first paint doesn't animate.
+    // Opacity-only (no transform): a non-identity transform on .page-body would
+    // make it the containing block for its position:fixed descendants (modals,
+    // full-screen detail overlays), mis-pinning them mid-transition.
     trigger('routeFade', [
       transition('* => *', [
-        style({ opacity: 0, transform: 'translateY(8px)' }),
-        animate('180ms ease', style({ opacity: 1, transform: 'none' })),
+        style({ opacity: 0 }),
+        animate('160ms ease', style({ opacity: 1 })),
       ]),
     ]),
   ],
@@ -181,28 +184,37 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.sidebarOpen) this.closeSidebar(); else this.openSidebar();
   }
 
+  private historyEntryPushed = false;
+
   openSidebar(): void {
     if (this.sidebarOpen) return;
     this.sidebarOpen = true;
-    // Push a history entry so the hardware/browser back button (and iOS edge
-    // swipe) closes the drawer instead of navigating away.
-    history.pushState({ dyOverlay: 'drawer' }, '');
+    // Only the mobile drawer needs a back-button entry (the desktop sidebar is
+    // always visible). Guard on width, and don't stack entries on rapid re-open.
+    if (window.innerWidth <= 820 && !this.historyEntryPushed) {
+      history.pushState({ dyOverlay: 'drawer' }, '');
+      this.historyEntryPushed = true;
+    }
   }
 
-  // consumeHistory=true pops our pushed entry (explicit close: backdrop / toggle /
-  // Esc). On a popstate the entry is already gone; on a route change we leave the
-  // now-buried entry (same URL as the current page, so it's harmless).
-  closeSidebar(consumeHistory = true): void {
+  // fromPop=true → the history entry is already gone (a real back / route change),
+  // so just close. fromPop=false (explicit close: backdrop / Esc / toggle) pops
+  // our own pushed entry to keep history clean.
+  closeSidebar(fromPop = false): void {
     if (!this.sidebarOpen) return;
     this.sidebarOpen = false;
-    if (consumeHistory && (history.state as { dyOverlay?: string } | null)?.dyOverlay === 'drawer') {
-      history.back();
+    if (this.historyEntryPushed) {
+      this.historyEntryPushed = false;
+      if (!fromPop && (history.state as { dyOverlay?: string } | null)?.dyOverlay === 'drawer') {
+        history.back();
+      }
     }
   }
 
   @HostListener('window:popstate')
   onPopState(): void {
-    if (this.sidebarOpen) this.closeSidebar(false);
+    if (this.sidebarOpen) this.closeSidebar(true);
+    else this.historyEntryPushed = false;
   }
 
   @HostListener('document:click')
@@ -310,13 +322,14 @@ export class AppComponent implements OnInit, OnDestroy {
       .subscribe(() => this.refreshCounts());
     // Refresh the status-bar disk readout periodically (capacity moves slowly).
     this.statsPoll = setInterval(() => this.loadHostStats(), 60000);
+    this.routeKey = this.router.url; // seed so the very first route doesn't fade in
     this.activeSection = this.sectionFromUrl(this.router.url);
     this.routeSub = this.router.events.pipe(
       filter(e => e instanceof NavigationEnd)
     ).subscribe(e => {
       this.routeKey = (e as NavigationEnd).urlAfterRedirects || (e as NavigationEnd).url;
       this.activeSection = this.sectionFromUrl(this.routeKey);
-      this.closeSidebar(false); // dismiss the mobile drawer after navigating (leave the buried history entry)
+      this.closeSidebar(true); // dismiss the mobile drawer after navigating (the nav entry buried ours)
     });
   }
 

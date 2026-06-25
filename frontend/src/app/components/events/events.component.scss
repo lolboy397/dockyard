@@ -25,6 +25,11 @@
   font-size: 12.5px;
 }
 
+/* Keep the list above the phone bottom tab bar. */
+@media (max-width: 820px) {
+  .events-list { max-height: calc(100dvh - 200px - var(--bottom-tabs-h)); }
+}
+
 .events-empty {
   padding: 40px;
   text-align: center;

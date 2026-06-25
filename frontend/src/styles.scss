@@ -131,6 +131,7 @@
   --sidebar-w:    248px;
   --topbar-h:      48px;
   --statusbar-h:   28px;
+  --bottom-tabs-h: calc(54px + env(safe-area-inset-bottom)); /* phone bottom tab bar */
 }
 
 /* =========================================================================
@@ -586,6 +587,18 @@ app-projects {
 .input-sm { height: 26px; font-size: 12px; }
 .input-lg { height: 36px; font-size: 14px; padding: 0 12px; }
 .input-full { width: 100%; }
+
+/* iOS zooms the page when focusing an input whose font-size < 16px. Bump every
+   text control to 16px on phones/tablets to keep forms steady (visual size is
+   barely affected; this only sets the minimum that defeats the auto-zoom). */
+@media (max-width: 820px) {
+  .input, .input-sm, .input-lg, .text-input, .search-input,
+  .rule-input, .commit-input, .palette-search input, .input-wrap input,
+  input[type="text"], input[type="password"], input[type="email"],
+  input[type="url"], input[type="number"], input[type="search"], textarea, select {
+    font-size: 16px;
+  }
+}
 
 textarea.input { height: auto; padding: 8px 10px; resize: vertical; }
 
@@ -1551,6 +1564,26 @@ input[type=checkbox] {
 }
 .modal-sm { width: 360px; }
 .modal-lg { width: 600px; }
+
+/* Phones/tablets: modals dock to the bottom as slide-up sheets (full-width,
+   rounded top, drag-handle pill, foot clears the home indicator). */
+@media (max-width: 820px) {
+  .modal-backdrop, .amodal-backdrop { align-items: flex-end; }
+  .modal, .modal-sm, .modal-lg, .amodal {
+    width: 100%; max-width: 100%;
+    max-height: 92vh; max-height: 92dvh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    animation: sheet-up 220ms var(--ease-out);
+  }
+  .modal::before {
+    content: ""; flex: none;
+    width: 36px; height: 4px; margin: 8px auto 2px;
+    border-radius: 2px; background: var(--border-strong, var(--border));
+  }
+  .modal-foot, .amodal-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+}
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+
 .modal-head {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 12px; padding: 16px 18px 14px;
@@ -1800,7 +1833,8 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
   -webkit-tap-highlight-color: transparent;
 }
 .btn, .icon-btn, .icon-btn-sm, .nav-item, .nav-toggle, .bt-tab { touch-action: manipulation; }
-html, body { overscroll-behavior: none; }
+/* Only suppress the bounce on touch devices — desktop keeps its rubber-band. */
+@media (pointer: coarse) { html, body { overscroll-behavior: none; } }
 .page-body, .sidebar-nav, .logs-stream, .detail, .ctable-vp {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -1819,14 +1853,19 @@ html, body { overscroll-behavior: none; }
   .statusbar { display: none; }
   .bottom-tabs {
     display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
-    height: calc(54px + env(safe-area-inset-bottom));
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 100; /* below overlays (detail 150 / modal 200) so they cover it */
+    height: var(--bottom-tabs-h);
     padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     background: var(--bg-elevated);
     border-top: 1px solid var(--border);
   }
-  /* Keep the last of the page content clear of the fixed tab bar. */
-  .page-body { padding-bottom: calc(54px + env(safe-area-inset-bottom)); }
+  /* Keep page content / inner scrollers clear of the fixed tab bar. The hosts of
+     these scrollers are overflow:hidden, so .page-body padding can't propagate —
+     each needs its own bottom padding. */
+  .page-body { padding-bottom: var(--bottom-tabs-h); }
+  .ctable-vp, .ve-overview, .ve-tree, .ve-list { padding-bottom: var(--bottom-tabs-h); }
+  .toast-container { bottom: calc(var(--bottom-tabs-h) + 12px); }
+  .pwa-banner { bottom: calc(var(--bottom-tabs-h) + 14px); }
 
   .sidebar {
     position: fixed; top: 0; left: 0; bottom: 0;
@@ -1847,7 +1886,7 @@ html, body { overscroll-behavior: none; }
 
   .nav-toggle { display: none; } /* the bottom "More" tab opens the drawer on phone */
   .palette-trigger { display: none; }   /* sidebar search + ⌘K still available */
-  .topbar { padding: 0 8px; gap: 10px; }
+  .topbar { padding: env(safe-area-inset-top) calc(8px + env(safe-area-inset-right)) 0 calc(8px + env(safe-area-inset-left)); gap: 10px; }
 
   /* Page header / toolbar: allow wrapping instead of squashing */
   .content-head { flex-wrap: wrap; padding: 14px 16px 8px; }

@@ -23,6 +23,7 @@ import { MenuListComponent } from './menu-list.component';
     @if (svc.menu(); as m) {
       <div
         class="cm-layer"
+        [style.pointerEvents]="ready ? null : 'none'"
         (mousedown)="svc.close()"
         (touchstart)="svc.close()"
         (contextmenu)="onLayerContext($event)"

@@ -23,7 +23,7 @@
               <svg [attr.viewBox]="'0 0 200 60'" preserveAspectRatio="none"
                    style="width:100%;height:60px;overflow:visible;cursor:crosshair;touch-action:pan-y;"
                    (mousemove)="onSparkMove($event, i, m)" (mouseleave)="onSparkLeave()"
-                   (touchstart)="onSparkTouch($event, i, m)" (touchmove)="onSparkTouch($event, i, m)" (touchend)="onSparkLeave()">
+                   (touchstart)="onSparkTouch($event, i, m)" (touchmove)="onSparkTouch($event, i, m)" (touchend)="onSparkLeave()" (touchcancel)="onSparkLeave()">
                 <defs>
                   <linearGradient [id]="'sg-' + i" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" [attr.stop-color]="m.color" stop-opacity="0.28"/>
@@ -60,7 +60,7 @@
                  style="width:100%;height:140px;display:block;cursor:crosshair;touch-action:pan-y;"
                  (mousemove)="onCpuMove($event)"
                  (mouseleave)="onCpuLeave()"
-                 (touchstart)="onCpuTouch($event)" (touchmove)="onCpuTouch($event)" (touchend)="onCpuLeave()">
+                 (touchstart)="onCpuTouch($event)" (touchmove)="onCpuTouch($event)" (touchend)="onCpuLeave()" (touchcancel)="onCpuLeave()">
               @for (c of topContainers.slice(0,4); track c.id) {
                 <path [attr.d]="cpuChartPath(c.id)" fill="none" [attr.stroke]="containerColor(c.id)"
                       stroke-width="1.5" style="transition:d 0.8s cubic-bezier(0.4,0,0.2,1)"/>

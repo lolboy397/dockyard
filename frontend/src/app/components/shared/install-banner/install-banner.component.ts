@@ -50,6 +50,10 @@ const DISMISS_KEY = 'dy_install_dismissed';
       box-shadow: 0 16px 48px rgba(0,0,0,0.45);
       animation: ib-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
     }
+    /* Clear the phone bottom tab bar (≤820px) so the banner doesn't overlap it. */
+    @media (max-width: 820px) {
+      .install-banner { bottom: calc(var(--bottom-tabs-h) + 12px); }
+    }
     @keyframes ib-in { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
     .ib-icon {
       flex: none; display: grid; place-items: center;
