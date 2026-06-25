@@ -1882,6 +1882,7 @@ mark {
 
 /* Bottom tab bar — hidden on desktop, shown as primary nav on phones (≤820px). */
 .bottom-tabs { display: none; }
+.topbar-engine { display: none; } /* connectivity dot — surfaced in the phone topbar (status bar is hidden there) */
 .bt-tab {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   border: 0; background: transparent; color: var(--fg-subtle);
@@ -1935,6 +1936,7 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
 
   /* Bottom tab bar replaces the desktop status bar as primary navigation. */
   .statusbar { display: none; }
+  .topbar-engine { display: inline-flex; margin-right: 2px; }
   .bottom-tabs {
     display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 100; /* below overlays (detail 150 / modal 200) so they cover it */

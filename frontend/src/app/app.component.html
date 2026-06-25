@@ -89,6 +89,8 @@
         <dy-icon name="menu" [size]="18"></dy-icon>
       </button>
       <div class="crumbs">
+        <dy-dot class="topbar-engine" [tone]="network.isOnline() ? (engineStatus === 'running' ? 'running' : 'idle') : 'danger'" [size]="6"
+                [title]="network.isOnline() ? 'engine ' + engineStatus : 'offline'"></dy-dot>
         <span class="crumb" [class.on]="!activeSection">Dockyard</span>
         @if (activeSection) {
           <span class="crumb-sep">/</span>

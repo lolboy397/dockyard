@@ -91,6 +91,7 @@ export class WebSocketService {
     };
 
     const open = () => {
+      if (closed || document.hidden) return; // pause the log firehose while backgrounded
       ws = new WebSocket(this.withToken(`${this.wsBase}/ws/logs/multi`));
       ws.onopen = () => {
         attempt = 0;
@@ -101,12 +102,26 @@ export class WebSocketService {
       };
       ws.onerror = () => { /* close handler reconnects */ };
       ws.onclose = () => {
-        if (closed) return;
+        if (closed || document.hidden) return; // paused — onVisible reopens + re-subscribes
         attempt++;
-        timer = setTimeout(() => { if (!closed) open(); }, Math.min(1000 * 2 ** attempt, 15000));
+        timer = setTimeout(() => { if (!closed && !document.hidden) open(); }, Math.min(1000 * 2 ** attempt, 15000));
       };
     };
+
+    const onVisible = () => {
+      if (closed) return;
+      if (document.hidden) {
+        if (timer) { clearTimeout(timer); timer = undefined; }
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close();
+      } else if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        attempt = 0;
+        open(); // onopen re-subscribes the active set
+      }
+    };
+
     open();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
 
     return {
       frames$: frames$.asObservable(),
@@ -114,6 +129,8 @@ export class WebSocketService {
       unsubscribe: (id: string) => { active.delete(id); send({ action: 'unsubscribe', id }); },
       close: () => {
         closed = true;
+        document.removeEventListener('visibilitychange', onVisible);
+        window.removeEventListener('online', onVisible);
         if (timer) clearTimeout(timer);
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close();
         frames$.complete();
@@ -202,69 +219,64 @@ export class WebSocketService {
   }
 
   /** Streams aggregated stats for ALL running containers, emitting
-   *  ContainerStatSummary[] every ~3s. Reconnects with capped exponential
-   *  backoff — a dropped socket (engine blip, phone sleep, network change) must
-   *  recover, otherwise containers/metrics/topology silently stop updating. */
+   *  ContainerStatSummary[] every ~3s. */
   streamAllStats(): Observable<ContainerStatSummary[]> {
-    return new Observable<ContainerStatSummary[]>(observer => {
-      let closed = false;
-      let attempt = 0;
-      let ws: WebSocket;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-
-      const open = () => {
-        ws = new WebSocket(this.withToken(`${this.wsBase}/ws/allstats`));
-        ws.onmessage = (event) => {
-          try { observer.next(JSON.parse(event.data)); } catch { /* ignore */ }
-        };
-        ws.onerror = () => { /* the close handler schedules the reconnect */ };
-        ws.onopen = () => { attempt = 0; };
-        ws.onclose = () => {
-          if (closed) return;
-          attempt++;
-          const delay = Math.min(1000 * 2 ** attempt, 15000);
-          timer = setTimeout(() => { if (!closed) open(); }, delay);
-        };
-      };
-      open();
-
-      return () => {
-        closed = true;
-        if (timer) clearTimeout(timer);
-        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-          ws.close();
-        }
-      };
-    });
+    return this.reconnectingSocket(`${this.wsBase}/ws/allstats`, (raw) => JSON.parse(raw) as ContainerStatSummary[]);
   }
 
   // Shared connector for the followed streams (logs/stats/events). Reconnects
   // with capped exponential backoff so a transient drop (engine blip, laptop
   // sleep) recovers instead of freezing the panel forever. Stops on unsubscribe.
   private connect(url: string): Observable<string> {
-    return new Observable<string>(observer => {
+    return this.reconnectingSocket(url, (raw) => raw);
+  }
+
+  /**
+   * A WebSocket that reconnects with capped exponential backoff AND pauses while
+   * the tab is hidden — it closes the socket when the page is backgrounded (phone
+   * locked / app switched) to save battery + data, and reopens on foreground.
+   */
+  private reconnectingSocket<T>(url: string, parse: (raw: string) => T): Observable<T> {
+    return new Observable<T>(observer => {
       let closed = false;
       let attempt = 0;
-      let ws: WebSocket;
+      let ws: WebSocket | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
+      const clearTimer = () => { if (timer) { clearTimeout(timer); timer = undefined; } };
 
       const open = () => {
+        if (closed || document.hidden) return; // don't connect while backgrounded
         ws = new WebSocket(this.withToken(url));
-        ws.onmessage = (event) => observer.next(event.data);
+        ws.onmessage = (event) => { try { observer.next(parse(event.data)); } catch { /* ignore */ } };
         ws.onerror = () => { /* the close handler schedules the reconnect */ };
         ws.onopen = () => { attempt = 0; };
         ws.onclose = () => {
-          if (closed) return;
+          if (closed || document.hidden) return; // paused — onVisible reopens
           attempt++;
-          const delay = Math.min(1000 * 2 ** attempt, 15000);
-          timer = setTimeout(() => { if (!closed) open(); }, delay);
+          timer = setTimeout(() => { if (!closed && !document.hidden) open(); }, Math.min(1000 * 2 ** attempt, 15000));
         };
       };
+
+      const onVisible = () => {
+        if (closed) return;
+        if (document.hidden) {
+          clearTimer();
+          if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close();
+        } else if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          attempt = 0;
+          open();
+        }
+      };
+
       open();
+      document.addEventListener('visibilitychange', onVisible);
+      window.addEventListener('online', onVisible); // reconnect immediately when the network returns
 
       return () => {
         closed = true;
-        if (timer) clearTimeout(timer);
+        document.removeEventListener('visibilitychange', onVisible);
+        window.removeEventListener('online', onVisible);
+        clearTimer();
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
           ws.close();
         }
