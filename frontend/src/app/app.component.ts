@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy, HostListener, effect } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, HostBinding, effect } from '@angular/core';
+import { trigger, transition, style, animate } from '@angular/animations';
 import { CommonModule } from '@angular/common';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { Subscription, forkJoin } from 'rxjs';
@@ -48,8 +49,23 @@ interface NavCounts {
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
+  animations: [
+    // Subtle enter slide-fade between routes. `* => *` excludes the initial
+    // void state, so the first paint doesn't animate.
+    trigger('routeFade', [
+      transition('* => *', [
+        style({ opacity: 0, transform: 'translateY(8px)' }),
+        animate('180ms ease', style({ opacity: 1, transform: 'none' })),
+      ]),
+    ]),
+  ],
 })
 export class AppComponent implements OnInit, OnDestroy {
+  // Honour reduced-motion: disables the route transition (and any Angular
+  // animation on this view) without affecting CSS.
+  @HostBinding('@.disabled') reducedMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  routeKey = '';
   dockerVersion = '';
   engineStatus: 'running' | 'idle' = 'idle';
   paletteOpen = false;
@@ -156,11 +172,38 @@ export class AppComponent implements OnInit, OnDestroy {
       this.paletteOpen = false;
       this.userMenuOpen = false;
       this.notifOpen = false;
-      this.sidebarOpen = false;
+      this.closeSidebar();
     }
   }
 
-  toggleSidebar(e: Event): void { e.stopPropagation(); this.sidebarOpen = !this.sidebarOpen; }
+  toggleSidebar(e: Event): void {
+    e.stopPropagation();
+    if (this.sidebarOpen) this.closeSidebar(); else this.openSidebar();
+  }
+
+  openSidebar(): void {
+    if (this.sidebarOpen) return;
+    this.sidebarOpen = true;
+    // Push a history entry so the hardware/browser back button (and iOS edge
+    // swipe) closes the drawer instead of navigating away.
+    history.pushState({ dyOverlay: 'drawer' }, '');
+  }
+
+  // consumeHistory=true pops our pushed entry (explicit close: backdrop / toggle /
+  // Esc). On a popstate the entry is already gone; on a route change we leave the
+  // now-buried entry (same URL as the current page, so it's harmless).
+  closeSidebar(consumeHistory = true): void {
+    if (!this.sidebarOpen) return;
+    this.sidebarOpen = false;
+    if (consumeHistory && (history.state as { dyOverlay?: string } | null)?.dyOverlay === 'drawer') {
+      history.back();
+    }
+  }
+
+  @HostListener('window:popstate')
+  onPopState(): void {
+    if (this.sidebarOpen) this.closeSidebar(false);
+  }
 
   @HostListener('document:click')
   closeMenus(): void { this.userMenuOpen = false; this.notifOpen = false; }
@@ -271,8 +314,9 @@ export class AppComponent implements OnInit, OnDestroy {
     this.routeSub = this.router.events.pipe(
       filter(e => e instanceof NavigationEnd)
     ).subscribe(e => {
-      this.activeSection = this.sectionFromUrl((e as NavigationEnd).urlAfterRedirects || (e as NavigationEnd).url);
-      this.sidebarOpen = false; // dismiss the mobile drawer after navigating
+      this.routeKey = (e as NavigationEnd).urlAfterRedirects || (e as NavigationEnd).url;
+      this.activeSection = this.sectionFromUrl(this.routeKey);
+      this.closeSidebar(false); // dismiss the mobile drawer after navigating (leave the buried history entry)
     });
   }
 

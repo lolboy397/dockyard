@@ -4,7 +4,7 @@
 } @else if (auth.authed()) {
 <div class="app" [class.sidebar-open]="sidebarOpen">
   <!-- Mobile drawer backdrop -->
-  <div class="sidebar-backdrop" (click)="sidebarOpen=false"></div>
+  <div class="sidebar-backdrop" (click)="closeSidebar()"></div>
 
   <!-- ── Sidebar ─────────────────────────────────────────── -->
   <aside class="sidebar">
@@ -145,7 +145,7 @@
     </header>
 
     <!-- Page content -->
-    <div class="page-body">
+    <div class="page-body" [@routeFade]="routeKey">
       <router-outlet></router-outlet>
     </div>
   </div>
@@ -178,6 +178,15 @@
       <span class="status-item">{{ auth.status()?.app_version ? 'v' + auth.status()?.app_version : '' }}</span>
     </div>
   </footer>
+
+  <!-- ── Bottom tab bar — phone primary navigation (≤820px) ── -->
+  <nav class="bottom-tabs" aria-label="Primary">
+    <a class="bt-tab" routerLink="/dashboard" routerLinkActive="on"><dy-icon name="layout-dashboard" [size]="20"></dy-icon><span>Home</span></a>
+    <a class="bt-tab" routerLink="/containers" routerLinkActive="on"><dy-icon name="box" [size]="20"></dy-icon><span>Containers</span></a>
+    <a class="bt-tab" routerLink="/logs" routerLinkActive="on"><dy-icon name="scroll-text" [size]="20"></dy-icon><span>Logs</span></a>
+    <a class="bt-tab" routerLink="/metrics" routerLinkActive="on"><dy-icon name="activity" [size]="20"></dy-icon><span>Metrics</span></a>
+    <button class="bt-tab" type="button" (click)="toggleSidebar($event)" [class.on]="sidebarOpen"><dy-icon name="menu" [size]="20"></dy-icon><span>More</span></button>
+  </nav>
 </div>
 
 <!-- Context menu overlay (right-click menus across the app) -->
