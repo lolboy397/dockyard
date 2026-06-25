@@ -146,6 +146,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		r.Get("/system/info", system.Info)
 		r.Get("/system/version", system.Version)
 		r.Get("/system/df", system.DiskUsage)
+		r.Get("/system/docker-disk", system.DockerDisk)
 		r.Get("/system/host-stats", system.HostStats)
 		r.Get("/system/metrics-history", system.MetricsHistory)
 

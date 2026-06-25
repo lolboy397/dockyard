@@ -5,7 +5,7 @@ import { VEntry, VFilePreview, VUsage, VolumeBackup, BackupSchedule } from '../c
 import {
   ContainerSummary, ContainerInspect, ContainerStats,
   ImageSummary, NetworkResource, VolumeListResponse, VolumeSummary,
-  SystemInfo, DiskUsage, HostStats, AppEvent, WatchedImage,
+  SystemInfo, DiskUsage, DockerDiskSummary, HostStats, AppEvent, WatchedImage,
   StackSummary, StackDetail, Build, BuildDefinition, RegistryItem, RegistryImage,
   GitRepo, GitFileStatus, GitCommit, GitBranch,
   Project, ProjectLogs, ProjectFileNode, ProjectPortCheck,
@@ -101,6 +101,10 @@ export class DockerService {
 
   getDiskUsage(): Observable<DiskUsage> {
     return this.http.get<DiskUsage>(`${this.base}/system/df`);
+  }
+
+  getDockerDisk(): Observable<DockerDiskSummary> {
+    return this.http.get<DockerDiskSummary>(`${this.base}/system/docker-disk`);
   }
 
   getHostStats(): Observable<HostStats> {

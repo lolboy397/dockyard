@@ -116,18 +116,18 @@
             </div>
           </div>
 
-          <!-- Disk ring -->
+          <!-- Disk ring — Docker's own disk usage (system df), not the host disk -->
           <div class="ring">
             <svg [attr.width]="88" [attr.height]="88">
               <circle cx="44" cy="44" [attr.r]="ringR" fill="none" stroke="var(--bg-inset)" stroke-width="6"/>
               <circle cx="44" cy="44" [attr.r]="ringR" fill="none" stroke="#FBBF24" stroke-width="6"
                 stroke-linecap="round"
                 [attr.stroke-dasharray]="ringC"
-                [attr.stroke-dashoffset]="ringOffset(diskPct)"
+                [attr.stroke-dashoffset]="ringOffset(diskRingPct)"
                 transform="rotate(-90 44 44)"/>
             </svg>
             <div class="ring-center">
-              <div class="ring-value mono">{{ diskPct | number:'1.0-0' }}%</div>
+              <div class="ring-value mono">{{ diskRingValue }}</div>
               <div class="ring-label">Disk</div>
             </div>
           </div>
@@ -136,7 +136,7 @@
         <div class="res-foot mono">
           <span>{{ info?.NCPU }} cores</span>
           <span>{{ formatGB(info?.MemTotal) }} RAM</span>
-          <span>{{ formatGB(hostStats?.disk_total) }} SSD</span>
+          <span>{{ diskFootLabel }}</span>
         </div>
       </div>
 

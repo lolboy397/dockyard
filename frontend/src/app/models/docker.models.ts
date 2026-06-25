@@ -219,6 +219,18 @@ export interface DiskUsage {
   BuildCache: any[];
 }
 
+// Compact `docker system df` summary: how much disk Docker itself is using and
+// how much of that is reclaimable via prune. (Distinct from the whole host-disk
+// statfs reading in HostStats.)
+export interface DockerDiskSummary {
+  total: number;        // images + containers + volumes + build cache
+  reclaimable: number;  // freeable via prune
+  images: number;
+  containers: number;
+  volumes: number;
+  build_cache: number;
+}
+
 export interface HostStats {
   cpu_cores: number;
   cpu_pct: number;

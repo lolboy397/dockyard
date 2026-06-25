@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { forkJoin } from 'rxjs';
 import { DockerService } from '../../services/docker.service';
 import {
-  SystemInfo, HostStats, DiskUsage, AppEvent, Project, ProjectStatus,
+  SystemInfo, HostStats, DockerDiskSummary, AppEvent, Project, ProjectStatus,
 } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
@@ -20,12 +20,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   info: SystemInfo | null = null;
   projects: Project[] = [];
   events: AppEvent[] = [];
-  diskUsage: DiskUsage | null = null;
+  dockerDisk: DockerDiskSummary | null = null;
   hostStats: HostStats | null = null;
 
   now = new Date();
   private clockTimer?: ReturnType<typeof setInterval>;
   private statsTimer?: ReturnType<typeof setInterval>;
+  private dfTimer?: ReturnType<typeof setInterval>;
 
   // Live host-load history, accumulated from the real 5s host-stats poll.
   cpuHistory: number[] = [];
@@ -41,12 +42,24 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.clockTimer = setInterval(() => { this.now = new Date(); }, 1000);
     this.load();
     this.loadMetricHistory();
+    this.loadDockerDisk();
     this.statsTimer = setInterval(() => { this.loadHostStats(); }, 5000);
+    // `docker system df` walks every image/container/volume, so refresh it on a
+    // slower cadence than the 5s host-stats poll.
+    this.dfTimer = setInterval(() => { this.loadDockerDisk(); }, 30000);
   }
 
   ngOnDestroy(): void {
     if (this.clockTimer) clearInterval(this.clockTimer);
     if (this.statsTimer) clearInterval(this.statsTimer);
+    if (this.dfTimer) clearInterval(this.dfTimer);
+  }
+
+  private loadDockerDisk(): void {
+    this.docker.getDockerDisk().subscribe({
+      next: d => { this.dockerDisk = d; },
+      error: () => { /* gauge falls back to host-disk % if unavailable */ },
+    });
   }
 
   load(): void {
@@ -55,13 +68,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       info: this.docker.getSystemInfo(),
       projects: this.docker.listProjects(),
       events: this.docker.getEvents(),
-      diskUsage: this.docker.getDiskUsage(),
     }).subscribe({
-      next: ({ info, projects, events, diskUsage }) => {
+      next: ({ info, projects, events }) => {
         this.info = info;
         this.projects = projects ?? [];
         this.events = events ?? [];
-        this.diskUsage = diskUsage;
         this.loading = false;
         this.loadHostStats();
       },
@@ -143,8 +154,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return Math.round((todayEvents.length - failed) / todayEvents.length * 100);
   }
 
+  // De-duplicated total image footprint (matches `docker system df`), from the
+  // shared df summary — so the dashboard makes a single df walk, not two.
   get totalImageSize(): number {
-    return this.diskUsage?.Images?.reduce((s: number, img: any) => s + (img.Size ?? 0), 0) ?? 0;
+    return this.dockerDisk?.images ?? 0;
   }
 
   get cpuPct(): number {
@@ -165,6 +178,39 @@ export class DashboardComponent implements OnInit, OnDestroy {
   get diskPct(): number {
     if (!this.hostStats?.disk_total) return 0;
     return Math.round(this.hostStats.disk_used / this.hostStats.disk_total * 100);
+  }
+
+  // Docker's own disk footprint (`docker system df`). The storage gauge shows
+  // this rather than the whole-host-disk percentage: it actually moves as you
+  // build/pull/prune, and the reclaimable figure is directly actionable.
+
+  // Ring fill: how much of the host disk Docker's data occupies. Falls back to
+  // raw host-disk fullness if the df summary isn't available.
+  get diskRingPct(): number {
+    if (!this.dockerDisk) return this.diskPct;
+    if (!this.hostStats?.disk_total) return 0;
+    return Math.round(this.dockerDisk.total / this.hostStats.disk_total * 100);
+  }
+
+  // Ring center: Docker disk usage (e.g. "24.3G"), or host-disk % as a fallback.
+  get diskRingValue(): string {
+    return this.dockerDisk ? this.compactBytes(this.dockerDisk.total) : `${this.diskPct}%`;
+  }
+
+  // Sub-label under the rings: the actionable companion to the gauge.
+  get diskFootLabel(): string {
+    if (!this.dockerDisk) return `${this.formatGB(this.hostStats?.disk_total)} disk`;
+    const r = this.dockerDisk.reclaimable;
+    return r > 0 ? `${this.formatGB(r)} reclaimable` : 'fully in use';
+  }
+
+  private compactBytes(bytes: number): string {
+    if (!bytes) return '0';
+    const gb = bytes / (1024 ** 3);
+    if (gb >= 1) return `${gb.toFixed(1)}G`;
+    const mb = bytes / (1024 ** 2);
+    if (mb >= 1) return `${mb.toFixed(0)}M`;
+    return `${(bytes / 1024).toFixed(0)}K`;
   }
 
   get activityEvents(): AppEvent[] {

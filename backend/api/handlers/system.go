@@ -53,6 +53,95 @@ func (h *SystemHandlers) DiskUsage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, du)
 }
 
+// DockerDiskSummary mirrors `docker system df`: how much disk space Docker
+// itself is using and how much of that is reclaimable (prunable). Unlike the
+// host-disk statfs reading (which is the whole filesystem and barely moves),
+// this changes as images/containers/volumes/build cache come and go, so it's the
+// actionable storage number for the dashboard.
+type DockerDiskSummary struct {
+	Total       int64 `json:"total"`        // images + containers + volumes + build cache
+	Reclaimable int64 `json:"reclaimable"`  // freeable via prune
+	Images      int64 `json:"images"`       // unique image-layer bytes
+	Containers  int64 `json:"containers"`   // container writable layers
+	Volumes     int64 `json:"volumes"`      // local-volume bytes
+	BuildCache  int64 `json:"build_cache"`  // build-cache bytes
+}
+
+// dockerDiskSummary collapses a full df response into totals + reclaimable,
+// following docker/cli's `system df` accounting. Pure for testability.
+func dockerDiskSummary(du dockertypes.DiskUsage) DockerDiskSummary {
+	// Images: LayersSize is the de-duplicated total; the part "in use" is each
+	// referenced image's unique (non-shared) size — the remainder is reclaimable.
+	imagesTotal := du.LayersSize
+	var imagesUsed int64
+	for _, img := range du.Images {
+		if img == nil || img.Containers == 0 || img.Size == -1 || img.SharedSize == -1 {
+			continue
+		}
+		imagesUsed += img.Size - img.SharedSize
+	}
+	imagesReclaimable := max(imagesTotal-imagesUsed, 0)
+
+	// Containers: each container's writable layer, reclaimable once it is no
+	// longer running/paused (i.e. `docker container prune`).
+	var containersTotal, containersReclaimable int64
+	for _, c := range du.Containers {
+		if c == nil || c.SizeRw <= 0 {
+			continue
+		}
+		containersTotal += c.SizeRw
+		if c.State != "running" && c.State != "paused" && c.State != "restarting" {
+			containersReclaimable += c.SizeRw
+		}
+	}
+
+	// Volumes: local-driver volumes report a size; an unreferenced one
+	// (RefCount 0) is fully reclaimable.
+	var volumesTotal, volumesReclaimable int64
+	for _, v := range du.Volumes {
+		if v == nil || v.UsageData == nil || v.UsageData.Size < 0 {
+			continue
+		}
+		volumesTotal += v.UsageData.Size
+		if v.UsageData.RefCount == 0 {
+			volumesReclaimable += v.UsageData.Size
+		}
+	}
+
+	// Build cache: shared records are counted under another, so skip them; a
+	// record that is no longer in use is reclaimable.
+	var buildTotal, buildReclaimable int64
+	for _, b := range du.BuildCache {
+		if b == nil || b.Shared || b.Size <= 0 {
+			continue
+		}
+		buildTotal += b.Size
+		if !b.InUse {
+			buildReclaimable += b.Size
+		}
+	}
+
+	return DockerDiskSummary{
+		Total:       imagesTotal + containersTotal + volumesTotal + buildTotal,
+		Reclaimable: imagesReclaimable + containersReclaimable + volumesReclaimable + buildReclaimable,
+		Images:      imagesTotal,
+		Containers:  containersTotal,
+		Volumes:     volumesTotal,
+		BuildCache:  buildTotal,
+	}
+}
+
+// DockerDisk returns the compact `docker system df` summary for the dashboard
+// storage gauge (total Docker disk usage + reclaimable).
+func (h *SystemHandlers) DockerDisk(w http.ResponseWriter, r *http.Request) {
+	du, err := h.docker.DiskUsage(r.Context(), dockertypes.DiskUsageOptions{})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, dockerDiskSummary(du))
+}
+
 // HostStatsSample is a host-level CPU/memory/disk reading.
 type HostStatsSample struct {
 	CPUCores  int     `json:"cpu_cores"`
