@@ -35,6 +35,22 @@
 
     @if (loading()) {
       <div class="empty-state" style="padding:48px;text-align:center;color:var(--fg-subtle);">Loading roles…</div>
+    } @else if (responsive.isMobile()) {
+      <div class="gcards">
+        @for (r of filtered; track r.id) {
+          <div class="gcard" [class.sel]="selectedId === r.id" (click)="select(r.id)">
+            <div class="gcard-top">
+              <span class="role-ic" [class.owner]="r.id === 'owner'" [class.custom]="r.type === 'custom'" style="flex:none;"><dy-icon [name]="r.icon" [size]="15"></dy-icon></span>
+              <span class="gcard-name">{{ r.name }}</span>
+              <span class="mini-tag" style="flex:none;">{{ r.type }}</span>
+            </div>
+            <div class="gcard-meta">
+              <span>{{ r.members }} users</span>
+              <span class="access-level">{{ r.level }}</span>
+            </div>
+          </div>
+        }
+      </div>
     } @else {
       <div class="gtable roles-table">
         <div class="gtable-head" [style.grid-template-columns]="roleCols">

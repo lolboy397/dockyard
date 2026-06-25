@@ -5,6 +5,7 @@ import { IconComponent } from '../shared/icon/icon.component';
 import { AuthService } from '../../auth/auth.service';
 import { AdminService } from '../../services/admin.service';
 import { NotificationService } from '../../services/notification.service';
+import { ResponsiveService } from '../../services/responsive.service';
 import { Role, RoleDetail, CapabilityCatalogue, AuthUser } from '../../auth/auth.models';
 import { capMeta, initials, CapStateMeta } from '../users/admin.data';
 
@@ -57,6 +58,7 @@ export class RolesComponent implements OnInit {
     public auth: AuthService,
     private admin: AdminService,
     private notify: NotificationService,
+    public responsive: ResponsiveService,
   ) {}
 
   ngOnInit(): void {

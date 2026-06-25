@@ -31,6 +31,27 @@
       </div>
       @if (loading) {
         <div style="padding:60px;text-align:center;color:var(--fg-subtle);font-size:13px;">loading…</div>
+      } @else if (responsive.isMobile()) {
+        <div class="gcards">
+          @if (filtered.length === 0) { <div class="ctable-empty">No networks found</div> }
+          @for (n of filtered; track n.Id) {
+            <div class="gcard" (contextmenu)="networkMenu($event, n)" (dyLongPress)="networkMenu($event, n)">
+              <div class="gcard-top">
+                <dy-icon name="network" [size]="14" style="color:var(--fg-muted);flex-shrink:0;"></dy-icon>
+                <span class="gcard-name">{{ n.Name }}</span>
+                @if (isSystem(n)) { <span class="badge badge-idle" style="font-size:9px;flex:none;">system</span> }
+                @if (auth.canWrite()) {
+                  <button class="icon-btn sm ghost gcard-act" (click)="$event.stopPropagation(); remove(n)" [disabled]="isSystem(n)" title="Remove network"><dy-icon name="trash-2" [size]="14"></dy-icon></button>
+                }
+              </div>
+              <div class="gcard-meta mono">
+                <span>{{ n.Driver }}</span>
+                <span>{{ subnet(n) }}</span>
+                <span>{{ containerCount(n) }} ctr</span>
+              </div>
+            </div>
+          }
+        </div>
       } @else {
         <div class="gtable" style="margin:0 16px 24px;">
           <div class="gtable-head" style="grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) 80px minmax(0,1fr) 90px 60px 32px;">

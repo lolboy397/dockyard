@@ -10,6 +10,7 @@ import { ContextMenuService } from '../../services/context-menu.service';
 import { AuthService } from '../../auth/auth.service';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
+import { ResponsiveService } from '../../services/responsive.service';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 
 interface PolicyTarget { id: string; name: string; icon: string; meta: string; kind: 'volume' | 'app'; }
@@ -58,6 +59,7 @@ export class SystemBackupComponent implements OnInit {
     private confirm: ConfirmDialogService,
     public menu: ContextMenuService,
     public auth: AuthService,
+    public responsive: ResponsiveService,
   ) {}
 
   ngOnInit(): void {

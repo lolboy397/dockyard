@@ -127,6 +127,25 @@
               </div>
             }
           </div>
+        } @else if (responsive.isMobile()) {
+          <div class="gcards">
+            @if (filteredDefs.length === 0) { <div class="ctable-empty">No build definitions yet.</div> }
+            @for (def of filteredDefs; track def.id) {
+              <div class="gcard" [class.sel]="selectedDef?.id === def.id" (click)="selectDef(def)">
+                <div class="gcard-top">
+                  <dy-icon name="hammer" [size]="14" style="color:var(--fg-muted);flex-shrink:0;"></dy-icon>
+                  <span class="gcard-name">{{ def.name }}<span class="row-tag">:{{ def.tag }}</span></span>
+                  @if (auth.canWrite()) { <button class="icon-btn ghost sm gcard-act" title="Run" (click)="$event.stopPropagation(); triggerRun(def)"><dy-icon name="play" [size]="14"></dy-icon></button> }
+                </div>
+                <div class="gcard-meta">
+                  <span class="def-source-badge" [class.git]="def.source_type === 'git'">@if (def.source_type === 'git') {<dy-icon name="git-branch" [size]="11"></dy-icon>} {{ def.source_type }}</span>
+                  @if (def.last_build_status) { <span [class]="badgeClass(def.last_build_status)">{{ statusLabel(def.last_build_status) }}</span> }
+                  <span>{{ def.last_built_at ? timeAgo(def.last_built_at) : '—' }}</span>
+                  <span>{{ def.run_count }} runs</span>
+                </div>
+              </div>
+            }
+          </div>
         } @else {
           <div class="gtable" style="margin:0 16px 24px;">
             <div class="gtable-head" style="grid-template-columns:{{ defCols }}">

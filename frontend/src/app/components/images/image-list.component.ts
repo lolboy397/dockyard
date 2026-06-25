@@ -11,6 +11,7 @@ import { AuthService } from '../../auth/auth.service';
 import { ImageSummary } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
+import { ResponsiveService } from '../../services/responsive.service';
 
 @Component({
   selector: 'app-image-list',
@@ -55,7 +56,7 @@ export class ImageListComponent implements OnInit {
       : `${totalStr} total`;
   }
 
-  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService) {}
+  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService, public responsive: ResponsiveService) {}
 
   ngOnInit(): void { this.load(); }
 

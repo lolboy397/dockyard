@@ -7,6 +7,7 @@ import { AuthUser, Role, ActivityEvent, SessionInfo } from '../../auth/auth.mode
 import { AdminService } from '../../services/admin.service';
 import { NotificationService } from '../../services/notification.service';
 import { ConfirmDialogService } from '../../services/confirm-dialog.service';
+import { ResponsiveService } from '../../services/responsive.service';
 import {
   STATUS_LABEL, statusTone, userStatus, initials, timeAgo, monthYear,
   memberCapabilities, activityRail, sessionDevice, sessionLocation,
@@ -79,6 +80,7 @@ export class UsersComponent implements OnInit {
     private admin: AdminService,
     private notify: NotificationService,
     private confirm: ConfirmDialogService,
+    public responsive: ResponsiveService,
   ) {}
 
   ngOnInit(): void {

@@ -33,6 +33,26 @@
 
     @if (loading()) {
       <div class="empty-state" style="padding:48px;text-align:center;color:var(--fg-subtle);">Loading members…</div>
+    } @else if (responsive.isMobile()) {
+      <div class="gcards">
+        @if (filtered.length === 0) { <div class="ctable-empty">No members match this filter.</div> }
+        @for (u of filtered; track u.id) {
+          <div class="gcard" [class.sel]="selectedId === u.id" (click)="select(u.id)">
+            <div class="gcard-top">
+              <span class="uavatar" [class.is-owner]="u.role === 'owner'" [class.is-pending]="userStatus(u) === 'invited'" style="flex:none;">{{ initials(u) }}</span>
+              <span class="gcard-name">{{ u.full_name || u.username }}@if (isYou(u)) {<span class="you">you</span>}</span>
+              <button class="icon-btn ghost sm gcard-act" (click)="$event.stopPropagation(); select(u.id); openEdit()"><dy-icon name="ellipsis" [size]="16"></dy-icon></button>
+            </div>
+            <div class="gcard-sub mono">{{ u.email || '@' + u.username }}</div>
+            <div class="gcard-meta">
+              <span class="role {{ u.role }}"><dy-icon [name]="roleIcon(u.role)" [size]="12"></dy-icon> {{ roleName(u.role) }}</span>
+              <span class="badge badge-{{ statusTone(userStatus(u)) }}"><span class="badge-dot"></span>{{ STATUS_LABEL[userStatus(u)] }}</span>
+              @if (u.two_factor_enabled) { <span><dy-icon name="shield-check" [size]="12"></dy-icon> 2FA</span> }
+              <span>{{ timeAgo(u.last_active_at) }}</span>
+            </div>
+          </div>
+        }
+      </div>
     } @else {
       <div class="gtable members-table">
         <div class="gtable-head" [style.grid-template-columns]="memberCols">

@@ -9,6 +9,7 @@ import { AuthService } from '../../auth/auth.service';
 import { VolumeSummary } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
+import { ResponsiveService } from '../../services/responsive.service';
 import { VolumeExplorerComponent } from './volume-explorer.component';
 import { ExplorerVolume } from './volume-explorer.data';
 
@@ -74,7 +75,7 @@ export class VolumeListComponent implements OnInit {
     return b + ' B';
   }
 
-  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService) {}
+  constructor(private docker: DockerService, private notify: NotificationService, private confirm: ConfirmDialogService, private ctxMenu: ContextMenuService, public auth: AuthService, public responsive: ResponsiveService) {}
   ngOnInit(): void { this.load(); }
 
   // ── Context menu ───────────────────────────────────────────────────────────────

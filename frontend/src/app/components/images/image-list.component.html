@@ -81,6 +81,28 @@
             </div>
           }
         </div>
+      } @else if (responsive.isMobile()) {
+        <div class="gcards">
+          @if (filtered.length === 0) { <div class="ctable-empty">No images found</div> }
+          @for (img of filtered; track img.Id) {
+            <div class="gcard" [class.sel]="selectedId === img.Id"
+                 (click)="select(img)"
+                 (contextmenu)="imageMenu($event, img)" (dyLongPress)="imageMenu($event, img)">
+              <div class="gcard-top">
+                <dy-icon name="layers" [size]="14" style="color:var(--fg-muted);flex-shrink:0;"></dy-icon>
+                <span class="gcard-name">{{ repoName(img) }}@if (repoTagPart(img)) {<span class="row-tag">:{{ repoTagPart(img) }}</span>} @else {<span class="row-tag" style="font-style:italic;color:var(--fg-subtle)">:untagged</span>}</span>
+                @if (auth.canWrite()) {
+                  <button class="icon-btn ghost sm gcard-act" (click)="$event.stopPropagation(); removeImage(img)" [title]="'Remove ' + repoTag(img)"><dy-icon name="ellipsis" [size]="16"></dy-icon></button>
+                }
+              </div>
+              <div class="gcard-meta mono">
+                <span>{{ formatSize(img.Size) }}</span>
+                @if (img.Containers > 0) { <span>{{ img.Containers }} container{{ img.Containers > 1 ? 's' : '' }}</span> }
+                <span>{{ timeAgo(img.Created) }}</span>
+              </div>
+            </div>
+          }
+        </div>
       } @else {
         <div class="gtable" style="margin:0 16px 24px;">
           <div class="gtable-head" style="grid-template-columns:{{ cols }}">

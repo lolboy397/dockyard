@@ -133,6 +133,25 @@
             <span class="eyebrow">No backups</span>
             <span class="bkp-help">Run a backup or create a policy to populate history.</span>
           </div>
+        } @else if (responsive.isMobile()) {
+          <div class="gcards">
+            @for (b of rows; track b.id) {
+              <div class="gcard" (contextmenu)="rowMenu($event, b)" (dyLongPress)="rowMenu($event, b)">
+                <div class="gcard-top">
+                  <dy-icon name="archive" [size]="14" color="var(--fg-muted)" style="flex-shrink:0;"></dy-icon>
+                  <span class="gcard-name">{{ b.target }}</span>
+                  <span class="badge" [class.badge-running]="b.status==='Completed'" [class.badge-info]="b.status==='Running'" [class.badge-danger]="b.status==='Failed'" style="flex:none;"><span class="badge-dot"></span>{{ b.status }}</span>
+                  <button class="icon-btn ghost sm gcard-act" (click)="$event.stopPropagation(); rowMenu($event, b)"><dy-icon name="ellipsis" [size]="16"></dy-icon></button>
+                </div>
+                <div class="gcard-meta mono">
+                  <span class="bkp-type">{{ b.type }}</span>
+                  <span>{{ b.size_bytes ? formatBytes(b.size_bytes) : '—' }}</span>
+                  <span>{{ b.dest }}</span>
+                  <span>{{ relPast(b.started_at) }}</span>
+                </div>
+              </div>
+            }
+          </div>
         } @else {
           <div class="gtable" style="margin:0;">
             <div class="gtable-head" style="grid-template-columns:1.6fr 120px 90px 1.2fr 110px 120px 36px;">

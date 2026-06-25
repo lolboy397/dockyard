@@ -1830,6 +1830,42 @@ mark {
 .ccard-meta { display: flex; gap: 14px; font-size: 12px; color: var(--fg-subtle); }
 .ccard-meta span { display: inline-flex; align-items: center; gap: 4px; }
 
+/* Generic phone card system — reused by every list that swaps its table for cards
+   ≤820px (Images, Volumes, Stacks, Users, Builds, Alerts, Backups, Roles). */
+.gcards {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px;
+}
+.gcard {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--bg-elevated); cursor: pointer;
+}
+.gcard.sel { border-color: var(--accent); }
+.gcard-top { display: flex; align-items: center; gap: 8px; }
+.gcard-name {
+  font-weight: 600; font-size: 14px; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gcard-act { flex: none; margin-left: auto; }
+.gcard-sub {
+  font-size: 12px; color: var(--fg-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gcard-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--fg-subtle); }
+.gcard-meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Stacks accordion on phones: wrap the head actions; collapse service rows to
+   name + status (image/replica columns hidden). */
+@media (max-width: 820px) {
+  .stack-head { flex-wrap: wrap; gap: 6px 8px; }
+  .stack-actions { flex-wrap: wrap; width: 100%; margin-top: 4px; }
+  .stack-meta { display: none; }
+  .stack-svc { grid-template-columns: 0 22px minmax(0, 1fr) auto !important; gap: 8px; }
+  .stack-svc .svc-image, .stack-svc .svc-rep { display: none; }
+}
+
 /* =========================================================================
    RESPONSIVE SHELL — desktop layout is untouched; below 820px the sidebar
    becomes an off-canvas drawer toggled by a hamburger in the topbar.
@@ -1911,7 +1947,7 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
      these scrollers are overflow:hidden, so .page-body padding can't propagate —
      each needs its own bottom padding. */
   .page-body { padding-bottom: var(--bottom-tabs-h); }
-  .ctable-vp, .ve-overview, .ve-tree, .ve-list, .ccards { padding-bottom: var(--bottom-tabs-h); }
+  .ctable-vp, .ve-overview, .ve-tree, .ve-list, .ccards, .gcards { padding-bottom: var(--bottom-tabs-h); }
   .toast-container { bottom: calc(var(--bottom-tabs-h) + 12px); }
   .pwa-banner { bottom: calc(var(--bottom-tabs-h) + 14px); }
 

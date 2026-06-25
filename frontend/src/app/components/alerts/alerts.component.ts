@@ -6,6 +6,7 @@ import { ModalComponent } from '../shared/modal/modal.component';
 import { DockerService, AlertRule } from '../../services/docker.service';
 import { NotificationService } from '../../services/notification.service';
 import { ConfirmDialogService } from '../../services/confirm-dialog.service';
+import { ResponsiveService } from '../../services/responsive.service';
 import { AuthService } from '../../auth/auth.service';
 
 /** Alerts — manage host-threshold / container-exited rules that notify in-app or via webhook. */
@@ -28,6 +29,7 @@ export class AlertsComponent implements OnInit {
     private docker: DockerService,
     private notify: NotificationService,
     private confirm: ConfirmDialogService,
+    public responsive: ResponsiveService,
   ) {}
 
   ngOnInit(): void { this.load(); }

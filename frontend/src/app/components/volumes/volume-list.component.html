@@ -35,6 +35,28 @@
       </div>
       @if (loading) {
         <div style="padding:60px;text-align:center;color:var(--fg-subtle);font-size:13px;">loading…</div>
+      } @else if (responsive.isMobile()) {
+        <div class="gcards">
+          @if (filtered.length === 0) { <div class="ctable-empty">No volumes found</div> }
+          @for (vol of filtered; track vol.Name) {
+            <div class="gcard" (click)="open(vol)" (contextmenu)="volumeMenu($event, vol)" (dyLongPress)="volumeMenu($event, vol)">
+              <div class="gcard-top">
+                <dy-icon name="database" [size]="14" color="var(--fg-muted)" style="flex-shrink:0;"></dy-icon>
+                <span class="gcard-name">{{ vol.Name }}</span>
+                @if (isOrphaned(vol)) { <span class="badge badge-warn" style="font-size:9px;flex:none;">orphaned</span> }
+                @if (auth.canWrite()) {
+                  <button class="icon-btn sm ghost gcard-act" (click)="$event.stopPropagation(); remove(vol)" title="Remove volume"><dy-icon name="trash-2" [size]="14"></dy-icon></button>
+                }
+              </div>
+              <div class="gcard-sub mono">{{ vol.Mountpoint }}</div>
+              <div class="gcard-meta mono">
+                <span>{{ vol.Driver }}</span>
+                <span>{{ volSize(vol) }}</span>
+                <span>{{ vol.CreatedAt | date:'MMM d, y' }}</span>
+              </div>
+            </div>
+          }
+        </div>
       } @else {
         <div class="gtable">
           <div class="gtable-head" style="grid-template-columns:minmax(0,1.8fr) 70px minmax(0,1.6fr) 70px 90px 32px;">

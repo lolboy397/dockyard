@@ -21,6 +21,26 @@
             <dy-icon name="bell-off" [size]="22"></dy-icon>
             <p>No alert rules yet. Create one to be notified when host CPU, memory or disk crosses a threshold, or when a container exits.</p>
           </div>
+        } @else if (responsive.isMobile()) {
+          <div class="gcards">
+            @for (a of rules(); track a.id) {
+              <div class="gcard">
+                <div class="gcard-top">
+                  <dy-icon name="bell" [size]="14" style="color:var(--fg-muted);flex-shrink:0;"></dy-icon>
+                  <span class="gcard-name">{{ a.name }}</span>
+                  @if (auth.canWrite()) { <button class="icon-btn sm ghost gcard-act" (click)="remove(a)" title="Delete"><dy-icon name="trash-2" [size]="14"></dy-icon></button> }
+                </div>
+                <div class="gcard-sub mono">{{ condition(a) }}</div>
+                <div class="gcard-meta">
+                  <span>{{ a.channel === 'webhook' ? 'Webhook' : 'In-app' }}</span>
+                  <button class="btn btn-xs btn-ghost" (click)="toggleEnabled(a)" [disabled]="!auth.canWrite()" style="padding:2px 8px;">
+                    <dy-icon [name]="a.enabled ? 'toggle-right' : 'toggle-left'" [size]="14" [style.color]="a.enabled ? 'var(--running-400)' : 'var(--fg-disabled)'"></dy-icon>
+                    {{ a.enabled ? 'On' : 'Off' }}
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
         } @else {
           <div class="gtable" style="margin:0;">
             <div class="gtable-head" style="grid-template-columns:1.5fr 1.5fr 130px 120px 80px;">

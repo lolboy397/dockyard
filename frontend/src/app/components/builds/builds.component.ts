@@ -7,6 +7,7 @@ import { LogViewerComponent } from '../shared/log-viewer/log-viewer.component';
 import { DockerService } from '../../services/docker.service';
 import { NotificationService } from '../../services/notification.service';
 import { ConfirmDialogService } from '../../services/confirm-dialog.service';
+import { ResponsiveService } from '../../services/responsive.service';
 import { AuthService } from '../../auth/auth.service';
 import { Build, BuildDefinition } from '../../models/docker.models';
 
@@ -50,6 +51,7 @@ export class BuildsComponent implements OnInit, OnDestroy {
     private notify: NotificationService,
     private confirm: ConfirmDialogService,
     public auth: AuthService,
+    public responsive: ResponsiveService,
   ) {}
 
   ngOnInit(): void {
