@@ -24,7 +24,10 @@
 
           <div class="field">
             <label class="label">Registry URL</label>
-            <input class="input input-sm" [(ngModel)]="newReg.url" placeholder="ghcr.io" />
+            <input class="input input-sm" [(ngModel)]="newReg.url" #regUrl="ngModel" name="regUrl" required inputmode="url" autocapitalize="off" placeholder="ghcr.io" />
+            @if (regUrl.invalid && regUrl.touched) {
+              <div class="field-error"><dy-icon name="circle-alert" [size]="12"></dy-icon> Registry URL is required</div>
+            }
           </div>
           <div class="field">
             <label class="label">Display name</label>

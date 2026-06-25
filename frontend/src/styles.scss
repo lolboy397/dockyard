@@ -588,6 +588,15 @@ app-projects {
 .input-lg { height: 36px; font-size: 14px; padding: 0 12px; }
 .input-full { width: 100%; }
 
+/* Inline validation: Angular flags touched-invalid controls automatically. */
+.input.ng-invalid.ng-touched,
+.text-input.ng-invalid.ng-touched,
+.form-input.ng-invalid.ng-touched { border-color: var(--danger-400); }
+.field-error {
+  margin-top: 4px; font-size: 11.5px; color: var(--danger-400);
+  display: flex; align-items: center; gap: 5px;
+}
+
 /* iOS zooms the page when focusing an input whose font-size < 16px. Bump every
    text control to 16px on touch phones/tablets (pointer:coarse so narrow desktop
    windows don't get a jarring 13→16px jump). */
@@ -1584,9 +1593,9 @@ input[type=checkbox] {
     border-radius: 2px; background: var(--border-strong, var(--border));
   }
   .modal-foot, .amodal-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
-  /* Swipe-to-dismiss: capture the drag on the head; snap back when released. */
+  /* Swipe-to-dismiss: capture the drag on the head (transform/transition are
+     written directly by the component while dragging). */
   .modal-head { touch-action: none; }
-  .modal:not(.modal-dragging) { transition: transform 0.22s var(--ease-out); }
 }
 @keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 
@@ -1859,14 +1868,27 @@ mark {
 .gcard-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--fg-subtle); }
 .gcard-meta span { display: inline-flex; align-items: center; gap: 4px; }
 
+/* Pull-to-refresh indicator (grown from the scroller's top padding). */
+.ptr-indicator {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 0; opacity: 0; overflow: hidden;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px;
+  color: var(--fg-subtle); font-size: 16px; line-height: 1; pointer-events: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.ptr-indicator.ptr-armed { color: var(--accent); }
+
 /* Stacks accordion on phones: wrap the head actions; collapse service rows to
    name + status (image/replica columns hidden). */
 @media (max-width: 820px) {
-  .stack-head { flex-wrap: wrap; gap: 6px 8px; }
+  .stack-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
   .stack-actions { flex-wrap: wrap; width: 100%; margin-top: 4px; }
   .stack-meta { display: none; }
-  .stack-svc { grid-template-columns: 0 22px minmax(0, 1fr) auto !important; gap: 8px; }
+  /* 5 tracks for the 5 visible cells (image + replica columns are hidden). */
+  .stack-svc { grid-template-columns: 0 22px minmax(0, 1fr) auto 28px !important; gap: 8px; }
   .stack-svc .svc-image, .stack-svc .svc-rep { display: none; }
+  /* Alerts wraps its list in a padded block; make it flex-fill so .gcards scrolls. */
+  .alerts-body { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0 !important; }
 }
 
 /* =========================================================================

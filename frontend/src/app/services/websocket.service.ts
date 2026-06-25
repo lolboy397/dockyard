@@ -92,6 +92,7 @@ export class WebSocketService {
 
     const open = () => {
       if (closed || document.hidden) return; // pause the log firehose while backgrounded
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return; // idempotent
       ws = new WebSocket(this.withToken(`${this.wsBase}/ws/logs/multi`));
       ws.onopen = () => {
         attempt = 0;
@@ -246,6 +247,7 @@ export class WebSocketService {
 
       const open = () => {
         if (closed || document.hidden) return; // don't connect while backgrounded
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return; // idempotent: never clobber a live socket
         ws = new WebSocket(this.withToken(url));
         ws.onmessage = (event) => { try { observer.next(parse(event.data)); } catch { /* ignore */ } };
         ws.onerror = () => { /* the close handler schedules the reconnect */ };

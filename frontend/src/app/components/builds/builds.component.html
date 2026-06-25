@@ -110,7 +110,7 @@
         }
 
         <!-- DEFINITIONS TABLE -->
-        @if (loading) {
+        @if (loading && !responsive.isMobile()) {
           <div class="gtable" style="margin:0 16px 24px;">
             <div class="gtable-head" style="grid-template-columns:{{ defCols }}">
               <span>Name &amp; Tag</span><span>Source</span>
@@ -129,7 +129,14 @@
           </div>
         } @else if (responsive.isMobile()) {
           <div class="gcards">
-            @if (filteredDefs.length === 0) { <div class="ctable-empty">No build definitions yet.</div> }
+            @if (loading) {
+              @for (i of [1,2,3]; track i) {
+                <div class="gcard" style="pointer-events:none;">
+                  <span class="skel" style="width:55%;height:14px;border-radius:3px;"></span>
+                  <span class="skel" style="width:35%;height:10px;border-radius:3px;"></span>
+                </div>
+              }
+            } @else if (filteredDefs.length === 0) { <div class="ctable-empty">No build definitions yet.</div> }
             @for (def of filteredDefs; track def.id) {
               <div class="gcard" [class.sel]="selectedDef?.id === def.id" (click)="selectDef(def)">
                 <div class="gcard-top">

@@ -363,7 +363,11 @@
       <div class="field">
         <label class="label">Repository URL</label>
         <input class="input input-sm" type="url" inputmode="url" autocapitalize="off" [(ngModel)]="addForm.clone_url"
+          #cloneUrl="ngModel" name="cloneUrl" required
           placeholder="https://github.com/user/repo.git" />
+        @if (cloneUrl.invalid && cloneUrl.touched) {
+          <div class="field-error"><dy-icon name="circle-alert" [size]="12"></dy-icon> Repository URL is required</div>
+        }
       </div>
       <div class="field-row" style="grid-template-columns:1fr 1fr;">
         <div class="field">

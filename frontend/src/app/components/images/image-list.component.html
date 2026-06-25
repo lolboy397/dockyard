@@ -62,7 +62,7 @@
       }
 
       <!-- TABLE -->
-      @if (loading) {
+      @if (loading && !responsive.isMobile()) {
         <div class="gtable" style="margin:0 16px 24px;">
           <div class="gtable-head" style="grid-template-columns:{{ cols }}">
             <span></span><span>Repository · tag</span><span>Size</span>
@@ -83,7 +83,14 @@
         </div>
       } @else if (responsive.isMobile()) {
         <div class="gcards">
-          @if (filtered.length === 0) { <div class="ctable-empty">No images found</div> }
+          @if (loading) {
+            @for (i of [1,2,3,4,5,6]; track i) {
+              <div class="gcard" style="pointer-events:none;">
+                <span class="skel" style="width:60%;height:14px;border-radius:3px;"></span>
+                <span class="skel" style="width:40%;height:10px;border-radius:3px;"></span>
+              </div>
+            }
+          } @else if (filtered.length === 0) { <div class="ctable-empty">No images found</div> }
           @for (img of filtered; track img.Id) {
             <div class="gcard" [class.sel]="selectedId === img.Id"
                  (click)="select(img)"
@@ -92,7 +99,7 @@
                 <dy-icon name="layers" [size]="14" style="color:var(--fg-muted);flex-shrink:0;"></dy-icon>
                 <span class="gcard-name">{{ repoName(img) }}@if (repoTagPart(img)) {<span class="row-tag">:{{ repoTagPart(img) }}</span>} @else {<span class="row-tag" style="font-style:italic;color:var(--fg-subtle)">:untagged</span>}</span>
                 @if (auth.canWrite()) {
-                  <button class="icon-btn ghost sm gcard-act" (click)="$event.stopPropagation(); removeImage(img)" [title]="'Remove ' + repoTag(img)"><dy-icon name="ellipsis" [size]="16"></dy-icon></button>
+                  <button class="icon-btn ghost sm gcard-act" (click)="$event.stopPropagation(); imageMenu($event, img)" title="Actions"><dy-icon name="ellipsis" [size]="16"></dy-icon></button>
                 }
               </div>
               <div class="gcard-meta mono">
