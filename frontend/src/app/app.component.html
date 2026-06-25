@@ -163,6 +163,12 @@
       @if (navCounts.containers != null) {
         <span class="status-item">{{ navCounts.containers }} containers &middot; {{ navCounts.images }} images</span>
       }
+      @if (diskLabel) {
+        <span class="status-item mono" title="Host disk used / total">
+          <dy-icon name="hard-drive" [size]="11"></dy-icon>
+          {{ diskLabel }}
+        </span>
+      }
     </div>
     <div class="status-group">
       @if (auth.user()) {
@@ -185,4 +191,22 @@
 
 <!-- Confirm / danger dialog -->
 <app-confirm-dialog></app-confirm-dialog>
+}
+
+<!-- ── PWA global overlays (install / update / offline) — outside the auth gate ── -->
+<dy-install-banner></dy-install-banner>
+
+@if (pwaUpdate.updateReady()) {
+  <div class="pwa-banner pwa-update" role="status">
+    <dy-icon name="arrow-up-circle" [size]="16"></dy-icon>
+    <span>A new version is available.</span>
+    <button type="button" class="pwa-banner-btn" (click)="applyUpdate()">Update</button>
+  </div>
+}
+
+@if (!network.isOnline()) {
+  <div class="pwa-banner pwa-offline" role="status">
+    <dy-icon name="plug-zap" [size]="14"></dy-icon>
+    <span>You're offline — showing the last loaded view.</span>
+  </div>
 }

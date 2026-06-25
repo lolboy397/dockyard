@@ -1,4 +1,6 @@
 import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, ViewChild } from '@angular/core';
+import { ICONS } from '../../lucide-icons';
+import type { IconNode } from 'lucide';
 
 /* =========================================================================
    Dockyard — animated background · "orchestration grid"
@@ -69,32 +71,28 @@ export class AuthBackgroundComponent implements AfterViewInit, OnDestroy {
     function inKeepout(x: number, y: number) { const k = keepout(); const dx = (x - k.cx) / k.rx, dy = (y - k.cy) / k.ry; return dx * dx + dy * dy < 1; }
 
     function buildIcons() {
-      if (!(window as any).lucide) return;
-      const wrap = document.createElement('div');
-      wrap.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden';
-      wrap.innerHTML = TYPES.map(t => `<span data-k="${t.id}"><i data-lucide="${t.icon}"></i></span>`).join('');
-      document.body.appendChild(wrap);
-      try { (window as any).lucide.createIcons({ nameAttr: 'data-lucide' }); } catch (e) {}
       TYPES.forEach(t => {
-        const svg = wrap.querySelector(`[data-k="${t.id}"] svg`);
-        icons[t.id] = svg ? parseIcon(svg) : null;
+        const node = ICONS[t.icon] as IconNode | undefined;
+        icons[t.id] = node ? parseIconNode(node) : null;
       });
-      document.body.removeChild(wrap);
     }
 
-    // Parse a Lucide SVG (24x24 viewBox) into primitive draw-ops once, so we can
-    // render the icon as crisp canvas vectors every frame (no async image loads).
-    function parseIcon(svg: Element) {
+    // Turn a bundled Lucide IconNode (24x24 viewBox, [tag, attrs] tuples) into
+    // primitive draw-ops once, so the icon renders as crisp canvas vectors every
+    // frame — no DOM, no CDN, no async image loads.
+    function parseIconNode(node: IconNode) {
       const ops: any[] = [];
-      svg.querySelectorAll('path,circle,line,polyline,polygon,rect,ellipse').forEach(el => {
-        const g = el.tagName.toLowerCase(), n = (k: string) => parseFloat(el.getAttribute(k) || '') || 0;
-        if (g === 'path') ops.push({ g, d: el.getAttribute('d') });
+      for (const entry of node) {
+        const g = entry[0] as string;
+        const a = (entry[1] || {}) as Record<string, string | number>;
+        const n = (k: string) => parseFloat(String(a[k] ?? '')) || 0;
+        if (g === 'path') ops.push({ g, d: a['d'] });
         else if (g === 'circle') ops.push({ g, cx: n('cx'), cy: n('cy'), r: n('r') });
         else if (g === 'ellipse') ops.push({ g, cx: n('cx'), cy: n('cy'), rx: n('rx'), ry: n('ry') });
         else if (g === 'line') ops.push({ g, x1: n('x1'), y1: n('y1'), x2: n('x2'), y2: n('y2') });
         else if (g === 'rect') ops.push({ g, x: n('x'), y: n('y'), w: n('width'), h: n('height'), rx: n('rx') });
-        else if (g === 'polyline' || g === 'polygon') ops.push({ g, pts: (el.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number) });
-      });
+        else if (g === 'polyline' || g === 'polygon') ops.push({ g, pts: String(a['points'] || '').trim().split(/[\s,]+/).map(Number) });
+      }
       return ops;
     }
 

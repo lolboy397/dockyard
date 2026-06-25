@@ -201,17 +201,37 @@ export class WebSocketService {
     };
   }
 
-  /** Streams aggregated stats for ALL running containers, emitting ContainerStatSummary[] every ~3s. */
+  /** Streams aggregated stats for ALL running containers, emitting
+   *  ContainerStatSummary[] every ~3s. Reconnects with capped exponential
+   *  backoff — a dropped socket (engine blip, phone sleep, network change) must
+   *  recover, otherwise containers/metrics/topology silently stop updating. */
   streamAllStats(): Observable<ContainerStatSummary[]> {
     return new Observable<ContainerStatSummary[]>(observer => {
-      const ws = new WebSocket(this.withToken(`${this.wsBase}/ws/allstats`));
-      ws.onmessage = (event) => {
-        try { observer.next(JSON.parse(event.data)); } catch { /* ignore */ }
+      let closed = false;
+      let attempt = 0;
+      let ws: WebSocket;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      const open = () => {
+        ws = new WebSocket(this.withToken(`${this.wsBase}/ws/allstats`));
+        ws.onmessage = (event) => {
+          try { observer.next(JSON.parse(event.data)); } catch { /* ignore */ }
+        };
+        ws.onerror = () => { /* the close handler schedules the reconnect */ };
+        ws.onopen = () => { attempt = 0; };
+        ws.onclose = () => {
+          if (closed) return;
+          attempt++;
+          const delay = Math.min(1000 * 2 ** attempt, 15000);
+          timer = setTimeout(() => { if (!closed) open(); }, delay);
+        };
       };
-      ws.onerror = () => observer.error('WebSocket error');
-      ws.onclose = () => observer.complete();
+      open();
+
       return () => {
-        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        closed = true;
+        if (timer) clearTimeout(timer);
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
           ws.close();
         }
       };

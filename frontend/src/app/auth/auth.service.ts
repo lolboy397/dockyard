@@ -1,10 +1,14 @@
 import { Injectable, signal } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 import { AuthSession, AuthStatus, AuthUser, SetupData, TestConnectionResult } from './auth.models';
+import { clearAllCaches } from '../services/pwa-update.service';
 
 const TOKEN_KEY = 'dy_token';
+// Last-known user, cached so an offline / installed-PWA cold relaunch can paint
+// the real account instead of flashing the login screen (see init()).
+const USER_KEY = 'dy_user';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -23,18 +27,40 @@ export class AuthService {
 
   /** Probe instance status and validate any stored session token. */
   init(): void {
+    // Restore the last-known user up front so an offline relaunch has something
+    // to fall back on if /me can't be reached.
+    const cached = this.readCachedUser();
     this.http.get<AuthStatus>(`${this.base}/status`).pipe(
       catchError(() => of(null)),
     ).subscribe(s => {
       if (s) this.status.set(s);
       const token = this.token;
-      if (!token) { this.ready.set(true); return; }
-      this.http.get<AuthUser>(`${this.base}/me`, { headers: this.authHeaders() }).pipe(
-        catchError(() => of(null)),
-      ).subscribe(u => {
-        if (u) { this.user.set(u); this.authed.set(true); }
-        else { localStorage.removeItem(TOKEN_KEY); }
-        this.ready.set(true);
+      if (!token) { this.cacheUser(null); this.ready.set(true); return; }
+      this.http.get<AuthUser>(`${this.base}/me`, { headers: this.authHeaders() }).subscribe({
+        next: u => {
+          this.user.set(u);
+          this.cacheUser(u);
+          this.authed.set(true);
+          this.ready.set(true);
+        },
+        error: (err: HttpErrorResponse) => {
+          // CRITICAL: optimistically authenticate ONLY on a genuine network
+          // failure (status 0: offline, server unreachable, installed-PWA cold
+          // relaunch) — keep the token + cached user so the shell loads and
+          // re-validates when back online. A reachable server that REJECTS us
+          // (401 expired, 403 suspended, 404 deleted, 5xx) must clear the
+          // session, otherwise a revoked account is trapped in the shell.
+          if (err.status === 0) {
+            if (cached) this.user.set(cached);
+            this.authed.set(true);
+          } else {
+            localStorage.removeItem(TOKEN_KEY);
+            this.cacheUser(null);
+            this.authed.set(false);
+            this.user.set(null);
+          }
+          this.ready.set(true);
+        },
       });
     });
   }
@@ -69,6 +95,8 @@ export class AuthService {
    *  the stored session and fall back to the login screen. */
   handleUnauthorized(): void {
     localStorage.removeItem(TOKEN_KEY);
+    this.cacheUser(null);
+    void clearAllCaches();
     this.authed.set(false);
     this.user.set(null);
   }
@@ -112,6 +140,8 @@ export class AuthService {
         .pipe(catchError(() => of(null))).subscribe();
     }
     localStorage.removeItem(TOKEN_KEY);
+    this.cacheUser(null);
+    void clearAllCaches();
     this.authed.set(false);
     this.user.set(null);
   }
@@ -119,6 +149,21 @@ export class AuthService {
   private persist(res: AuthSession): void {
     if (res?.token) localStorage.setItem(TOKEN_KEY, res.token);
     this.user.set(res?.user ?? null);
+    this.cacheUser(res?.user ?? null);
+  }
+
+  private cacheUser(u: AuthUser | null): void {
+    if (u) localStorage.setItem(USER_KEY, JSON.stringify(u));
+    else localStorage.removeItem(USER_KEY);
+  }
+
+  private readCachedUser(): AuthUser | null {
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      return raw ? (JSON.parse(raw) as AuthUser) : null;
+    } catch {
+      return null;
+    }
   }
 
   private authHeaders(): HttpHeaders {

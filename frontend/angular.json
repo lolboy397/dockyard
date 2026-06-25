@@ -75,6 +75,7 @@
           },
           "configurations": {
             "production": {
+              "serviceWorker": "ngsw-config.json",
               "budgets": [
                 {
                   "type": "initial",
@@ -93,7 +94,7 @@
                 "fonts": true,
                 "styles": {
                   "minify": true,
-                  "inlineCritical": false
+                  "inlineCritical": true
                 }
               }
             },

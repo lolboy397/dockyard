@@ -11,9 +11,12 @@ import { ContextMenuComponent } from './components/shared/context-menu/context-m
 import { ConfirmDialogComponent } from './components/shared/confirm-dialog/confirm-dialog.component';
 import { DockerService } from './services/docker.service';
 import { RealtimeService } from './services/realtime.service';
-import { AppEvent } from './models/docker.models';
+import { AppEvent, HostStats } from './models/docker.models';
 import { AuthComponent } from './auth/auth.component';
 import { AuthService } from './auth/auth.service';
+import { InstallBannerComponent } from './components/shared/install-banner/install-banner.component';
+import { PwaUpdateService } from './services/pwa-update.service';
+import { NetworkStatusService } from './services/network-status.service';
 
 interface NavGroup {
   label: string;
@@ -41,7 +44,7 @@ interface NavCounts {
     CommonModule,
     RouterOutlet, RouterLink, RouterLinkActive,
     IconComponent, StatusDotComponent, ToastContainerComponent, CommandPaletteComponent,
-    ContextMenuComponent, ConfirmDialogComponent, AuthComponent,
+    ContextMenuComponent, ConfirmDialogComponent, AuthComponent, InstallBannerComponent,
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
@@ -60,10 +63,13 @@ export class AppComponent implements OnInit, OnDestroy {
   private updateChecked = false;
 
   navCounts: NavCounts = { containers: null, images: null, volumes: null, networks: null };
+  hostStats: HostStats | null = null;
 
   private sub?: Subscription;
   private countPoll?: Subscription;
   private routeSub?: Subscription;
+  private statsPoll?: ReturnType<typeof setInterval>;
+  private statsStarted = false;
 
   navGroups: NavGroup[] = [
     {
@@ -109,7 +115,14 @@ export class AppComponent implements OnInit, OnDestroy {
     },
   ];
 
-  constructor(private docker: DockerService, private router: Router, public auth: AuthService, private realtime: RealtimeService) {
+  constructor(
+    private docker: DockerService,
+    private router: Router,
+    public auth: AuthService,
+    private realtime: RealtimeService,
+    public pwaUpdate: PwaUpdateService,
+    public network: NetworkStatusService,
+  ) {
     // Once auth resolves an admin, do a one-shot background update check so the
     // sidebar can flag an available update. Errors (incl. non-admin 403) are
     // ignored; the Updates page is the authoritative view.
@@ -120,6 +133,15 @@ export class AppComponent implements OnInit, OnDestroy {
           next: s => { this.updateAvailable = !!s?.update_available; },
           error: () => { /* ignore */ },
         });
+      }
+    });
+
+    // Pull host stats (for the status-bar disk readout) as soon as auth resolves,
+    // so it doesn't wait a full poll interval to appear.
+    effect(() => {
+      if (this.auth.ready() && this.auth.authed() && !this.statsStarted) {
+        this.statsStarted = true;
+        this.loadHostStats();
       }
     });
   }
@@ -192,7 +214,35 @@ export class AppComponent implements OnInit, OnDestroy {
   private applyTheme(): void {
     if (this.theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
     else document.documentElement.removeAttribute('data-theme');
+    this.syncThemeColor();
   }
+
+  // Keep the PWA chrome (browser theme-color + iOS status bar) in step with the
+  // *explicitly chosen* theme. The static prefers-color-scheme metas only track
+  // the OS theme, so without this a manual light/dark pick would mismatch — e.g.
+  // light-theme status-bar glyphs becoming invisible on a light background.
+  private syncThemeColor(): void {
+    const dark = this.theme !== 'light';
+    // Update a single dedicated meta in place (last matching theme-color wins),
+    // leaving the static prefers-color-scheme metas in index.html intact so the
+    // OS theme still tracks before this runs and when no explicit choice is made.
+    let meta = document.querySelector<HTMLMetaElement>('meta#theme-color-dyn');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.id = 'theme-color-dyn';
+      meta.name = 'theme-color';
+      document.head.appendChild(meta);
+    }
+    meta.content = dark ? '#05070C' : '#F6F8FB';
+    const bar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    // black-translucent only while dark (content draws under the bar); light theme
+    // needs the opaque `default` style or the status-bar glyphs vanish. (iOS only
+    // re-reads this on next launch.)
+    bar?.setAttribute('content', dark ? 'black-translucent' : 'default');
+  }
+
+  /** Apply a downloaded service-worker update (user-initiated from the banner). */
+  applyUpdate(): void { this.pwaUpdate.applyUpdate(); }
 
   ngOnInit(): void {
     const storedTheme = localStorage.getItem('dy_theme') as 'dark' | 'light' | null;
@@ -200,6 +250,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.theme = storedTheme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     this.applyTheme();
     this.auth.init();
+    this.pwaUpdate.init();
     this.sub = this.docker.getSystemInfo().subscribe({
       next: info => {
         this.dockerVersion = info.ServerVersion ?? '';
@@ -214,6 +265,8 @@ export class AppComponent implements OnInit, OnDestroy {
     // a resync on (re)connect / tab refocus), replacing the old 15s poll.
     this.countPoll = this.realtime.changes(['container', 'image', 'volume', 'network'])
       .subscribe(() => this.refreshCounts());
+    // Refresh the status-bar disk readout periodically (capacity moves slowly).
+    this.statsPoll = setInterval(() => this.loadHostStats(), 60000);
     this.activeSection = this.sectionFromUrl(this.router.url);
     this.routeSub = this.router.events.pipe(
       filter(e => e instanceof NavigationEnd)
@@ -227,6 +280,30 @@ export class AppComponent implements OnInit, OnDestroy {
     this.sub?.unsubscribe();
     this.countPoll?.unsubscribe();
     this.routeSub?.unsubscribe();
+    if (this.statsPoll) clearInterval(this.statsPoll);
+  }
+
+  private loadHostStats(): void {
+    if (!this.auth.authed()) return;
+    this.docker.getHostStats().subscribe({
+      next: s => { this.hostStats = s; },
+      error: () => { /* leave last reading; status bar just omits disk */ },
+    });
+  }
+
+  // Host disk used / total for the status bar, e.g. "412 GB / 460 GB".
+  get diskLabel(): string {
+    const s = this.hostStats;
+    if (!s?.disk_total) return '';
+    return `${this.fmtSize(s.disk_used)} / ${this.fmtSize(s.disk_total)}`;
+  }
+
+  private fmtSize(bytes: number): string {
+    const tb = bytes / (1024 ** 4);
+    if (tb >= 1) return `${tb.toFixed(tb >= 10 ? 0 : 1)} TB`;
+    const gb = bytes / (1024 ** 3);
+    if (gb >= 1) return `${gb.toFixed(gb >= 100 ? 0 : 1)} GB`;
+    return `${(bytes / (1024 ** 2)).toFixed(0)} MB`;
   }
 
   private sectionFromUrl(url: string): string {
