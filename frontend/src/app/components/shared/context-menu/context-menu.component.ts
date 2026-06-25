@@ -24,6 +24,7 @@ import { MenuListComponent } from './menu-list.component';
       <div
         class="cm-layer"
         (mousedown)="svc.close()"
+        (touchstart)="svc.close()"
         (contextmenu)="onLayerContext($event)"
       >
         <div
@@ -34,6 +35,7 @@ import { MenuListComponent } from './menu-list.component';
           [style.--cm-origin]="origin"
           [style.visibility]="ready ? 'visible' : 'hidden'"
           (mousedown)="$event.stopPropagation()"
+          (touchstart)="$event.stopPropagation()"
           (contextmenu)="onMenuContext($event)"
         >
           @if (m.header; as h) {

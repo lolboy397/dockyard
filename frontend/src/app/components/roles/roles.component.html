@@ -140,8 +140,8 @@
 
 <!-- ════════════════════ Create role · modal ════════════════════ -->
 @if (creating) {
-  <div class="amodal-backdrop" (mousedown)="closeCreate()">
-    <div class="amodal amodal-lg" (mousedown)="$event.stopPropagation()">
+  <div class="amodal-backdrop" (mousedown)="closeCreate()" (touchstart)="closeCreate()">
+    <div class="amodal amodal-lg" (mousedown)="$event.stopPropagation()" (touchstart)="$event.stopPropagation()">
       <div class="amodal-head">
         <span class="role-ic custom"><dy-icon [name]="crIcon" [size]="16"></dy-icon></span>
         <div class="amodal-title-wrap">

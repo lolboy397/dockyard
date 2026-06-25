@@ -465,6 +465,14 @@ app-projects {
   background: var(--accent); color: #04181D; font-weight: 600; font-size: 12px; cursor: pointer;
 }
 
+/* Touch: don't let OS text-selection / the iOS callout hijack a long-press on an
+   actionable row (desktop keeps selection — scoped to coarse pointers). */
+@media (pointer: coarse) {
+  .ctable-row, .gtable-row, .stack-head, .event-row, .proj-item, .ve-row, .bkp-policy, .bkp-policy * {
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+}
+
 /* =========================================================================
    BUTTONS
    ========================================================================= */

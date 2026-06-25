@@ -100,6 +100,13 @@ export class MenuListComponent {
 
   onClick(e: Event, it: ContextMenuItem): void {
     e.stopPropagation();
+    // Submenu parents open on tap/click — hover-to-open isn't available on touch.
+    if (it.items && !it.disabled) {
+      const idx = this.items.indexOf(it);
+      if (this.openSub === idx) { this.openSub = -1; }
+      else { this.active = idx; this.positionSub(idx); }
+      return;
+    }
     this.run(it);
   }
 

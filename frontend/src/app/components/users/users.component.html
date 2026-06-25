@@ -235,8 +235,8 @@
 
 <!-- ════════════════════ Edit user · modal ════════════════════ -->
 @if (editing && selected; as u) {
-  <div class="amodal-backdrop" (mousedown)="closeEdit()">
-    <div class="amodal" (mousedown)="$event.stopPropagation()">
+  <div class="amodal-backdrop" (mousedown)="closeEdit()" (touchstart)="closeEdit()">
+    <div class="amodal" (mousedown)="$event.stopPropagation()" (touchstart)="$event.stopPropagation()">
       <div class="amodal-head">
         <span class="uavatar" [class.is-owner]="u.role === 'owner'">{{ initials(u) }}</span>
         <div class="amodal-title-wrap">

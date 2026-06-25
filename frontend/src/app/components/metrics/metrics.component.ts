@@ -191,6 +191,15 @@ export class MetricsComponent implements OnInit, OnDestroy {
     this.sparkTooltip = { ...this.sparkTooltip, visible: false };
   }
 
+  // Touch: scrub the chart with a finger. touch-action:pan-y keeps vertical page
+  // scroll working, so we don't need to preventDefault (dodging the iOS passive
+  // listener trap). Reuses the mouse handler via the touch point.
+  onSparkTouch(event: TouchEvent, cardIndex: number, m: SparkMetric): void {
+    const t = event.touches[0];
+    if (!t) return;
+    this.onSparkMove({ currentTarget: event.currentTarget, clientX: t.clientX, clientY: t.clientY } as unknown as MouseEvent, cardIndex, m);
+  }
+
   onCpuMove(event: MouseEvent): void {
     const svg = event.currentTarget as SVGSVGElement;
     const rect = svg.getBoundingClientRect();
@@ -214,6 +223,12 @@ export class MetricsComponent implements OnInit, OnDestroy {
   onCpuLeave(): void {
     this.cpuTooltip = { ...this.cpuTooltip, visible: false };
     this.cpuTipDots = [];
+  }
+
+  onCpuTouch(event: TouchEvent): void {
+    const t = event.touches[0];
+    if (!t) return;
+    this.onCpuMove({ currentTarget: event.currentTarget, clientX: t.clientX, clientY: t.clientY } as unknown as MouseEvent);
   }
 
   containerColor(id: string): string {

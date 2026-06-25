@@ -80,6 +80,12 @@
 
   .event-row:hover & { opacity: 1; pointer-events: auto; }
   &:hover { color: var(--warn-400); background: rgba(245,158,11,0.12); }
+
+  /* Touch has no hover — keep the mute control visible and tappable (>=32px). */
+  @media (pointer: coarse) {
+    opacity: 0.55; pointer-events: auto;
+    width: 32px; height: 32px;
+  }
 }
 
 .muted-tag {
