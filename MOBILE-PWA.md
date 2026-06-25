@@ -1,5 +1,34 @@
 # Mobile / PWA plan
 
+> ## Implementation status (branch `feat/mobile-pwa`)
+> Phases 1–3 are **complete and adversarially reviewed** (each review caught real
+> bugs that were fixed before commit). Phases 4–6 have their **P0 / core items
+> done and reviewed**; a documented P1/P2 long tail remains.
+>
+> - **Phase 1 — PWA core** ✅ installable (manifest, service worker, icons,
+>   splash), offline shell, offline-safe auth, tree-shaken icons, install/update/
+>   offline banners, theme/status-bar sync.
+> - **Phase 2 — Touch** ✅ long-press menus on all 11 list sites, context-menu /
+>   chart / modal touch fixes.
+> - **Phase 3 — Navigation** ✅ bottom tab bar, back-button drawer handling,
+>   route transitions, safe-area insets, overscroll/tap-highlight.
+> - **Phase 4 — Lists→cards / forms→sheets** ◑ Done: bottom-sheet modals (all),
+>   16px inputs (all, defeats iOS zoom), **Containers + Events card layouts**,
+>   topology full-screen mobile detail, tap-target sizing. Deferred: card layouts
+>   for the other 9 lists (they remain horizontal-scroll — functional), granular
+>   `inputmode`/keyboard hints, inline form validation, dashboard-ring fluid sizing.
+> - **Phase 5 — Offline/realtime** ◑ Done: visibility-gated polling (battery/data),
+>   offline banner, `wss://` verified, `streamAllStats` reconnect, logout cache
+>   clear, optimistic-offline auth. Deferred: pausing the WS stat/log streams while
+>   hidden, a live "reconnecting" indicator.
+> - **Phase 6 — Polish** ◑ Done: reduced-motion coverage, `:focus-visible` ring.
+>   Deferred: pull-to-refresh, swipe-to-dismiss sheets, full aria-label audit.
+>
+> Every change is build-verified; the existing unit suite stays green. The
+> outstanding verification is a **real-device / emulator sweep** (the plan's
+> testing section) — not yet run.
+
+
 ## 1. Goal & scope
 
 Turn the Dockyard Angular 19 frontend into an **installable, native-feel Progressive Web App optimised for phones** (with tablet and desktop kept fully functional). Concretely:

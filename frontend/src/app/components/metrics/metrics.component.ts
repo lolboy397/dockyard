@@ -71,11 +71,15 @@ export class MetricsComponent implements OnInit, OnDestroy {
     this.loadHost();
     this.hostSub = interval(this.updateInterval * 1000).subscribe(() => this.loadHost());
     this.statsSub = this.ws.streamAllStats().subscribe(stats => this.onStats(stats));
+    document.addEventListener('visibilitychange', this.onVisible);
   }
+
+  private onVisible = (): void => { if (!document.hidden) this.loadHost(); };
 
   ngOnDestroy(): void {
     this.statsSub?.unsubscribe();
     this.hostSub?.unsubscribe();
+    document.removeEventListener('visibilitychange', this.onVisible);
   }
 
   // Seed the CPU/Memory/Disk sparklines from the persisted host time-series so the

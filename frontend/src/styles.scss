@@ -1875,6 +1875,16 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
 /* Keyboard focus ring — mouse focus stays ring-free via :focus-visible. */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* Touch: grow small controls toward the 44px guideline (visual size barely
+   changes — min-width/height only enlarges the hit area). */
+@media (pointer: coarse) {
+  .icon-btn, .icon-btn-sm, .icon-btn.sm { min-width: 36px; min-height: 36px; }
+  .btn-sm { min-height: 34px; }
+  .btn-xs { min-height: 30px; }
+  .nav-item { min-height: 42px; }
+  .cm-item { min-height: 40px; }
+}
+
 @keyframes shellFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 @media (max-width: 820px) {
