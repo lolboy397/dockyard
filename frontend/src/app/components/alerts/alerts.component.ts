@@ -8,6 +8,7 @@ import { NotificationService } from '../../services/notification.service';
 import { ConfirmDialogService } from '../../services/confirm-dialog.service';
 import { ResponsiveService } from '../../services/responsive.service';
 import { AuthService } from '../../auth/auth.service';
+import { optimistic } from '../../helpers/optimistic.helper';
 
 /** Alerts — manage host-threshold / container-exited rules that notify in-app or via webhook. */
 @Component({
@@ -86,18 +87,27 @@ export class AlertsComponent implements OnInit {
   }
 
   toggleEnabled(a: AlertRule): void {
-    this.docker.updateAlert(a.id, { ...a, enabled: !a.enabled }).subscribe({
-      next: () => this.load(),
-      error: e => this.notify.error(e?.error?.error || 'Update failed'),
+    const enabled = !a.enabled;
+    // Optimistic: flip immediately; the server just persists the flag, so on
+    // success the optimistic state is authoritative — no refetch needed.
+    optimistic({
+      apply: () => this.rules.update(rs => rs.map(r => r.id === a.id ? { ...r, enabled } : r)),
+      rollback: () => this.rules.update(rs => rs.map(r => r.id === a.id ? { ...r, enabled: a.enabled } : r)),
+      request$: this.docker.updateAlert(a.id, { ...a, enabled }),
+      onError: e => this.notify.error((e as any)?.error?.error || 'Update failed'),
     });
   }
 
   async remove(a: AlertRule): Promise<void> {
     const ok = await this.confirm.confirm({ title: `Delete "${a.name}"?`, confirmLabel: 'Delete', danger: true });
     if (!ok) return;
-    this.docker.deleteAlert(a.id).subscribe({
-      next: () => { this.notify.success(`Deleted "${a.name}"`); this.load(); },
-      error: e => this.notify.error(e?.error?.error || 'Delete failed'),
+    const snapshot = this.rules();
+    optimistic({
+      apply: () => this.rules.update(rs => rs.filter(r => r.id !== a.id)),
+      rollback: () => this.rules.set(snapshot),
+      request$: this.docker.deleteAlert(a.id),
+      onSuccess: () => this.notify.success(`Deleted "${a.name}"`),
+      onError: e => this.notify.error((e as any)?.error?.error || 'Delete failed'),
     });
   }
 }

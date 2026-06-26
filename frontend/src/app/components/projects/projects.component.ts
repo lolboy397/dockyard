@@ -18,6 +18,7 @@ import {
 } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
+import { optimistic, optimisticPatch } from '../../helpers/optimistic.helper';
 import { LogViewerComponent } from '../shared/log-viewer/log-viewer.component';
 import { ModalComponent } from '../shared/modal/modal.component';
 
@@ -870,13 +871,9 @@ export class ProjectsComponent implements OnInit, OnDestroy {
     const ports = this.portRows.filter(r => r.host.trim() && r.container.trim())
       .map(r => `${r.host.trim()}:${r.container.trim()}`).join(', ');
     this.subs.add(
-      this.docker.updateProjectPorts(this.selected.id, ports).subscribe({
-        next: () => {
-          this.selected!.ports = ports;
-          this.portsEditing = false;
-          this.notify.success('Ports updated');
-        },
-        error: err => this.notify.error('Failed to update ports: ' + (err.error?.error ?? err.message)),
+      optimisticPatch(this.selected, { ports }, this.docker.updateProjectPorts(this.selected.id, ports), {
+        onSuccess: () => { this.portsEditing = false; this.notify.success('Ports updated'); },
+        onError: err => this.notify.error('Failed to update ports: ' + ((err as any).error?.error ?? (err as any).message)),
       }),
     );
   }
@@ -898,15 +895,15 @@ export class ProjectsComponent implements OnInit, OnDestroy {
   toggleDeployOnPush(): void {
     if (!this.selected) return;
     const id = this.selected.id;
-    this.dopLoading = true;
-    const obs = this.deployOnPush ? this.docker.disableDeployHook(id) : this.docker.enableDeployHook(id);
-    obs.subscribe({
-      next: () => {
-        this.deployOnPush = !this.deployOnPush;
-        this.dopLoading = false;
-        this.notify.success(this.deployOnPush ? 'Deploy-on-push enabled' : 'Deploy-on-push disabled');
-      },
-      error: (e: any) => { this.dopLoading = false; this.notify.error(e?.error?.error || 'Failed to update'); },
+    const enabling = !this.deployOnPush;
+    const obs = enabling ? this.docker.enableDeployHook(id) : this.docker.disableDeployHook(id);
+    optimistic({
+      apply: () => { this.deployOnPush = enabling; },
+      rollback: () => { this.deployOnPush = !enabling; },
+      request$: obs,
+      busy: { host: this, key: 'dopLoading' },
+      onSuccess: () => this.notify.success(enabling ? 'Deploy-on-push enabled' : 'Deploy-on-push disabled'),
+      onError: (e) => this.notify.error((e as any)?.error?.error || 'Failed to update'),
     });
   }
 
@@ -1015,10 +1012,8 @@ export class ProjectsComponent implements OnInit, OnDestroy {
         author_name: this.gitAuthorName,
         author_email: this.gitAuthorEmail,
       }).subscribe({
-        next: repo => {
-          this.linkedRepo = repo;
-        },
-        error: () => {},
+        next: repo => { this.linkedRepo = repo; this.notify.success('Git identity saved'); },
+        error: e => this.notify.error((e as any)?.error?.error || 'Failed to save git identity'),
       }),
     );
   }

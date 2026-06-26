@@ -409,7 +409,14 @@ export class VolumeExplorerComponent implements OnInit, OnDestroy {
     if (!ok) return;
     this.busyBackupId = b.id;
     this.docker.restoreVolumeBackup(this.volume.name, b.id).subscribe({
-      next: () => { this.notify.success(`Restored ${this.volume.name}`); this.busyBackupId = null; },
+      next: () => {
+        this.notify.success(`Restored ${this.volume.name}`);
+        this.busyBackupId = null;
+        // Restore erased and replaced the contents — refresh the open directory
+        // and usage so the browser doesn't show stale, now-deleted files.
+        this.loadDir(this.path);
+        this.loadUsage();
+      },
       error: e => { this.notify.error(e?.error?.error || 'Restore failed'); this.busyBackupId = null; },
     });
   }

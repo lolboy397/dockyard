@@ -12,6 +12,7 @@ import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
 import { ResponsiveService } from '../../services/responsive.service';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
+import { optimistic } from '../../helpers/optimistic.helper';
 
 interface PolicyTarget { id: string; name: string; icon: string; meta: string; kind: 'volume' | 'app'; }
 
@@ -101,17 +102,19 @@ export class SystemBackupComponent implements OnInit {
 
   // ── actions ─────────────────────────────────────────────────────────────────
   togglePolicy(p: BkpPolicy): void {
-    this.busy = p.id;
     const enabled = !p.enabled;
-    const done = {
-      next: () => { this.notify[enabled ? 'success' : 'info'](enabled ? 'Policy enabled' : 'Policy paused'); this.busy = null; this.load(); },
-      error: (e: any) => { this.notify.error(e?.error?.error || 'Could not update policy'); this.busy = null; },
-    };
-    if (p.kind === 'app') {
-      this.docker.setAppBackupSchedule({ enabled, interval_hours: p.interval_hours, keep: p.keep }).subscribe(done);
-    } else {
-      this.docker.setBackupSchedule(p.target, { enabled, interval_hours: p.interval_hours, keep: p.keep, stop_container: p.stop_container }).subscribe(done);
-    }
+    this.busy = p.id;
+    const req$ = p.kind === 'app'
+      ? this.docker.setAppBackupSchedule({ enabled, interval_hours: p.interval_hours, keep: p.keep })
+      : this.docker.setBackupSchedule(p.target, { enabled, interval_hours: p.interval_hours, keep: p.keep, stop_container: p.stop_container });
+    // Optimistic: flip the badge immediately; load() reconciles next-run times.
+    optimistic({
+      apply: () => { p.enabled = enabled; },
+      rollback: () => { p.enabled = !enabled; },
+      request$: req$,
+      onSuccess: () => { this.notify[enabled ? 'success' : 'info'](enabled ? 'Policy enabled' : 'Policy paused'); this.busy = null; this.load(); },
+      onError: (e) => { this.notify.error((e as any)?.error?.error || 'Could not update policy'); this.busy = null; },
+    });
   }
 
   runPolicyNow(p: BkpPolicy): void {
@@ -150,13 +153,18 @@ export class SystemBackupComponent implements OnInit {
       confirmLabel: 'Delete', danger: true,
     });
     if (!ok) return;
+    if (!this.ov) return;
     this.busy = b.id;
+    const snapshot = this.ov.recent;
     const obs = b.kind === 'app'
       ? this.docker.deleteAppBackup(b.name!)
       : this.docker.deleteVolumeBackup(b.volume_name!, b.backup_id!);
-    obs.subscribe({
-      next: () => { this.notify.info('Backup deleted'); this.busy = null; this.load(); },
-      error: () => { this.notify.error('Delete failed'); this.busy = null; },
+    optimistic({
+      apply: () => { this.ov!.recent = this.ov!.recent.filter(x => x.id !== b.id); },
+      rollback: () => { this.ov!.recent = snapshot; },
+      request$: obs,
+      onSuccess: () => { this.notify.info('Backup deleted'); this.busy = null; this.load(); },
+      onError: () => { this.notify.error('Delete failed'); this.busy = null; },
     });
   }
 
@@ -168,9 +176,14 @@ export class SystemBackupComponent implements OnInit {
       confirmLabel: 'Delete policy', danger: true,
     });
     if (!ok) return;
-    this.docker.deleteBackupSchedule(p.target).subscribe({
-      next: () => { this.notify.info('Policy deleted'); this.load(); },
-      error: () => this.notify.error('Could not delete policy'),
+    if (!this.ov) return;
+    const snapshot = this.ov.policies;
+    optimistic({
+      apply: () => { this.ov!.policies = this.ov!.policies.filter(x => x.id !== p.id); },
+      rollback: () => { this.ov!.policies = snapshot; },
+      request$: this.docker.deleteBackupSchedule(p.target),
+      onSuccess: () => { this.notify.info('Policy deleted'); this.load(); },
+      onError: () => this.notify.error('Could not delete policy'),
     });
   }
 

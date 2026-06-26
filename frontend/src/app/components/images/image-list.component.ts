@@ -13,6 +13,7 @@ import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
 import { ResponsiveService } from '../../services/responsive.service';
 import { PruneDialogService } from '../../services/prune-dialog.service';
+import { optimistic } from '../../helpers/optimistic.helper';
 
 @Component({
   selector: 'app-image-list',
@@ -184,9 +185,13 @@ export class ImageListComponent implements OnInit {
       : undefined;
     const ok = await this.confirm.confirm({ title: `Remove ${tag}?`, message, confirmLabel: 'Remove', danger: true });
     if (!ok) return;
-    this.docker.removeImage(img.Id, true).subscribe({
-      next: () => { this.notify.success(`Removed ${tag}`); this.load(); },
-      error: () => this.notify.error(`Failed to remove ${tag}`),
+    const snapshot = this.images;
+    optimistic({
+      apply: () => { this.images = this.images.filter(i => i.Id !== img.Id); this.applyFilter(); },
+      rollback: () => { this.images = snapshot; this.applyFilter(); },
+      request$: this.docker.removeImage(img.Id, true),
+      onSuccess: () => this.notify.success(`Removed ${tag}`),
+      onError: () => this.notify.error(`Failed to remove ${tag}`),
     });
   }
 

@@ -11,6 +11,7 @@ import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
 import { ResponsiveService } from '../../services/responsive.service';
 import { PruneDialogService } from '../../services/prune-dialog.service';
+import { optimistic } from '../../helpers/optimistic.helper';
 
 const SYSTEM_NETS = new Set(['bridge', 'host', 'none']);
 
@@ -87,9 +88,13 @@ export class NetworkListComponent implements OnInit {
       danger: true,
     });
     if (!ok) return;
-    this.docker.removeNetwork(n.Id).subscribe({
-      next: () => { this.notify.success(`Removed ${n.Name}`); this.load(); },
-      error: () => this.notify.error(`Failed to remove ${n.Name}`),
+    const snapshot = this.networks;
+    optimistic({
+      apply: () => { this.networks = this.networks.filter(x => x.Id !== n.Id); this.filter(); },
+      rollback: () => { this.networks = snapshot; this.filter(); },
+      request$: this.docker.removeNetwork(n.Id),
+      onSuccess: () => this.notify.success(`Removed ${n.Name}`),
+      onError: () => this.notify.error(`Failed to remove ${n.Name}`),
     });
   }
 

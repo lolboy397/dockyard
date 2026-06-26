@@ -12,6 +12,7 @@ import { AuthService } from '../../../auth/auth.service';
 import { ContainerSummary, ContainerInspect, ContainerStats, WatchedImage } from '../../../models/docker.models';
 import { ContextMenuService, ContextMenuItem } from '../../../services/context-menu.service';
 import { PruneDialogService } from '../../../services/prune-dialog.service';
+import { optimisticPatch } from '../../../helpers/optimistic.helper';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { ModalComponent } from '../../shared/modal/modal.component';
 import { StatusDotComponent, statusTone } from '../../shared/status-dot/status-dot.component';
@@ -429,22 +430,18 @@ export class ContainerListComponent implements OnInit, OnDestroy, AfterViewCheck
 
   toggleAutoUpdate(): void {
     if (!this.watch || this.watchBusy) return;
-    const next: WatchedImage = { ...this.watch, auto_update: !this.watch.auto_update };
-    this.watchBusy = true;
-    this.docker.upsertWatchedImage(next).subscribe({
-      next: () => { this.watch = next; this.watchBusy = false; },
-      error: () => { this.watchBusy = false; this.notify.error('Failed to update setting'); },
-    });
+    const next = !this.watch.auto_update;
+    optimisticPatch(this.watch, { auto_update: next },
+      this.docker.upsertWatchedImage({ ...this.watch, auto_update: next }),
+      { busy: { host: this, key: 'watchBusy' }, onError: () => this.notify.error('Failed to update setting') });
   }
 
   changeWatchInterval(seconds: number): void {
     if (!this.watch || this.watchBusy) return;
-    const next: WatchedImage = { ...this.watch, check_interval: +seconds };
-    this.watchBusy = true;
-    this.docker.upsertWatchedImage(next).subscribe({
-      next: () => { this.watch = next; this.watchBusy = false; },
-      error: () => { this.watchBusy = false; this.notify.error('Failed to update interval'); },
-    });
+    const secs = +seconds;
+    optimisticPatch(this.watch, { check_interval: secs },
+      this.docker.upsertWatchedImage({ ...this.watch, check_interval: secs }),
+      { busy: { host: this, key: 'watchBusy' }, onError: () => this.notify.error('Failed to update interval') });
   }
 
   watchCheckNow(): void {

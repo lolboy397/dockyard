@@ -11,6 +11,7 @@ import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
 import { ResponsiveService } from '../../services/responsive.service';
 import { PruneDialogService } from '../../services/prune-dialog.service';
+import { optimistic } from '../../helpers/optimistic.helper';
 import { VolumeExplorerComponent } from './volume-explorer.component';
 import { ExplorerVolume } from './volume-explorer.data';
 
@@ -131,9 +132,13 @@ export class VolumeListComponent implements OnInit {
       danger: true,
     });
     if (!ok) return;
-    this.docker.removeVolume(vol.Name, false).subscribe({
-      next: () => { this.notify.success(`Removed ${vol.Name}`); this.load(); },
-      error: () => this.notify.error(`Failed to remove ${vol.Name}`),
+    const snapshot = this.volumes;
+    optimistic({
+      apply: () => { this.volumes = this.volumes.filter(v => v.Name !== vol.Name); this.filter(); },
+      rollback: () => { this.volumes = snapshot; this.filter(); },
+      request$: this.docker.removeVolume(vol.Name, false),
+      onSuccess: () => this.notify.success(`Removed ${vol.Name}`),
+      onError: () => this.notify.error(`Failed to remove ${vol.Name}`),
     });
   }
 

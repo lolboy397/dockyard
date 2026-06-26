@@ -11,6 +11,7 @@ import { AppEvent, EventFilter } from '../../models/docker.models';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LongPressDirective } from '../../directives/long-press.directive';
 import { PullToRefreshDirective } from '../../directives/pull-to-refresh.directive';
+import { optimistic } from '../../helpers/optimistic.helper';
 
 @Component({
   selector: 'app-events',
@@ -181,20 +182,26 @@ export class EventsComponent implements OnInit, OnDestroy {
   }
 
   toggleRule(f: EventFilter): void {
-    this.docker.setEventFilterEnabled(f.id, !f.enabled).subscribe({
-      next: () => { f.enabled = !f.enabled; this.load(); },
-      error: err => this.notify.error('Failed to update filter: ' + (err.error?.error ?? err.message)),
+    const prev = f.enabled;
+    // Optimistic on the rule itself; load() still reconciles the EVENTS feed,
+    // whose muted set changed (the backend applies muting at read time).
+    optimistic({
+      apply: () => { f.enabled = !prev; },
+      rollback: () => { f.enabled = prev; },
+      request$: this.docker.setEventFilterEnabled(f.id, !prev),
+      onSuccess: () => this.load(),
+      onError: err => this.notify.error('Failed to update filter: ' + ((err as any).error?.error ?? (err as any).message)),
     });
   }
 
   removeRule(f: EventFilter): void {
-    this.docker.deleteEventFilter(f.id).subscribe({
-      next: () => {
-        this.rules = this.rules.filter(r => r.id !== f.id);
-        this.notify.success('Filter removed');
-        this.load();
-      },
-      error: err => this.notify.error('Failed to remove filter: ' + (err.error?.error ?? err.message)),
+    const snapshot = this.rules;
+    optimistic({
+      apply: () => { this.rules = this.rules.filter(r => r.id !== f.id); },
+      rollback: () => { this.rules = snapshot; },
+      request$: this.docker.deleteEventFilter(f.id),
+      onSuccess: () => { this.notify.success('Filter removed'); this.load(); },
+      onError: err => this.notify.error('Failed to remove filter: ' + ((err as any).error?.error ?? (err as any).message)),
     });
   }
 
