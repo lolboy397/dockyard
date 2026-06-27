@@ -182,6 +182,9 @@ func runMetricsSampler(ctx context.Context, cli *client.Client, db *storage.DB) 
 	// Events/audit retention is configurable (default 90 days) — a busy host can
 	// generate a lot of daemon events, so operators may want a shorter window.
 	eventRetentionSec := envIntOrDefault("EVENT_RETENTION_DAYS", 90) * 24 * 3600
+	// Diagnostics retention is shorter by default — error rows churn faster and
+	// the grouped rollups carry the long-lived signal.
+	diagRetentionDays := envIntOrDefault("DIAG_RETENTION_DAYS", 30)
 
 	sample := func() {
 		s, err := handlers.ComputeHostStats(ctx, cli)
@@ -212,6 +215,9 @@ func runMetricsSampler(ctx context.Context, cli *client.Client, db *storage.DB) 
 				log.Printf("[events] prune error: %v", err)
 			} else if n > 0 {
 				log.Printf("[events] pruned %d old event(s)", n)
+			}
+			if err := db.PruneDiag(diagRetentionDays); err != nil {
+				log.Printf("[diag] prune error: %v", err)
 			}
 		}
 	}

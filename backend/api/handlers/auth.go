@@ -198,9 +198,9 @@ func (h *AuthHandlers) Authorize(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, errMsg("admin role required"))
 			return
 		}
-		// Self-service account-security endpoints (logout, managing one's own 2FA)
-		// are allowed for any authenticated user, including viewers.
-		if isMutating(r.Method) && r.URL.Path != "/api/v1/auth/logout" && !strings.HasPrefix(r.URL.Path, "/api/v1/auth/2fa") {
+		// Self-service endpoints (logout, own-2FA, posting one's own diagnostics —
+		// viewers hit JS errors too) are allowed for any authenticated user.
+		if isMutating(r.Method) && r.URL.Path != "/api/v1/auth/logout" && r.URL.Path != "/api/v1/diag/events" && !strings.HasPrefix(r.URL.Path, "/api/v1/auth/2fa") {
 			if tier != "admin" && tier != "operator" {
 				writeError(w, http.StatusForbidden, errMsg("insufficient permissions (operator role required)"))
 				return
@@ -228,11 +228,20 @@ func (s *statusWriter) Flush() {
 	}
 }
 
+// recordError forwards the diagnostics error hook to the underlying writer (the
+// diagWriter set up by DiagHandlers.Capture), so writeError's 5xx detail reaches
+// the capture middleware even though AuditMutations wraps the response.
+func (s *statusWriter) recordError(err error) {
+	if er, ok := s.ResponseWriter.(interface{ recordError(error) }); ok {
+		er.recordError(err)
+	}
+}
+
 // AuditMutations records successful mutating API requests against the acting
 // user, turning the events feed into an accountability log. Runs after Authorize.
 func (h *AuthHandlers) AuditMutations(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !isMutating(r.Method) || publicPaths[r.URL.Path] || r.URL.Path == "/api/v1/auth/logout" {
+		if !isMutating(r.Method) || publicPaths[r.URL.Path] || r.URL.Path == "/api/v1/auth/logout" || r.URL.Path == "/api/v1/diag/events" {
 			next.ServeHTTP(w, r)
 			return
 		}

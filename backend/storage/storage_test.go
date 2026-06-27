@@ -18,6 +18,71 @@ func newTestDB(t *testing.T) *DB {
 	return db
 }
 
+func TestDiagStore(t *testing.T) {
+	db := newTestDB(t)
+	now := time.Now()
+	ev := func(fp, msg, level string) DiagEvent {
+		return DiagEvent{TS: now, Level: level, Source: "backend", Component: "/x", Message: msg, Fingerprint: fp, StatusCode: 500}
+	}
+
+	// fp1 seen 3x + fp2 seen 1x, then fp1 bumped 2x in a later flush.
+	if err := db.InsertDiagBatch([]DiagAccum{
+		{Sample: ev("fp1", "boom", "error"), Count: 3},
+		{Sample: ev("fp2", "a warning", "warn"), Count: 1},
+	}); err != nil {
+		t.Fatalf("batch1: %v", err)
+	}
+	if err := db.InsertDiagBatch([]DiagAccum{{Sample: ev("fp1", "boom", "error"), Count: 2}}); err != nil {
+		t.Fatalf("batch2: %v", err)
+	}
+
+	groups, err := db.QueryGroups("", "", 100)
+	if err != nil {
+		t.Fatalf("groups: %v", err)
+	}
+	if len(groups) != 2 {
+		t.Fatalf("want 2 groups, got %d", len(groups))
+	}
+	var fp1Count int
+	for _, g := range groups {
+		if g.Fingerprint == "fp1" {
+			fp1Count = g.Count
+		}
+	}
+	if fp1Count != 5 {
+		t.Errorf("fp1 group count = %d, want 5 (3+2)", fp1Count)
+	}
+
+	// One sample event row per flush per fingerprint (storm collapse).
+	if evs, _ := db.QueryEvents("fp1", 100); len(evs) != 2 {
+		t.Errorf("fp1 sample rows = %d, want 2", len(evs))
+	}
+
+	st, err := db.DiagStatsSummary()
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if st.OpenGroups != 2 {
+		t.Errorf("open groups = %d, want 2", st.OpenGroups)
+	}
+
+	// Resolve fp1 → only fp2 stays open.
+	if err := db.SetDiagGroupStatus("fp1", "resolved"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if openG, _ := db.QueryGroups("open", "", 100); len(openG) != 1 {
+		t.Errorf("open groups after resolve = %d, want 1", len(openG))
+	}
+
+	// Prune keeps recent rows.
+	if err := db.PruneDiag(30); err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if g, _ := db.QueryGroups("", "", 100); len(g) != 2 {
+		t.Errorf("prune dropped recent groups: %d", len(g))
+	}
+}
+
 func TestOIDCConfigStorage(t *testing.T) {
 	db := newTestDB(t)
 

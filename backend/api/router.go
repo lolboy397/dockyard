@@ -108,6 +108,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 	alerts := handlers.NewAlertHandlers(db)
 	appBackups := handlers.NewAppBackupHandlers(bk, db)
 	updates := handlers.NewUpdateHandlers(cli, db, bk)
+	diag := handlers.NewDiagHandlers(db)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Bound request bodies before handlers read them (memory-exhaustion guard).
@@ -118,6 +119,10 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		// Enforce role-based access (viewers read-only, /users admin-only) and
 		// record mutating actions against the acting user (attributed audit log).
 		r.Use(auth.Authorize)
+		// Capture every 5xx + recovered panic into the diagnostics store (also the
+		// recoverer for this group). Outside AuditMutations so its writer is the
+		// base the statusWriter forwards writeError's error to.
+		r.Use(diag.Capture)
 		r.Use(auth.AuditMutations)
 
 		// Auth & first-run setup
@@ -157,6 +162,14 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		r.Post("/roles", roles.Create)
 		r.Get("/roles/{id}", roles.Get)
 		r.Delete("/roles/{id}", roles.Delete)
+
+		// Diagnostics ("Insights"): ingest is open to any authed user (viewers hit
+		// JS errors too — exempt from the operator gate); reads/resolve are admin.
+		r.Post("/diag/events", diag.Ingest)
+		r.Get("/diag/events", diag.ListEvents)
+		r.Get("/diag/groups", diag.ListGroups)
+		r.Post("/diag/groups/{fingerprint}/status", diag.SetStatus)
+		r.Get("/diag/stats", diag.Stats)
 
 		// System
 		r.Get("/system/info", system.Info)

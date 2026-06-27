@@ -22,6 +22,11 @@ func writeJSON(w http.ResponseWriter, v any) {
 // message instead. (Previously every error's raw text was echoed to the client,
 // leaking internal details on 5xx.)
 func writeError(w http.ResponseWriter, code int, err error) {
+	// Hand the real error to the diagnostics capture middleware (if wrapping this
+	// response), which records 5xx with request_id correlation.
+	if er, ok := w.(interface{ recordError(error) }); ok {
+		er.recordError(err)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	if code >= 500 {
