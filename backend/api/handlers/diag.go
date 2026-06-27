@@ -237,7 +237,7 @@ func (h *DiagHandlers) recordPanic(r *http.Request, rec any, stack string) {
 // sink's accumulation absorbs storms, so no per-request rate limit is needed here.
 // POST /api/v1/diag/events.
 func (h *DiagHandlers) Ingest(w http.ResponseWriter, r *http.Request) {
-	var req struct {
+	type reportItem struct {
 		Level     string         `json:"level"`
 		Message   string         `json:"message"`
 		Component string         `json:"component"`
@@ -247,42 +247,50 @@ func (h *DiagHandlers) Ingest(w http.ResponseWriter, r *http.Request) {
 		URL       string         `json:"url"`
 		Context   map[string]any `json:"context"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// Reports arrive as a batch (the client flushes its queue in one beacon).
+	var reports []reportItem
+	if err := json.NewDecoder(r.Body).Decode(&reports); err != nil {
 		writeError(w, http.StatusBadRequest, errMsg("invalid request body"))
 		return
 	}
-	req.Message = strings.TrimSpace(req.Message)
-	if req.Message == "" {
-		writeError(w, http.StatusBadRequest, errMsg("message is required"))
-		return
+	const maxBatch = 50
+	if len(reports) > maxBatch {
+		reports = reports[:maxBatch]
 	}
-	level := req.Level
-	if level != "warn" && level != "info" {
-		level = "error"
-	}
-	comp := clip(req.Component, 200)
-	msg := clip(req.Message, 2000)
-	ctxJSON := ""
-	if len(req.Context) > 0 {
-		if b, err := json.Marshal(req.Context); err == nil {
-			ctxJSON = clip(string(b), 4000)
+	ua := clip(r.UserAgent(), 300)
+	actor := actorName(r)
+	for _, req := range reports {
+		msg := clip(strings.TrimSpace(req.Message), 2000)
+		if msg == "" {
+			continue
 		}
+		level := req.Level
+		if level != "warn" && level != "info" {
+			level = "error"
+		}
+		comp := clip(req.Component, 200)
+		ctxJSON := ""
+		if len(req.Context) > 0 {
+			if b, err := json.Marshal(req.Context); err == nil {
+				ctxJSON = clip(string(b), 4000)
+			}
+		}
+		h.emit(storage.DiagEvent{
+			TS:          time.Now(),
+			Level:       level,
+			Source:      "frontend",
+			Component:   comp,
+			Message:     msg,
+			Fingerprint: diagFingerprint("frontend", comp, 0, msg),
+			RequestID:   clip(req.RequestID, 64),
+			Actor:       actor,
+			Route:       clip(req.URL, 300),
+			Stack:       clip(req.Stack, 8000),
+			Context:     ctxJSON,
+			Release:     clip(req.Release, 64),
+			UserAgent:   ua,
+		})
 	}
-	h.emit(storage.DiagEvent{
-		TS:          time.Now(),
-		Level:       level,
-		Source:      "frontend",
-		Component:   comp,
-		Message:     msg,
-		Fingerprint: diagFingerprint("frontend", comp, 0, msg),
-		RequestID:   clip(req.RequestID, 64),
-		Actor:       actorName(r),
-		Route:       clip(req.URL, 300),
-		Stack:       clip(req.Stack, 8000),
-		Context:     ctxJSON,
-		Release:     clip(req.Release, 64),
-		UserAgent:   clip(r.UserAgent(), 300),
-	})
 	w.WriteHeader(http.StatusNoContent)
 }
 

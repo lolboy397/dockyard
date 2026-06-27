@@ -19,6 +19,7 @@ import { AuthService } from './auth/auth.service';
 import { InstallBannerComponent } from './components/shared/install-banner/install-banner.component';
 import { PwaUpdateService } from './services/pwa-update.service';
 import { NetworkStatusService } from './services/network-status.service';
+import { TelemetryService } from './services/telemetry.service';
 
 interface NavGroup {
   label: string;
@@ -143,7 +144,11 @@ export class AppComponent implements OnInit, OnDestroy {
     private realtime: RealtimeService,
     public pwaUpdate: PwaUpdateService,
     public network: NetworkStatusService,
+    private telemetry: TelemetryService,
   ) {
+    // Start capturing uncaught JS errors / rejections / network failures into the
+    // diagnostics store (no-ops until signed in).
+    this.telemetry.start();
     // Once auth resolves an admin, do a one-shot background update check so the
     // sidebar can flag an available update. Errors (incl. non-admin 403) are
     // ignored; the Updates page is the authoritative view.

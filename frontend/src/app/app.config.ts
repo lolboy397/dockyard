@@ -6,6 +6,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './auth/auth.interceptor';
+import { telemetryInterceptor } from './core/telemetry.interceptor';
 import { GlobalErrorHandler } from './core/global-error-handler';
 
 export const appConfig: ApplicationConfig = {
@@ -15,7 +16,7 @@ export const appConfig: ApplicationConfig = {
       routes,
       withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }),
     ),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withInterceptors([authInterceptor, telemetryInterceptor])),
     provideAnimationsAsync(),
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
     // Service worker drives installability + offline shell. Disabled in dev so
