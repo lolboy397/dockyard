@@ -35,6 +35,31 @@ export class LoginScreenComponent implements OnInit {
 
   ngOnInit(): void {
     this.username = this.knownUser || '';
+    // Surface an SSO failure passed back by the callback (/?sso_error=…).
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const e = p.get('sso_error');
+      if (e) {
+        this.error = this.ssoErrorMessage(e);
+        p.delete('sso_error'); p.delete('sso');
+        const qs = p.toString();
+        history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
+      }
+    } catch { /* ignore */ }
+  }
+
+  get ssoEnabled(): boolean { return !!this.auth.status()?.sso_enabled; }
+  get ssoLabel(): string { return this.auth.status()?.sso_label || 'Sign in with SSO'; }
+  startSso(): void { this.auth.startSso(); }
+
+  private ssoErrorMessage(code: string): string {
+    switch (code) {
+      case 'no_account': return 'No account exists for your email — ask an administrator to invite you first.';
+      case 'domain_not_allowed': return 'Your email domain is not permitted to sign in here.';
+      case 'account_suspended': return 'Your account is suspended.';
+      case 'disabled': return 'Single sign-on is not enabled.';
+      default: return 'Single sign-on failed. Please try again.';
+    }
   }
 
   get canSubmit(): boolean {

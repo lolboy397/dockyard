@@ -41,6 +41,11 @@
                 (clicked)="submit()" [disabled]="!canSubmit">
                 {{ loading ? 'Signing in…' : 'Sign in' }}
               </dy-btn>
+
+              @if (ssoEnabled) {
+                <div class="login-or"><span>or</span></div>
+                <dy-btn variant="secondary" [block]="true" icon="shield" (clicked)="startSso()">{{ ssoLabel }}</dy-btn>
+              }
             } @else {
               <dy-field label="Authentication code" [error]="error">
                 <dy-text-input [value]="otp" (valueChange)="otp = $event; error = null"

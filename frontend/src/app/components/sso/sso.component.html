@@ -1,0 +1,77 @@
+<div class="content-area">
+  <div class="content-head">
+    <div class="content-title-row">
+      <span class="eyebrow">admin · authentication</span>
+      <h2 class="content-title">Single sign-on</h2>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="acct-muted" style="padding:0 16px;">Loading…</div>
+  } @else {
+    @let c = cfg()!;
+    <div class="account-grid">
+      <!-- Provider -->
+      <section class="acct-card">
+        <div class="acct-card-head">
+          <dy-icon name="shield" [size]="15"></dy-icon>
+          <h3>OpenID Connect provider</h3>
+          <span class="acct-badge" [class.on]="c.enabled">{{ c.enabled ? 'On' : 'Off' }}</span>
+        </div>
+        <p class="acct-desc">
+          Let users sign in through an external identity provider (Keycloak, Authentik, Google,
+          Azure AD, Okta…). Register Dockyard as a confidential client and paste the details below.
+        </p>
+
+        <label class="sso-check">
+          <input type="checkbox" [checked]="c.enabled" (change)="patch('enabled', $any($event.target).checked)">
+          <span>Enable single sign-on</span>
+        </label>
+
+        <label class="sso-label">Issuer URL</label>
+        <input class="acct-input" [ngModel]="c.issuer_url" (ngModelChange)="patch('issuer_url', $event)"
+               placeholder="https://idp.example.com/realms/main" autocomplete="off">
+
+        <label class="sso-label">Client ID</label>
+        <input class="acct-input" [ngModel]="c.client_id" (ngModelChange)="patch('client_id', $event)"
+               placeholder="dockyard" autocomplete="off">
+
+        <label class="sso-label">Client secret</label>
+        <input class="acct-input" type="password" [ngModel]="c.client_secret" (ngModelChange)="patch('client_secret', $event)"
+               [placeholder]="hasSecret() ? '•••••••• stored — leave blank to keep' : 'Client secret'" autocomplete="off">
+
+        <label class="sso-label">Redirect / callback URL <span class="sso-hint">— register this at your provider</span></label>
+        <div class="acct-secret">
+          <code class="mono">{{ callbackUrl }}</code>
+          <button class="btn btn-sm btn-ghost" (click)="copyCallback()" title="Copy callback URL"><dy-icon name="copy" [size]="13"></dy-icon></button>
+        </div>
+      </section>
+
+      <!-- Sign-in & provisioning -->
+      <section class="acct-card">
+        <div class="acct-card-head"><dy-icon name="users" [size]="15"></dy-icon><h3>Sign-in &amp; provisioning</h3></div>
+
+        <label class="sso-label">Button label</label>
+        <input class="acct-input" [ngModel]="c.button_label" (ngModelChange)="patch('button_label', $event)" placeholder="Sign in with SSO">
+
+        <label class="sso-label">Allowed email domains <span class="sso-hint">— comma-separated; blank = any</span></label>
+        <input class="acct-input" [ngModel]="c.allowed_domains" (ngModelChange)="patch('allowed_domains', $event)" placeholder="example.com, team.example.com">
+
+        <label class="sso-label">Default role for new users</label>
+        <select class="acct-input" [ngModel]="c.default_role" (ngModelChange)="patch('default_role', $event)">
+          @for (r of roles; track r) { <option [value]="r">{{ r }}</option> }
+        </select>
+
+        <label class="sso-check" style="margin-top:14px;">
+          <input type="checkbox" [checked]="c.auto_provision" (change)="patch('auto_provision', $any($event.target).checked)">
+          <span>Automatically create an account on first sign-in</span>
+        </label>
+        <p class="sso-fine">When off, only users an admin has already added (matched by email) can sign in via SSO.</p>
+
+        <div class="acct-actions">
+          <button class="btn btn-sm btn-primary" (click)="save()" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save settings' }}</button>
+        </div>
+      </section>
+    </div>
+  }
+</div>

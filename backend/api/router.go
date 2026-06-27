@@ -131,6 +131,13 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		r.Post("/auth/2fa/confirm", auth.TwoFactorConfirm)
 		r.Post("/auth/2fa/disable", auth.TwoFactorDisable)
 
+		// SSO (OpenID Connect): login + callback are public (see publicPaths); the
+		// provider config is admin-only (enforced in the handlers).
+		r.Get("/auth/sso/login", auth.SSOLogin)
+		r.Get("/auth/sso/callback", auth.SSOCallback)
+		r.Get("/auth/sso/config", auth.SSOConfigGet)
+		r.Put("/auth/sso/config", auth.SSOConfigPut)
+
 		// User management (admin only — enforced by Authorize)
 		r.Get("/users", auth.ListUsers)
 		r.Post("/users", auth.CreateUser)

@@ -88,6 +88,22 @@ export interface AuthStatus {
   registry: string;
   engine_version: string;
   app_version: string;
+  sso_enabled?: boolean;
+  sso_label?: string;
+}
+
+/** Single-provider SSO (OIDC) configuration, admin-managed. The client secret is
+ *  never returned (has_secret signals whether one is stored). */
+export interface OIDCConfig {
+  enabled: boolean;
+  issuer_url: string;
+  client_id: string;
+  client_secret?: string; // write-only; sent on save, never returned
+  has_secret?: boolean;
+  button_label: string;
+  allowed_domains: string;
+  default_role: string;
+  auto_provision: boolean;
 }
 
 export interface AuthSession {

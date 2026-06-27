@@ -3,10 +3,12 @@ module docker-manager/backend
 go 1.26.1
 
 require (
+	github.com/coreos/go-oidc/v3 v3.19.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-chi/cors v1.2.2
 	github.com/gorilla/websocket v1.5.3
+	golang.org/x/oauth2 v0.36.0
 	modernc.org/sqlite v1.50.1
 )
 
@@ -21,6 +23,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect

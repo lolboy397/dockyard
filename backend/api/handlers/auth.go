@@ -32,11 +32,12 @@ type AuthHandlers struct {
 	db      *storage.DB
 	docker  *client.Client
 	limiter *loginLimiter
+	sso     *ssoState // in-flight SSO logins + discovered-provider cache
 }
 
 // NewAuthHandlers builds the auth handler set.
 func NewAuthHandlers(db *storage.DB, cli *client.Client) *AuthHandlers {
-	return &AuthHandlers{db: db, docker: cli, limiter: newLoginLimiter()}
+	return &AuthHandlers{db: db, docker: cli, limiter: newLoginLimiter(), sso: newSSOState()}
 }
 
 var emailRe = regexp.MustCompile(`^\S+@\S+\.\S+$`)
@@ -50,6 +51,9 @@ var publicPaths = map[string]bool{
 	"/api/v1/auth/setup":           true,
 	"/api/v1/auth/login":           true,
 	"/api/v1/auth/test-connection": true,
+	// SSO redirect + callback happen before a Dockyard session exists.
+	"/api/v1/auth/sso/login":    true,
+	"/api/v1/auth/sso/callback": true,
 }
 
 // RequireAuth is middleware that rejects requests lacking a valid session token.
@@ -306,6 +310,13 @@ func (h *AuthHandlers) Status(w http.ResponseWriter, r *http.Request) {
 		engineVersion = v.Version
 	}
 
+	// Surface whether SSO is available (and its button label) so the login screen
+	// can show the button before any session exists.
+	ssoEnabled, ssoLabel := false, ""
+	if oc, _ := h.db.GetOIDCConfig(); oc != nil && oc.Enabled && oc.IssuerURL != "" && oc.ClientID != "" {
+		ssoEnabled, ssoLabel = true, oc.ButtonLabel
+	}
+
 	writeJSON(w, map[string]any{
 		"setup_complete": complete,
 		"instance_name":  cfg.InstanceName,
@@ -314,6 +325,8 @@ func (h *AuthHandlers) Status(w http.ResponseWriter, r *http.Request) {
 		"registry":       cfg.Registry,
 		"engine_version": engineVersion,
 		"app_version":    appVersion,
+		"sso_enabled":    ssoEnabled,
+		"sso_label":      ssoLabel,
 	})
 }
 

@@ -18,6 +18,65 @@ func newTestDB(t *testing.T) *DB {
 	return db
 }
 
+func TestOIDCConfigStorage(t *testing.T) {
+	db := newTestDB(t)
+
+	// Default when unset: disabled, viewer, auto-provision on.
+	c, err := db.GetOIDCConfig()
+	if err != nil {
+		t.Fatalf("get default: %v", err)
+	}
+	if c.Enabled || c.DefaultRole != "viewer" || !c.AutoProvision {
+		t.Errorf("unexpected default config: %+v", c)
+	}
+
+	if err := db.SaveOIDCConfig(OIDCConfig{
+		Enabled: true, IssuerURL: "https://idp.example.com", ClientID: "dockyard",
+		ClientSecret: "s3cr3t", ButtonLabel: "Login", AllowedDomains: "example.com",
+		DefaultRole: "developer", AutoProvision: false,
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	got, err := db.GetOIDCConfig()
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !got.Enabled || got.IssuerURL != "https://idp.example.com" || got.ClientID != "dockyard" {
+		t.Errorf("round-trip mismatch: %+v", got)
+	}
+	if got.ClientSecret != "s3cr3t" || !got.HasSecret {
+		t.Errorf("secret decrypt: %q has=%v", got.ClientSecret, got.HasSecret)
+	}
+	if got.DefaultRole != "developer" || got.AutoProvision {
+		t.Errorf("field mismatch: %+v", got)
+	}
+
+	// The secret must be ciphertext at rest.
+	var raw string
+	if err := db.read.QueryRow(`SELECT client_secret FROM oidc_config WHERE id=1`).Scan(&raw); err != nil {
+		t.Fatalf("scan raw: %v", err)
+	}
+	if !strings.HasPrefix(raw, "enc:") {
+		t.Errorf("client secret not encrypted at rest: %q", raw)
+	}
+}
+
+func TestGetUserByEmail(t *testing.T) {
+	db := newTestDB(t)
+	if u, _ := db.GetUserByEmail("nobody@x.io"); u != nil {
+		t.Error("expected nil for an unknown email")
+	}
+	created, err := db.CreateUser(User{Username: "z", Email: "Zed@X.io", PasswordHash: "h", Role: "viewer"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	got, err := db.GetUserByEmail("zed@x.io") // lookup is case-insensitive
+	if err != nil || got == nil || got.ID != created.ID {
+		t.Errorf("case-insensitive lookup failed: err=%v got=%+v", err, got)
+	}
+}
+
 func TestTOTPStorage(t *testing.T) {
 	db := newTestDB(t)
 	u, err := db.CreateUser(User{FullName: "A", Email: "a@x.io", Username: "alice", PasswordHash: "h", Role: "admin"})

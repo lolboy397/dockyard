@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
-import { AuthSession, AuthStatus, AuthUser, SetupData, TestConnectionResult, TwoFactorChallenge, TwoFactorStatus } from './auth.models';
+import { AuthSession, AuthStatus, AuthUser, OIDCConfig, SetupData, TestConnectionResult, TwoFactorChallenge, TwoFactorStatus } from './auth.models';
 import { clearAllCaches } from '../services/pwa-update.service';
 
 const TOKEN_KEY = 'dy_token';
@@ -27,6 +27,9 @@ export class AuthService {
 
   /** Probe instance status and validate any stored session token. */
   init(): void {
+    // An SSO callback hands the new session token back via the URL fragment
+    // (/?sso=1#token=…); consume + store it and clean the URL before probing.
+    this.consumeSsoHashToken();
     // Restore the last-known user up front so an offline relaunch has something
     // to fall back on if /me can't be reached.
     const cached = this.readCachedUser();
@@ -189,6 +192,28 @@ export class AuthService {
     } catch {
       return null;
     }
+  }
+
+  // ---- SSO (OIDC) ----
+  /** Pick up a session token handed back in the URL fragment by the SSO callback. */
+  private consumeSsoHashToken(): void {
+    try {
+      const m = /[#&]token=([^&]+)/.exec(window.location.hash);
+      if (!m) return;
+      localStorage.setItem(TOKEN_KEY, decodeURIComponent(m[1]));
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    } catch { /* ignore */ }
+  }
+
+  /** Begin the SSO redirect flow — a full-page navigation to the backend, which
+   *  302-redirects to the configured identity provider. */
+  startSso(): void { window.location.href = '/api/v1/auth/sso/login'; }
+
+  getSsoConfig(): Observable<OIDCConfig> {
+    return this.http.get<OIDCConfig>(`${this.base}/sso/config`, { headers: this.authHeaders() });
+  }
+  saveSsoConfig(cfg: OIDCConfig): Observable<OIDCConfig> {
+    return this.http.put<OIDCConfig>(`${this.base}/sso/config`, cfg, { headers: this.authHeaders() });
   }
 
   private authHeaders(): HttpHeaders {

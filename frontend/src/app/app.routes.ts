@@ -68,6 +68,10 @@ export const routes: Routes = [
     loadComponent: () => import('./components/roles/roles.component').then(m => m.RolesComponent)
   },
   {
+    path: 'sso',
+    loadComponent: () => import('./components/sso/sso.component').then(m => m.SsoComponent)
+  },
+  {
     path: 'backups',
     loadComponent: () => import('./components/system-backup/system-backup.component').then(m => m.SystemBackupComponent)
   },
