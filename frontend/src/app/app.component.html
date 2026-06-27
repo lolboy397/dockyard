@@ -34,15 +34,17 @@
         <div class="nav-group">
           <div class="nav-group-label">{{ group.label }}</div>
           @for (item of group.items; track item.route) {
-            <a class="nav-item"
-               [routerLink]="item.route"
-               routerLinkActive="active">
-              <dy-icon [name]="item.icon" [size]="15"></dy-icon>
-              <span class="nav-label">{{ item.label }}</span>
-              @if (item.countKey && navCounts[item.countKey] != null) {
-                <span class="nav-count">{{ navCounts[item.countKey] }}</span>
-              }
-            </a>
+            @if (!item.operator || auth.canWrite()) {
+              <a class="nav-item"
+                 [routerLink]="item.route"
+                 routerLinkActive="active">
+                <dy-icon [name]="item.icon" [size]="15"></dy-icon>
+                <span class="nav-label">{{ item.label }}</span>
+                @if (item.countKey && navCounts[item.countKey] != null) {
+                  <span class="nav-count">{{ navCounts[item.countKey] }}</span>
+                }
+              </a>
+            }
           }
         </div>
       }

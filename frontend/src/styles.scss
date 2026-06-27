@@ -1806,6 +1806,62 @@ cdk-virtual-scroll-viewport.logs-stream { display: block; }
   background: var(--bg-inset); color: var(--fg-muted); font-size: 12px;
 }
 
+/* Viewer (read-only) access-required panel — logs are operator+ */
+.logs-denied {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center; padding: 32px;
+  color: var(--fg-muted);
+}
+.logs-denied dy-icon { color: var(--fg-subtle); }
+.logs-denied h3 { margin: 4px 0 0; color: var(--fg-default); font-size: 15px; }
+.logs-denied p { margin: 0; max-width: 460px; font-size: 13px; line-height: 1.5; }
+.logs-denied-hint { color: var(--fg-subtle); font-size: 12px; }
+
+/* Timestamp column — fixed width so the absolute/relative toggle doesn't reflow */
+.lts { display: inline-block; min-width: 56px; }
+
+/* ANSI 16-colour foreground palette (tuned for the dark inset; bright = b-prefix) */
+.ansi-0 { color: #6B7280; } .ansi-b0 { color: #9CA3AF; }
+.ansi-1 { color: var(--danger-400); } .ansi-b1 { color: #F87171; }
+.ansi-2 { color: var(--running-400); } .ansi-b2 { color: #4ADE80; }
+.ansi-3 { color: var(--warn-400); } .ansi-b3 { color: #FBBF24; }
+.ansi-4 { color: #60A5FA; } .ansi-b4 { color: #93C5FD; }
+.ansi-5 { color: #E879F9; } .ansi-b5 { color: #F0ABFC; }
+.ansi-6 { color: #22D3EE; } .ansi-b6 { color: #67E8F9; }
+.ansi-7 { color: var(--fg-default); } .ansi-b7 { color: #F9FAFB; }
+/* Search highlight must win over ANSI colour where a segment is both. */
+.lmsg .lhit { background: var(--warn-bg); color: var(--warn-400); }
+
+/* Stack-trace grouping: fold chevron, "+N" badge, dimmed continuation rows */
+.lfold {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; padding: 0; margin-right: 2px; vertical-align: middle;
+  background: transparent; border: 0; border-radius: 3px;
+  color: var(--fg-subtle); cursor: pointer;
+}
+.lfold:hover { color: var(--fg-default); background: var(--bg-hover); }
+.lfold-n {
+  display: inline-flex; align-items: center; vertical-align: middle;
+  margin-left: 8px; padding: 0 6px; height: 14px;
+  background: var(--bg-raised); border: 0; border-radius: 999px;
+  color: var(--fg-muted); font-family: var(--font-mono); font-size: 9px; cursor: pointer;
+}
+.lfold-n:hover { color: var(--fg-default); }
+.lcont .lts, .lcont .llvl, .lcont .lsrc { opacity: 0.35; }
+.lcont .lmsg { color: var(--fg-muted); padding-left: 14px; }
+
+/* Mobile sources drawer (toggle + scrim hidden on desktop; see the 820px query) */
+.logs-layout { position: relative; }
+.logs-side-toggle {
+  display: none; align-items: center; justify-content: center;
+  width: 30px; height: 28px; flex-shrink: 0;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--fg-muted); cursor: pointer;
+}
+.logs-side-toggle:hover { color: var(--fg-default); border-color: var(--border-strong); }
+.logs-side-scrim { display: none; }
+@media (prefers-reduced-motion: reduce) { .logs-side { transition: none; } }
+
 /* Search-match highlight */
 .lhit { background: var(--warn-bg); color: var(--warn-400); border-radius: 2px; }
 
@@ -2115,12 +2171,20 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
     animation: shellFadeIn 150ms var(--ease-out, ease);
   }
 
-  /* Logs: stack the source list above the stream instead of side-by-side */
-  .logs-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  /* Logs: give the stream the full width; the source list becomes an off-canvas
+     drawer toggled from the toolbar (was a letterboxed 40vh stacked panel). */
+  .logs-layout { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .logs-side-toggle { display: inline-flex; }
   .logs-side {
-    max-height: 40vh; border-right: 0;
-    border-bottom: 1px solid var(--border);
+    position: absolute; top: 0; left: 0; bottom: 0; z-index: 30;
+    width: 260px; max-width: 82%;
+    border-right: 1px solid var(--border);
+    transform: translateX(-100%);
+    transition: transform 200ms var(--ease-out, ease);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   }
+  .logs-side.open { transform: translateX(0); }
+  .logs-side-scrim { display: block; position: absolute; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.45); }
 
   /* Metrics stat cards: 2-up and allow the big numbers to shrink */
   .metrics-grid { grid-template-columns: repeat(2, 1fr); }

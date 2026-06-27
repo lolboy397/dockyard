@@ -4,10 +4,14 @@
           <span class="eyebrow logs-eyebrow">cross-container · live</span>
           <h2 class="content-title">Logs</h2>
         </div>
-        <div class="content-actions">
+        <div class="content-actions" [hidden]="denied()">
           <button class="btn btn-sm btn-ghost" [class.on]="wrap()" (click)="toggleWrap()" title="Toggle line wrap" [attr.aria-pressed]="wrap()">
             <dy-icon name="wrap-text" [size]="13"></dy-icon>
             Wrap
+          </button>
+          <button class="btn btn-sm btn-ghost" [class.on]="relTime()" (click)="toggleRel()" title="Toggle relative timestamps" [attr.aria-pressed]="relTime()">
+            <dy-icon name="clock" [size]="13"></dy-icon>
+            Relative
           </button>
           <button class="btn btn-sm btn-ghost" (click)="copyVisible()" [disabled]="filteredLines().length === 0" title="Copy visible lines to clipboard">
             <dy-icon name="copy" [size]="13"></dy-icon>
@@ -28,9 +32,18 @@
         </div>
       </div>
 
+      @if (denied()) {
+        <div class="logs-denied">
+          <dy-icon name="lock" [size]="28"></dy-icon>
+          <h3>Operator access required</h3>
+          <p>Container logs can contain secrets — connection strings, tokens, request payloads — so reading them is limited to operator and admin roles. Your account has read-only (viewer) access.</p>
+          <p class="logs-denied-hint">Ask an administrator to grant an operator role if you need log access.</p>
+        </div>
+      } @else {
       <div class="logs-layout">
-        <!-- Sources sidebar -->
-        <aside class="logs-side">
+        @if (sideOpen()) { <div class="logs-side-scrim" (click)="closeSide()"></div> }
+        <!-- Sources sidebar (off-canvas drawer on mobile) -->
+        <aside class="logs-side" [class.open]="sideOpen()">
           <div class="logs-side-head">
             <span class="eyebrow">Sources</span>
             <span class="mono logs-side-count">{{ activeSources().length }} of {{ sources().length }}</span>
@@ -67,6 +80,9 @@
         <!-- Log stream -->
         <section class="logs-main">
           <div class="logs-toolbar">
+            <button class="logs-side-toggle" (click)="toggleSide()" title="Sources" aria-label="Toggle sources list">
+              <dy-icon name="sidebar" [size]="14"></dy-icon>
+            </button>
             <div class="logs-search-wrap" [class.is-invalid]="filterInvalid()">
               <dy-icon name="search" [size]="13" color="var(--fg-muted)"></dy-icon>
               <input class="logs-search" [ngModel]="filterText()" (ngModelChange)="filterText.set($event)"
@@ -95,6 +111,30 @@
             </span>
           </div>
 
+          <!-- One row, rendered identically by both the virtualised and wrap paths.
+               Carries the fold chevron (grouped lines), real/relative timestamp,
+               level + source, ANSI-coloured + search-highlighted message. -->
+          <ng-template #lineRow let-line>
+            @if (groupSizes()[line.uid]) {
+              <button class="lfold" (click)="toggleGroup(line.uid, $event)"
+                      [attr.aria-expanded]="!collapsed().has(line.uid)"
+                      [attr.aria-label]="(collapsed().has(line.uid) ? 'Expand ' : 'Collapse ') + groupSizes()[line.uid] + ' grouped line(s)'">
+                <dy-icon [name]="collapsed().has(line.uid) ? 'chevron-right' : 'chevron-down'" [size]="11"></dy-icon>
+              </button>
+            }
+            <span class="lts" [title]="line.rawTs || line.ts">{{ relTime() ? rel(line) : line.ts }}</span>
+            @if (line.kind !== 'status') {
+              <span [class]="'llvl ' + line.levelClass">{{ line.levelLabel }}</span>
+              <span class="lsrc" [style.color]="line.color">{{ line.src }}</span>
+            } @else {
+              <span class="lsrc lsrc-system">system</span>
+            }
+            <span class="lmsg">@for (seg of segs(line); track $index) {<span [ngClass]="seg.cls" [class.lhit]="seg.m">{{ seg.t }}</span>}</span>
+            @if (collapsed().has(line.uid) && groupSizes()[line.uid]) {
+              <button class="lfold-n" (click)="toggleGroup(line.uid, $event)" title="Expand grouped lines">+{{ groupSizes()[line.uid] }}</button>
+            }
+          </ng-template>
+
           @if (activeSources().length === 0) {
             <div class="logs-stream-note">Enable at least one source to stream logs.</div>
           } @else if (filteredLines().length === 0) {
@@ -108,15 +148,8 @@
                 minBufferPx="600" maxBufferPx="1200" (scroll)="onScroll()"
                 role="log" [attr.aria-live]="paused() ? 'off' : 'polite'" aria-relevant="additions" aria-label="Live log output">
               <div class="lline" *cdkVirtualFor="let line of filteredLines(); trackBy: trackByUid"
-                   [class.lkind-error]="line.kind==='error'" [class.lkind-status]="line.kind==='status'">
-                <span class="lts">{{ line.ts }}</span>
-                @if (line.kind !== 'status') {
-                  <span [class]="'llvl ' + line.levelClass">{{ line.levelLabel }}</span>
-                  <span class="lsrc" [style.color]="line.color">{{ line.src }}</span>
-                } @else {
-                  <span class="lsrc lsrc-system">system</span>
-                }
-                <span class="lmsg">@for (seg of segs(line); track $index) {<span [class.lhit]="seg.m">{{ seg.t }}</span>}</span>
+                   [class.lkind-error]="line.kind==='error'" [class.lkind-status]="line.kind==='status'" [class.lcont]="line.isContinuation">
+                <ng-container [ngTemplateOutlet]="lineRow" [ngTemplateOutletContext]="{ $implicit: line }"></ng-container>
               </div>
             </cdk-virtual-scroll-viewport>
           } @else {
@@ -124,15 +157,8 @@
             <div #plain class="logs-stream wrap" (scroll)="onScroll()"
                  role="log" [attr.aria-live]="paused() ? 'off' : 'polite'" aria-relevant="additions" aria-label="Live log output">
               @for (line of filteredLines(); track line.uid) {
-                <div class="lline" [class.lkind-error]="line.kind==='error'" [class.lkind-status]="line.kind==='status'">
-                  <span class="lts">{{ line.ts }}</span>
-                  @if (line.kind !== 'status') {
-                    <span [class]="'llvl ' + line.levelClass">{{ line.levelLabel }}</span>
-                    <span class="lsrc" [style.color]="line.color">{{ line.src }}</span>
-                  } @else {
-                    <span class="lsrc lsrc-system">system</span>
-                  }
-                  <span class="lmsg">@for (seg of segs(line); track $index) {<span [class.lhit]="seg.m">{{ seg.t }}</span>}</span>
+                <div class="lline" [class.lkind-error]="line.kind==='error'" [class.lkind-status]="line.kind==='status'" [class.lcont]="line.isContinuation">
+                  <ng-container [ngTemplateOutlet]="lineRow" [ngTemplateOutletContext]="{ $implicit: line }"></ng-container>
                 </div>
               }
             </div>
@@ -146,4 +172,5 @@
           }
         </section>
       </div>
+      }
     </div>

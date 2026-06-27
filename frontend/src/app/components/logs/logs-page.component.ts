@@ -11,6 +11,8 @@ import { IconComponent } from '../shared/icon/icon.component';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 import { DockerService } from '../../services/docker.service';
 import { WebSocketService, MultiLogStream, MultiLogFrame } from '../../services/websocket.service';
+import { AuthService } from '../../auth/auth.service';
+import { AnsiRun, parseAnsi, isContinuationLine, formatRelative } from './logs-format';
 import { ContainerSummary } from '../../models/docker.models';
 
 /** One log source = one container's row in the sidebar. */
@@ -37,12 +39,19 @@ interface LogLine {
   level: Level;
   levelLabel: string;
   levelClass: string;
+  /** Plain text (ANSI stripped) — the basis for search, level, dedup, export. */
   msg: string;
+  /** ANSI-parsed colour runs; concatenating run text yields `msg`. */
+  runs: AnsiRun[];
   kind: LineKind;
+  /** uid of the line this one is grouped under (its own uid when it's a primary). */
+  groupId: number;
+  /** True when this is a folded continuation (stack-trace / indented) line. */
+  isContinuation: boolean;
 }
 
-/** A run of message text, flagged when it is part of a search match (for <mark>). */
-interface Seg { t: string; m: boolean; }
+/** A render segment: text + whether it's a search hit + its ANSI colour class. */
+interface Seg { t: string; m: boolean; cls: string; }
 
 // A 12-colour palette (was 8) spaced around the hue wheel so neighbouring
 // sources stay distinguishable; container names remain the primary label, so
@@ -56,7 +65,6 @@ const SOURCE_COLORS = [
 const MAX_LINES = 2000;
 const PREFS_KEY = 'dy_logs_prefs';
 
-const ANSI_RE = /\x1B\[[0-9;]*[a-zA-Z]/g;
 const WARN_RE = /\b(WARN|WARNING)\b/i;
 const ERR_RE = /\b(ERROR|ERR|FATAL|CRIT|PANIC|EMERG|ALERT)\b/i;
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
@@ -92,6 +100,18 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   readonly tail = signal('50');
   readonly lps = signal(0);
   readonly atBottom = signal(true);
+  /** Read-only viewers can't read log content (it may carry secrets); the page
+   *  shows an access-required panel instead of opening the stream. The backend is
+   *  the real enforcer — every log endpoint is operator+ — this is just UX. */
+  readonly denied = signal(false);
+  /** Show timestamps as relative age ("12s") instead of an absolute clock. */
+  readonly relTime = signal(false);
+  /** Bumped ~1/s while relTime is on so visible relative stamps re-render. */
+  readonly nowTick = signal(0);
+  /** Mobile only: whether the sources drawer is slid open. */
+  readonly sideOpen = signal(false);
+  /** group ids (primary uid) whose continuation lines are folded away. */
+  readonly collapsed = signal<Set<number>>(new Set());
 
   readonly levels: { v: 'all' | Level; label: string }[] = [
     { v: 'all', label: 'All' },
@@ -126,8 +146,21 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     if (f.text) {
       if (f.re) { const re = f.re; res = res.filter(l => re.test(l.msg) || re.test(l.src)); }
       else { const n = f.lower; res = res.filter(l => l.msg.toLowerCase().includes(n) || l.src.toLowerCase().includes(n)); }
+    } else {
+      // Fold collapsed groups — but only when NOT searching, so a search always
+      // surfaces matching lines regardless of which trace they're folded into.
+      const col = this.collapsed();
+      if (col.size) res = res.filter(l => !l.isContinuation || !col.has(l.groupId));
     }
     return res;
+  });
+
+  /** primary uid → count of folded continuation lines under it (drives the
+   *  collapse chevron + the "+N" badge on the primary row). */
+  readonly groupSizes = computed(() => {
+    const m: Record<number, number> = {};
+    for (const l of this.lines()) if (l.isContinuation) m[l.groupId] = (m[l.groupId] ?? 0) + 1;
+    return m;
   });
 
   /** Level tallies over the active (source-filtered) lines, ignoring the level
@@ -150,6 +183,8 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   private lpsInterval?: ReturnType<typeof setInterval>;
   /** Fast id→source lookup, kept in step with the `sources` signal. */
   private sourceById = new Map<string, LogSource>();
+  /** Per-source current group id, so continuation lines fold under their primary. */
+  private lastBySrc = new Map<string, number>();
 
   private pending: LogLine[] = [];
   private pausedBuf: LogLine[] = [];
@@ -165,9 +200,16 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   /** Per-line highlight segments, cached by (line, pattern) so they're computed once. */
   private segCache = new WeakMap<LogLine, { key: string; segs: Seg[] }>();
 
-  constructor(private docker: DockerService, private ws: WebSocketService, private route: ActivatedRoute) {}
+  constructor(private docker: DockerService, private ws: WebSocketService, private route: ActivatedRoute, private auth: AuthService) {}
 
   ngOnInit(): void {
+    // Log content is operator+ on the backend; a viewer who deep-links here would
+    // otherwise watch a stream that 403s and never produces output. Short-circuit
+    // to a clear access panel instead.
+    if (!this.auth.canWrite()) {
+      this.denied.set(true);
+      return;
+    }
     this.restorePrefs();
     this.stream = this.ws.streamMultiLogs();
     this.framesSub = this.stream.frames$.subscribe(frame => this.ingest(frame));
@@ -175,6 +217,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     this.lpsInterval = setInterval(() => {
       this.lps.set(this.lpsCounter);
       this.lpsCounter = 0;
+      if (this.relTime()) this.nowTick.update(n => n + 1); // re-render relative stamps
     }, 1000);
   }
 
@@ -206,20 +249,42 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   }
 
   private makeLine(srcId: string, src: string, color: string, rawTs: string, raw: string, kind: LineKind): LogLine {
-    const clean = raw.replace(ANSI_RE, '').replace(/\s+$/, '');
+    const runs = parseAnsi(raw);
+    const clean = runs.map(r => r.t).join('');
     const level: Level = kind === 'error' ? 'err'
       : WARN_RE.test(clean) ? 'warn'
       : ERR_RE.test(clean) ? 'err'
       : 'info';
+
+    const uid = this.uidSeq++;
+    // Group continuation lines (indented / stack-trace markers) under the most
+    // recent primary line from the same source. Errors/status notices break any
+    // open group. Only real container output ('log') participates.
+    let groupId = uid;
+    let isContinuation = false;
+    if (kind === 'log') {
+      const prevGroup = this.lastBySrc.get(srcId);
+      if (prevGroup !== undefined && isContinuationLine(clean)) {
+        groupId = prevGroup;
+        isContinuation = true;
+      }
+      this.lastBySrc.set(srcId, groupId);
+    } else {
+      this.lastBySrc.delete(srcId);
+    }
+
     return {
-      uid: this.uidSeq++,
+      uid,
       srcId, src, color, rawTs,
       ts: this.formatTs(rawTs),
       level,
       levelLabel: level.toUpperCase(),
       levelClass: 'lvl-' + level,
       msg: clean,
+      runs,
       kind,
+      groupId,
+      isContinuation,
     };
   }
 
@@ -325,18 +390,36 @@ export class LogsPageComponent implements OnInit, OnDestroy {
 
   // ── Search highlight ────────────────────────────────────────────────────────
   segs(line: LogLine): Seg[] {
+    // Non-log lines (stream errors / status notices) render as one plain segment.
+    if (line.kind !== 'log') return [{ t: line.msg, m: false, cls: '' }];
     const f = this.compiledFilter();
-    if (!f.text || line.kind !== 'log') return [{ t: line.msg, m: false }];
+    // No active search: segments are simply the ANSI colour runs.
+    if (!f.text) {
+      return line.runs.length
+        ? line.runs.map(r => ({ t: r.t, m: false, cls: r.cls }))
+        : [{ t: '', m: false, cls: '' }];
+    }
     const key = (f.re ? 're:' : 'tx:') + (f.re ? f.re.source : f.lower);
     const cached = this.segCache.get(line);
     if (cached && cached.key === key) return cached.segs;
-    const segs = this.computeSegs(line.msg, f);
+    const segs = this.computeSegs(line.runs, f);
     this.segCache.set(line, { key, segs });
     return segs;
   }
 
-  private computeSegs(msg: string, f: { re?: RegExp; lower: string }): Seg[] {
+  /** Splits each ANSI run by search matches, keeping the run's colour class — so
+   *  colour and highlight compose instead of clobbering each other. */
+  private computeSegs(runs: AnsiRun[], f: { re?: RegExp; lower: string }): Seg[] {
     const out: Seg[] = [];
+    for (const r of runs) {
+      for (const s of this.matchSegs(r.t, f)) out.push({ t: s.t, m: s.m, cls: r.cls });
+    }
+    return out.length ? out : [{ t: '', m: false, cls: '' }];
+  }
+
+  /** Splits one string into matched / unmatched runs for the active filter. */
+  private matchSegs(msg: string, f: { re?: RegExp; lower: string }): { t: string; m: boolean }[] {
+    const out: { t: string; m: boolean }[] = [];
     if (f.re) {
       const re = new RegExp(f.re.source, 'gi');
       let last = 0;
@@ -438,6 +521,8 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     // order (and dedup state with it), then re-follow the active sources.
     this.lines.set([]);
     this.seen.clear();
+    this.lastBySrc.clear();
+    this.collapsed.set(new Set());
     this.segCache = new WeakMap<LogLine, { key: string; segs: Seg[] }>();
     this.activeSources().forEach(s => {
       this.stream?.unsubscribe(s.id);
@@ -460,6 +545,26 @@ export class LogsPageComponent implements OnInit, OnDestroy {
 
   toggleRegex(): void { this.useRegex.set(!this.useRegex()); }
 
+  toggleRel(): void { this.relTime.set(!this.relTime()); this.nowTick.update(n => n + 1); this.savePrefs(); }
+
+  /** Relative age of a line ("now", "12s", "5m", "2h", "3d"); falls back to the
+   *  absolute clock when there's no real timestamp. Reads nowTick so it ticks. */
+  rel(line: LogLine): string {
+    this.nowTick(); // dependency so relative stamps re-render on tick
+    return formatRelative(line.rawTs, line.ts, Date.now());
+  }
+
+  toggleSide(): void { this.sideOpen.set(!this.sideOpen()); }
+  closeSide(): void { if (this.sideOpen()) this.sideOpen.set(false); }
+
+  /** Fold / unfold the continuation lines grouped under a primary line. */
+  toggleGroup(uid: number, ev?: Event): void {
+    ev?.stopPropagation();
+    const next = new Set(this.collapsed());
+    if (next.has(uid)) next.delete(uid); else next.add(uid);
+    this.collapsed.set(next);
+  }
+
   togglePause(): void {
     const next = !this.paused();
     this.paused.set(next);
@@ -478,6 +583,8 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     this.pending = [];
     this.pausedBuf = [];
     this.countDelta = {};
+    this.lastBySrc.clear();
+    this.collapsed.set(new Set());
     this.segCache = new WeakMap<LogLine, { key: string; segs: Seg[] }>();
   }
 
@@ -511,6 +618,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
         tail: this.tail(),
         wrap: this.wrap(),
         level: this.level(),
+        relTime: this.relTime(),
       }));
     } catch { /* storage unavailable */ }
   }
@@ -522,6 +630,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
       const p = JSON.parse(raw);
       if (typeof p.tail === 'string') this.tail.set(p.tail);
       if (typeof p.wrap === 'boolean') this.wrap.set(p.wrap);
+      if (typeof p.relTime === 'boolean') this.relTime.set(p.relTime);
       if (typeof p.level === 'string') this.level.set(p.level);
       if (Array.isArray(p.onIds)) this.savedOnIds = new Set<string>(p.onIds);
     } catch { /* ignore malformed prefs */ }

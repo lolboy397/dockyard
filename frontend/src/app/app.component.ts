@@ -30,6 +30,7 @@ interface NavItem {
   icon: string;
   route: string;
   countKey?: keyof NavCounts;
+  operator?: boolean; // hide for read-only viewers (e.g. Logs — content may carry secrets)
 }
 
 interface NavCounts {
@@ -127,7 +128,7 @@ export class AppComponent implements OnInit, OnDestroy {
     {
       label: 'Observe',
       items: [
-        { label: 'Logs',    icon: 'scroll-text', route: '/logs'    },
+        { label: 'Logs',    icon: 'scroll-text', route: '/logs', operator: true },
         { label: 'Metrics', icon: 'activity',    route: '/metrics' },
         { label: 'Events',  icon: 'rss',         route: '/events'  },
         { label: 'Alerts',  icon: 'bell',        route: '/alerts'  },
