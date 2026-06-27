@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +16,79 @@ func newTestDB(t *testing.T) *DB {
 	}
 	t.Cleanup(func() { db.Close() })
 	return db
+}
+
+func TestTOTPStorage(t *testing.T) {
+	db := newTestDB(t)
+	u, err := db.CreateUser(User{FullName: "A", Email: "a@x.io", Username: "alice", PasswordHash: "h", Role: "admin"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Setup stores a pending (unconfirmed) secret, encrypted at rest.
+	if err := db.SetTOTPSecret(u.ID, "JBSWY3DPEHPK3PXP"); err != nil {
+		t.Fatalf("SetTOTPSecret: %v", err)
+	}
+	secret, enabled, err := db.GetTOTPSecret(u.ID)
+	if err != nil {
+		t.Fatalf("GetTOTPSecret: %v", err)
+	}
+	if secret != "JBSWY3DPEHPK3PXP" {
+		t.Errorf("secret round-trip = %q", secret)
+	}
+	if enabled {
+		t.Error("2FA should be pending (disabled) until confirmed")
+	}
+	// The raw stored value must be ciphertext, not the plaintext secret.
+	var raw string
+	if err := db.read.QueryRow(`SELECT totp_secret FROM users WHERE id=?`, u.ID).Scan(&raw); err != nil {
+		t.Fatalf("scan raw: %v", err)
+	}
+	if !strings.HasPrefix(raw, "enc:") {
+		t.Errorf("secret not encrypted at rest: %q", raw)
+	}
+
+	// Confirm/enable with backup-code hashes.
+	hashes := []string{hashHex("code-one"), hashHex("code-two")}
+	if err := db.EnableTOTP(u.ID, hashes); err != nil {
+		t.Fatalf("EnableTOTP: %v", err)
+	}
+	if _, enabled, _ = db.GetTOTPSecret(u.ID); !enabled {
+		t.Error("2FA should be enabled after confirm")
+	}
+	if n, _ := db.BackupCodesRemaining(u.ID); n != 2 {
+		t.Errorf("backup codes remaining = %d, want 2", n)
+	}
+
+	// A backup code is single-use: consumes once, then is gone.
+	ok, _ := db.ConsumeBackupCode(u.ID, hashHex("code-one"))
+	if !ok {
+		t.Error("first consume should succeed")
+	}
+	if again, _ := db.ConsumeBackupCode(u.ID, hashHex("code-one")); again {
+		t.Error("a consumed backup code must not work twice")
+	}
+	if n, _ := db.BackupCodesRemaining(u.ID); n != 1 {
+		t.Errorf("remaining after consume = %d, want 1", n)
+	}
+
+	// Disable wipes secret + codes.
+	if err := db.DisableTOTP(u.ID); err != nil {
+		t.Fatalf("DisableTOTP: %v", err)
+	}
+	if s, en, _ := db.GetTOTPSecret(u.ID); en || s != "" {
+		t.Errorf("after disable: secret=%q enabled=%v", s, en)
+	}
+	if n, _ := db.BackupCodesRemaining(u.ID); n != 0 {
+		t.Errorf("remaining after disable = %d, want 0", n)
+	}
+}
+
+// hashHex is a tiny stand-in for the handler-layer backup-code hashing, so the
+// storage test stays independent of the handlers package.
+func hashHex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
 }
 
 func TestUserCRUDAndAdminCount(t *testing.T) {

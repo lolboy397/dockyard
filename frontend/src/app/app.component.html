@@ -141,6 +141,9 @@
                 <dy-icon [name]="theme === 'light' ? 'moon' : 'sun'" [size]="14"></dy-icon>
                 {{ theme === 'light' ? 'Dark mode' : 'Light mode' }}
               </button>
+              <button class="um-item" (click)="goAccount(); $event.stopPropagation()">
+                <dy-icon name="shield" [size]="14"></dy-icon> Account &amp; security
+              </button>
               <button class="um-item" (click)="logout()"><dy-icon name="log-out" [size]="14"></dy-icon> Sign out</button>
             </div>
           }

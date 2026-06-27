@@ -1,0 +1,98 @@
+<div class="content-area">
+  <div class="content-head">
+    <div class="content-title-row">
+      <span class="eyebrow">your account</span>
+      <h2 class="content-title">Account</h2>
+    </div>
+  </div>
+
+  <div class="account-grid">
+    <!-- Profile summary -->
+    <section class="acct-card">
+      <div class="acct-card-head">
+        <dy-icon name="user" [size]="15"></dy-icon>
+        <h3>Profile</h3>
+      </div>
+      <div class="acct-rows">
+        <div class="acct-row"><span>Name</span><b>{{ user()?.full_name || '—' }}</b></div>
+        <div class="acct-row"><span>Username</span><b class="mono">{{ user()?.username }}</b></div>
+        <div class="acct-row"><span>Email</span><b>{{ user()?.email || '—' }}</b></div>
+        <div class="acct-row"><span>Role</span><b class="acct-role">{{ user()?.role }}</b></div>
+      </div>
+    </section>
+
+    <!-- Security / two-factor -->
+    <section class="acct-card">
+      <div class="acct-card-head">
+        <dy-icon name="shield" [size]="15"></dy-icon>
+        <h3>Two-factor authentication</h3>
+        <span class="acct-badge" [class.on]="enabled()">{{ enabled() ? 'On' : 'Off' }}</span>
+      </div>
+      <p class="acct-desc">
+        Require a time-based code from an authenticator app (Google Authenticator, Authy,
+        1Password…) at sign-in, alongside your password.
+      </p>
+
+      @if (loading()) {
+        <div class="acct-muted">Loading…</div>
+      } @else if (backupCodes()) {
+        <!-- Shown once, immediately after enabling -->
+        <div class="acct-callout">
+          <dy-icon name="lock" [size]="15"></dy-icon>
+          <div>
+            <b>Save your backup codes</b>
+            <p>Each works once if you lose your authenticator. They won't be shown again.</p>
+          </div>
+        </div>
+        <div class="acct-codes">
+          @for (c of backupCodes(); track c) { <span class="mono">{{ c }}</span> }
+        </div>
+        <div class="acct-actions">
+          <button class="btn btn-sm btn-ghost" (click)="copyBackup()"><dy-icon name="copy" [size]="13"></dy-icon> Copy</button>
+          <button class="btn btn-sm btn-primary" (click)="dismissBackup()">I've saved them</button>
+        </div>
+      } @else if (setup()) {
+        <!-- Enrollment: manual setup key + confirm code -->
+        <p class="acct-step">1 · Add an account in your authenticator app and enter this setup key:</p>
+        <div class="acct-secret">
+          <code class="mono">{{ prettySecret(setup()!.secret) }}</code>
+          <button class="btn btn-sm btn-ghost" (click)="copySecret()" title="Copy setup key"><dy-icon name="copy" [size]="13"></dy-icon></button>
+        </div>
+        <p class="acct-step">2 · Enter the 6-digit code it shows to confirm:</p>
+        <div class="acct-confirm">
+          <input class="acct-input mono" [ngModel]="code()" (ngModelChange)="code.set($event); error.set(null)"
+                 placeholder="123456" inputmode="numeric" maxlength="6" aria-label="Authentication code" (keyup.enter)="confirm()">
+          <button class="btn btn-sm btn-primary" (click)="confirm()" [disabled]="busy() || code().trim().length < 6">Verify &amp; enable</button>
+          <button class="btn btn-sm btn-ghost" (click)="cancelSetup()">Cancel</button>
+        </div>
+        @if (error()) { <div class="acct-error">{{ error() }}</div> }
+      } @else if (enabled()) {
+        <div class="acct-rows">
+          <div class="acct-row"><span>Status</span><b class="acct-on">Enabled</b></div>
+          <div class="acct-row"><span>Backup codes left</span><b [class.acct-warn]="remaining() <= 2">{{ remaining() }}</b></div>
+        </div>
+        @if (!disabling()) {
+          <div class="acct-actions">
+            <button class="btn btn-sm btn-ghost acct-danger" (click)="beginDisable()">Disable two-factor</button>
+          </div>
+        } @else {
+          <p class="acct-step">Confirm your password to disable two-factor:</p>
+          <div class="acct-confirm">
+            <input class="acct-input" type="password" [ngModel]="disablePassword()" (ngModelChange)="disablePassword.set($event); disableError.set(null)"
+                   placeholder="Your password" aria-label="Password" (keyup.enter)="confirmDisable()">
+            <button class="btn btn-sm btn-primary acct-danger" (click)="confirmDisable()" [disabled]="busy() || !disablePassword()">Disable</button>
+            <button class="btn btn-sm btn-ghost" (click)="cancelDisable()">Cancel</button>
+          </div>
+          @if (disableError()) { <div class="acct-error">{{ disableError() }}</div> }
+        }
+      } @else {
+        <div class="acct-actions">
+          <button class="btn btn-sm btn-primary" (click)="beginSetup()" [disabled]="busy()">
+            <dy-icon name="shield" [size]="13"></dy-icon> Enable two-factor
+          </button>
+        </div>
+        @if (error()) { <div class="acct-error">{{ error() }}</div> }
+      }
+    </section>
+  </div>
+</div>

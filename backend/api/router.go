@@ -125,6 +125,12 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		r.Post("/auth/logout", auth.Logout)
 		r.Post("/auth/test-connection", auth.TestConnection)
 
+		// Two-factor (TOTP) self-service — any authenticated user manages their own.
+		r.Get("/auth/2fa", auth.TwoFactorStatus)
+		r.Post("/auth/2fa/setup", auth.TwoFactorSetup)
+		r.Post("/auth/2fa/confirm", auth.TwoFactorConfirm)
+		r.Post("/auth/2fa/disable", auth.TwoFactorDisable)
+
 		// User management (admin only — enforced by Authorize)
 		r.Get("/users", auth.ListUsers)
 		r.Post("/users", auth.CreateUser)

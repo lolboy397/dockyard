@@ -226,6 +226,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
   logout(): void { this.userMenuOpen = false; this.auth.logout(); }
 
+  goAccount(): void { this.userMenuOpen = false; this.router.navigate(['/account']); }
+
   toggleNotif(e: Event): void {
     e.stopPropagation();
     this.notifOpen = !this.notifOpen;

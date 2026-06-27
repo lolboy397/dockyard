@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
-import { AuthSession, AuthStatus, AuthUser, SetupData, TestConnectionResult } from './auth.models';
+import { AuthSession, AuthStatus, AuthUser, SetupData, TestConnectionResult, TwoFactorChallenge, TwoFactorStatus } from './auth.models';
 import { clearAllCaches } from '../services/pwa-update.service';
 
 const TOKEN_KEY = 'dy_token';
@@ -80,12 +80,37 @@ export class AuthService {
     );
   }
 
-  login(username: string, password: string, remember: boolean): Observable<AuthSession> {
+  login(username: string, password: string, remember: boolean, otp?: string): Observable<AuthSession | TwoFactorChallenge> {
     // Stores the session but does NOT flip `authed` — the login screen plays its
     // "Signed in" success card first, then calls markAuthed() to enter the app.
-    return this.http.post<AuthSession>(`${this.base}/login`, { username, password, remember }).pipe(
-      tap(res => this.persist(res)),
+    // When the account has 2FA on and no code was sent, the server returns a
+    // {two_factor_required} challenge (no token) and the screen asks for a code.
+    return this.http.post<AuthSession | TwoFactorChallenge>(`${this.base}/login`, { username, password, remember, otp }).pipe(
+      tap(res => { if ('token' in res && res.token) this.persist(res); }),
     );
+  }
+
+  // ---- Two-factor (TOTP) self-service ----
+  twoFactorStatus(): Observable<TwoFactorStatus> {
+    return this.http.get<TwoFactorStatus>(`${this.base}/2fa`, { headers: this.authHeaders() });
+  }
+  twoFactorSetup(): Observable<{ secret: string; otpauth_url: string }> {
+    return this.http.post<{ secret: string; otpauth_url: string }>(`${this.base}/2fa/setup`, {}, { headers: this.authHeaders() });
+  }
+  twoFactorConfirm(code: string): Observable<{ enabled: boolean; backup_codes: string[] }> {
+    return this.http.post<{ enabled: boolean; backup_codes: string[] }>(`${this.base}/2fa/confirm`, { code }, { headers: this.authHeaders() }).pipe(
+      tap(() => this.setUserTwoFactor(true)),
+    );
+  }
+  twoFactorDisable(password: string): Observable<{ enabled: boolean }> {
+    return this.http.post<{ enabled: boolean }>(`${this.base}/2fa/disable`, { password }, { headers: this.authHeaders() }).pipe(
+      tap(() => this.setUserTwoFactor(false)),
+    );
+  }
+  /** Reflect a 2FA enable/disable in the cached current-user signal. */
+  private setUserTwoFactor(enabled: boolean): void {
+    const u = this.user();
+    if (u) { const next = { ...u, two_factor_enabled: enabled }; this.user.set(next); this.cacheUser(next); }
   }
 
   /** Reveal the app shell once the post-login success card has played. */

@@ -27,6 +27,9 @@ export class LoginScreenComponent implements OnInit {
   loading = false;
   error: string | null = null;
   done = false;
+  /** Second step: the account has 2FA on and we're collecting the code. */
+  twoFactor = false;
+  otp = '';
 
   constructor(private auth: AuthService) {}
 
@@ -34,7 +37,18 @@ export class LoginScreenComponent implements OnInit {
     this.username = this.knownUser || '';
   }
 
-  get canSubmit(): boolean { return !!this.username.trim() && this.password.length > 0; }
+  get canSubmit(): boolean {
+    if (this.twoFactor) return this.otp.trim().length > 0;
+    return !!this.username.trim() && this.password.length > 0;
+  }
+
+  /** Abandon the 2FA step and return to the credentials form. */
+  cancelTwoFactor(): void {
+    this.twoFactor = false;
+    this.otp = '';
+    this.password = '';
+    this.error = null;
+  }
 
   get engineVersion(): string { return this.auth.status()?.engine_version || '26.1.4'; }
   get appVersion(): string { return this.auth.status()?.app_version || '0.0.4'; }
@@ -46,16 +60,22 @@ export class LoginScreenComponent implements OnInit {
     // fire a packet burst from the mesh node nearest the Sign in button
     meshBurstFrom(document.querySelector('.login-card .btn-primary'), 7);
 
-    this.auth.login(this.username, this.password, this.remember).subscribe({
-      next: () => {
+    this.auth.login(this.username, this.password, this.remember, this.otp.trim() || undefined).subscribe({
+      next: (res) => {
         this.loading = false;
+        // The account has 2FA on: reveal the code step and re-submit with the code.
+        if (res && 'two_factor_required' in res && res.two_factor_required) {
+          this.twoFactor = true;
+          this.error = null;
+          return;
+        }
         this.done = true;
         // let the success card's fill-bar play, then enter the app
         setTimeout(() => this.signedIn.emit(this.username), 1500);
       },
       error: (err) => {
         this.loading = false;
-        this.error = err?.error?.error || 'Invalid username or password.';
+        this.error = err?.error?.error || (this.twoFactor ? 'Invalid authentication code.' : 'Invalid username or password.');
       },
     });
   }

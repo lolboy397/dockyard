@@ -96,6 +96,19 @@ export interface AuthSession {
   user: AuthUser;
 }
 
+/** Returned by /auth/login when the account has 2FA on and no code was supplied:
+ *  the client collects a code and re-submits. No token is issued at this step. */
+export interface TwoFactorChallenge {
+  two_factor_required: true;
+}
+
+/** Current user's two-factor state (GET /auth/2fa). */
+export interface TwoFactorStatus {
+  enabled: boolean;
+  pending: boolean;
+  backup_codes_remaining: number;
+}
+
 export interface TestConnectionResult {
   ok: boolean;
   containers?: number;

@@ -115,14 +115,18 @@ func TestUserUpdateStatusRoleAnd2FA(t *testing.T) {
 		t.Fatalf("create target: %v", err)
 	}
 
-	body, _ := json.Marshal(map[string]any{"role": "maintainer", "status": "suspended", "twoFactor": true})
-	r := withURLParam(httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+strconv.FormatInt(target.ID, 10), bytes.NewReader(body)), "id", strconv.FormatInt(target.ID, 10))
-	rec := httptest.NewRecorder()
-	h.UpdateUser(rec, r)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("UpdateUser status = %d, body=%s", rec.Code, rec.Body.String())
+	patch := func(payload map[string]any) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(payload)
+		r := withURLParam(httptest.NewRequest(http.MethodPatch, "/api/v1/users/"+strconv.FormatInt(target.ID, 10), bytes.NewReader(body)), "id", strconv.FormatInt(target.ID, 10))
+		rec := httptest.NewRecorder()
+		h.UpdateUser(rec, r)
+		return rec
 	}
 
+	// Role + status update succeeds.
+	if rec := patch(map[string]any{"role": "maintainer", "status": "suspended"}); rec.Code != http.StatusOK {
+		t.Fatalf("UpdateUser status = %d, body=%s", rec.Code, rec.Body.String())
+	}
 	got, _ := db.GetUserByID(target.ID)
 	if got.Role != "maintainer" {
 		t.Errorf("role = %q, want maintainer", got.Role)
@@ -130,8 +134,27 @@ func TestUserUpdateStatusRoleAnd2FA(t *testing.T) {
 	if got.Status != "suspended" || got.Active {
 		t.Errorf("status=%q active=%v, want suspended/false (active mirrors status)", got.Status, got.Active)
 	}
-	if !got.TwoFactor {
-		t.Error("two-factor should be enabled")
+
+	// Admins CANNOT force-enable 2FA — users must enroll a TOTP secret themselves.
+	if rec := patch(map[string]any{"twoFactor": true}); rec.Code != http.StatusBadRequest {
+		t.Errorf("force-enable 2FA status = %d, want 400", rec.Code)
+	}
+
+	// But an admin CAN disable a user's 2FA (reset/recovery), wiping the secret.
+	if err := db.SetTOTPSecret(target.ID, "JBSWY3DPEHPK3PXP"); err != nil {
+		t.Fatalf("seed secret: %v", err)
+	}
+	if err := db.EnableTOTP(target.ID, []string{"x"}); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	if rec := patch(map[string]any{"twoFactor": false}); rec.Code != http.StatusOK {
+		t.Fatalf("disable 2FA status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if got, _ = db.GetUserByID(target.ID); got.TwoFactor {
+		t.Error("two-factor should be disabled after admin reset")
+	}
+	if s, en, _ := db.GetTOTPSecret(target.ID); en || s != "" {
+		t.Errorf("secret not cleared on disable: secret=%q enabled=%v", s, en)
 	}
 }
 

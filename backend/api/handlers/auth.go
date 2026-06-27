@@ -194,7 +194,9 @@ func (h *AuthHandlers) Authorize(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, errMsg("admin role required"))
 			return
 		}
-		if isMutating(r.Method) && r.URL.Path != "/api/v1/auth/logout" {
+		// Self-service account-security endpoints (logout, managing one's own 2FA)
+		// are allowed for any authenticated user, including viewers.
+		if isMutating(r.Method) && r.URL.Path != "/api/v1/auth/logout" && !strings.HasPrefix(r.URL.Path, "/api/v1/auth/2fa") {
 			if tier != "admin" && tier != "operator" {
 				writeError(w, http.StatusForbidden, errMsg("insufficient permissions (operator role required)"))
 				return
@@ -425,6 +427,7 @@ type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Remember bool   `json:"remember"`
+	OTP      string `json:"otp"` // second-factor code (TOTP or backup), when 2FA is on
 }
 
 // Login validates credentials and issues a session token.
@@ -451,6 +454,23 @@ func (h *AuthHandlers) Login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, errMsg("Invalid username or password."))
 		return
 	}
+
+	// Password is correct. If the account has two-factor enabled, require a valid
+	// TOTP (or single-use backup) code before issuing a session.
+	if user.TwoFactor {
+		if strings.TrimSpace(req.OTP) == "" {
+			// Signal the second step WITHOUT resetting the limiter or issuing a
+			// token — the client re-submits username + password + otp.
+			writeJSON(w, map[string]any{"two_factor_required": true})
+			return
+		}
+		if !h.verifyUserOTP(user.ID, req.OTP) {
+			h.limiter.fail(username)
+			writeError(w, http.StatusUnauthorized, errMsg("Invalid authentication code."))
+			return
+		}
+	}
+
 	h.limiter.reset(username)
 
 	token, expires, err := h.issueSession(r, user.ID, req.Remember)
@@ -647,7 +667,18 @@ func (h *AuthHandlers) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		user.Role = *req.Role
 	}
 	if req.TwoFactor != nil {
-		user.TwoFactor = *req.TwoFactor
+		// 2FA can only be enabled by the user themselves (they must enroll a TOTP
+		// secret). Admins may turn it OFF as a reset/recovery, which also wipes the
+		// stored secret + backup codes.
+		if *req.TwoFactor {
+			writeError(w, http.StatusBadRequest, errMsg("two-factor must be enabled by the user from their own account"))
+			return
+		}
+		if err := h.db.DisableTOTP(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		user.TwoFactor = false
 	}
 	// Status is the canonical state; the legacy active flag mirrors it (active ⇔
 	// status == active). Accept either, preferring an explicit status.
