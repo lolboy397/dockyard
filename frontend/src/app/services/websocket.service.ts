@@ -46,10 +46,13 @@ export interface ContainerStatSummary {
  * output), so the client can show the real log time, not its receive time.
  */
 export interface MultiLogFrame {
-  type?: 'log' | 'error' | 'status';
+  type?: 'log' | 'error' | 'status' | 'counts';
   id?: string;
   ts?: string;
   data: string;
+  /** Present on 'counts' frames: a per-container cumulative tally by level, sent
+   *  so the level pills stay accurate when server-side filtering drops lines. */
+  counts?: { info: number; warn: number; err: number };
 }
 
 /** Controller for a single multiplexed log WebSocket (see streamMultiLogs). */
@@ -57,6 +60,10 @@ export interface MultiLogStream {
   frames$: Observable<MultiLogFrame>;
   subscribe(id: string, tail?: string): void;
   unsubscribe(id: string): void;
+  /** Push the active level filter to the server so non-matching lines are dropped
+   *  before they cross the wire. '' / 'all' streams everything; takes effect
+   *  immediately without a refetch. */
+  setLevel(level: string): void;
   close(): void;
 }
 
@@ -93,6 +100,7 @@ export class WebSocketService {
     // it (Docker `Since`) instead of replaying the whole tail again, which is
     // what used to dump duplicate history on every blip.
     const active = new Map<string, { tail: string; since?: string }>();
+    let level = ''; // active server-side level filter; '' = all
     let ws: WebSocket | undefined;
     let closed = false;
     let attempt = 0;
@@ -111,6 +119,7 @@ export class WebSocketService {
         // Re-subscribe the active set; resume from `since` when we have one so a
         // reconnect doesn't replay tail history we already showed.
         active.forEach((a, id) => send({ action: 'subscribe', id, tail: a.tail, since: a.since }));
+        if (level) send({ action: 'level', level }); // re-apply the filter after a reconnect
       };
       ws.onmessage = (evt) => {
         try {
@@ -152,6 +161,7 @@ export class WebSocketService {
       // resume point; reconnects keep the auto-tracked `since` instead.
       subscribe: (id: string, tail = '50') => { active.set(id, { tail }); send({ action: 'subscribe', id, tail }); },
       unsubscribe: (id: string) => { active.delete(id); send({ action: 'unsubscribe', id }); },
+      setLevel: (lvl: string) => { level = lvl === 'all' ? '' : lvl; send({ action: 'level', level }); },
       close: () => {
         closed = true;
         document.removeEventListener('visibilitychange', onVisible);

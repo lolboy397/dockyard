@@ -91,6 +91,9 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   /** Per-source cumulative line count, kept out of `sources` so count churn
    *  doesn't re-render source identity. */
   readonly counts = signal<Record<string, number>>({});
+  /** Per-container level tallies from the server — drives the level pills, since
+   *  server-side filtering means the client no longer receives every line. */
+  readonly serverCounts = signal<Map<string, { info: number; warn: number; err: number }>>(new Map());
 
   readonly paused = signal(false);
   readonly wrap = signal(false);
@@ -167,13 +170,16 @@ export class LogsPageComponent implements OnInit, OnDestroy {
    *  pill itself — so the counts don't collapse to 0 once a level is selected. */
   readonly levelCounts = computed(() => {
     const active = this.activeIds();
+    const sc = this.serverCounts();
     const c: Record<string, number> = { all: 0, info: 0, warn: 0, err: 0 };
-    for (const l of this.lines()) {
-      // Count log + error lines (error lines carry level 'err' and show under the
-      // err/all pills); status notices are excluded.
-      if (l.kind === 'status' || !active.has(l.srcId)) continue;
-      c['all']++; c[l.level]++;
+    // Sum the server's per-container tallies over the active sources. These stay
+    // accurate even when a level filter means we don't receive the other levels.
+    for (const id of active) {
+      const t = sc.get(id);
+      if (!t) continue;
+      c['info'] += t.info; c['warn'] += t.warn; c['err'] += t.err;
     }
+    c['all'] = c['info'] + c['warn'] + c['err'];
     return c;
   });
 
@@ -213,6 +219,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     this.restorePrefs();
     this.stream = this.ws.streamMultiLogs();
     this.framesSub = this.stream.frames$.subscribe(frame => this.ingest(frame));
+    this.stream.setLevel(this.level()); // apply any restored level filter server-side
     this.loadContainers();
     this.lpsInterval = setInterval(() => {
       this.lps.set(this.lpsCounter);
@@ -229,6 +236,13 @@ export class LogsPageComponent implements OnInit, OnDestroy {
 
   // ── Ingestion (batched via rAF; signals updated once per frame, not per line) ─
   private ingest(frame: MultiLogFrame): void {
+    if (frame.type === 'counts') {
+      if (frame.id && frame.counts) {
+        const id = frame.id, c = frame.counts;
+        this.serverCounts.update(m => { const n = new Map(m); n.set(id, c); return n; });
+      }
+      return;
+    }
     if (frame.type === 'status') {
       this.enqueue(this.makeLine('__system__', 'system', 'var(--fg-muted)', '', frame.data ?? '', 'status'));
       return;
@@ -523,6 +537,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     this.seen.clear();
     this.lastBySrc.clear();
     this.collapsed.set(new Set());
+    this.serverCounts.set(new Map());
     this.segCache = new WeakMap<LogLine, { key: string; segs: Seg[] }>();
     this.activeSources().forEach(s => {
       this.stream?.unsubscribe(s.id);
@@ -534,7 +549,11 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   count(id: string): number { return this.counts()[id] ?? 0; }
 
   // ── Toolbar ─────────────────────────────────────────────────────────────────
-  setLevel(v: 'all' | Level): void { this.level.set(v); this.savePrefs(); }
+  setLevel(v: 'all' | Level): void {
+    this.level.set(v);
+    this.stream?.setLevel(v); // drop non-matching lines server-side (counts still flow)
+    this.savePrefs();
+  }
 
   toggleWrap(): void {
     this.wrap.set(!this.wrap());
@@ -585,6 +604,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     this.countDelta = {};
     this.lastBySrc.clear();
     this.collapsed.set(new Set());
+    this.serverCounts.set(new Map());
     this.segCache = new WeakMap<LogLine, { key: string; segs: Seg[] }>();
   }
 

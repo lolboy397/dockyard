@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -133,10 +134,20 @@ func (h *WSHandlers) StreamLogs(w http.ResponseWriter, r *http.Request) {
 // when the line carried none), so the client can show the real log time instead
 // of its own receive time.
 type logFrame struct {
-	Type string `json:"type,omitempty"`
-	ID   string `json:"id,omitempty"`
-	TS   string `json:"ts,omitempty"`
-	Data string `json:"data"`
+	Type   string     `json:"type,omitempty"`
+	ID     string     `json:"id,omitempty"`
+	TS     string     `json:"ts,omitempty"`
+	Data   string     `json:"data"`
+	Counts *logCounts `json:"counts,omitempty"`
+}
+
+// logCounts is a periodic per-container tally of lines by level. It's sent so the
+// level pills stay accurate even when server-side level filtering means the
+// client no longer receives every line. Counts are cumulative for the follow.
+type logCounts struct {
+	Info int `json:"info"`
+	Warn int `json:"warn"`
+	Err  int `json:"err"`
 }
 
 // logSub tracks one container's follow goroutine. The generation lets a follower
@@ -150,6 +161,29 @@ type logSub struct {
 // maxMultiLogSubs caps how many containers a single multiplexed connection may
 // follow, bounding the Docker log streams one client can open.
 const maxMultiLogSubs = 200
+
+// Level classification mirrors the client heuristic. Warn is checked before err
+// so a line mentioning both reads as a warning (matches the frontend).
+var (
+	logWarnRe = regexp.MustCompile(`(?i)\b(WARN|WARNING)\b`)
+	logErrRe  = regexp.MustCompile(`(?i)\b(ERROR|ERR|FATAL|CRIT|PANIC|EMERG|ALERT)\b`)
+)
+
+func lineLevel(msg string) string {
+	if logWarnRe.MatchString(msg) {
+		return "warn"
+	}
+	if logErrRe.MatchString(msg) {
+		return "err"
+	}
+	return "info"
+}
+
+// matchLevel reports whether a line's level passes the active filter (empty/"all"
+// passes everything).
+func matchLevel(filter, lvl string) bool {
+	return filter == "" || filter == "all" || filter == lvl
+}
 
 // StreamMultiLogs streams logs from MANY containers over a SINGLE WebSocket,
 // replacing the previous one-socket-per-container approach (e.g. 30 sockets for a
@@ -186,6 +220,13 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 	// slowest consumer — a live tail can't render thousands of lines/sec anyway.
 	out := make(chan []byte, 1024)
 	var dropped int64
+
+	// Connection-level line filter, set by the client's level pills. Each follower
+	// applies it so non-matching lines never cross the wire; changing it takes
+	// effect immediately with no refetch (counts are still sent for every line).
+	var levelFilter atomic.Value
+	levelFilter.Store("")
+	curLevel := func() string { s, _ := levelFilter.Load().(string); return s }
 
 	emit := func(f logFrame) {
 		if f.Type == "" {
@@ -251,7 +292,7 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 		sctx, scancel := context.WithCancel(ctx)
 		subs[id] = logSub{cancel: scancel, gen: myGen}
 		go func() {
-			h.followLogs(sctx, id, tail, since, emit)
+			h.followLogs(sctx, id, tail, since, curLevel, emit)
 			// Follower ended (unsubscribed, container stopped, or stream closed):
 			// drop our own slot so the container can be followed again later.
 			mu.Lock()
@@ -284,6 +325,7 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 			IDs    []string `json:"ids"`
 			Tail   string   `json:"tail"`
 			Since  string   `json:"since"`
+			Level  string   `json:"level"`
 		}
 		if json.Unmarshal(data, &ctrl) != nil {
 			continue
@@ -299,6 +341,8 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 			for _, id := range ctrl.IDs {
 				unsubscribe(id)
 			}
+		case "level":
+			levelFilter.Store(ctrl.Level)
 		}
 	}
 }
@@ -307,7 +351,7 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 // via emit until ctx is cancelled. When since is set (a reconnect resuming from
 // the last line the client already has) it replays from that timestamp instead
 // of the full tail, so reconnects don't dump duplicate history.
-func (h *WSHandlers) followLogs(ctx context.Context, id, tail, since string, emit func(logFrame)) {
+func (h *WSHandlers) followLogs(ctx context.Context, id, tail, since string, levelFn func() string, emit func(logFrame)) {
 	if tail == "" {
 		tail = "50"
 	}
@@ -332,12 +376,61 @@ func (h *WSHandlers) followLogs(ctx context.Context, id, tail, since string, emi
 		pw.CloseWithError(copyErr)
 	}()
 
+	// Counts tally EVERY line by level (regardless of the emit filter) so the
+	// client's pills stay accurate. A 1s ticker flushes them when dirty — even
+	// while the read blocks on a quiet container — and a final flush runs on exit.
+	var cmu sync.Mutex
+	var counts logCounts
+	dirty := false
+	flush := func() {
+		cmu.Lock()
+		if !dirty {
+			cmu.Unlock()
+			return
+		}
+		c := counts
+		dirty = false
+		cmu.Unlock()
+		emit(logFrame{Type: "counts", ID: id, Counts: &c})
+	}
+	done := make(chan struct{})
+	go func() {
+		t := time.NewTicker(time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			case <-t.C:
+				flush()
+			}
+		}
+	}()
+	defer close(done)
+	defer flush()
+
 	reader := bufio.NewReader(pr)
 	for {
 		line, readErr := reader.ReadString('\n')
 		if line != "" {
 			ts, msg := splitLogTimestamp(strings.TrimRight(line, "\r\n"))
-			emit(logFrame{Type: "log", ID: id, TS: ts, Data: msg})
+			lvl := lineLevel(msg)
+			cmu.Lock()
+			switch lvl {
+			case "warn":
+				counts.Warn++
+			case "err":
+				counts.Err++
+			default:
+				counts.Info++
+			}
+			dirty = true
+			cmu.Unlock()
+			if matchLevel(levelFn(), lvl) {
+				emit(logFrame{Type: "log", ID: id, TS: ts, Data: msg})
+			}
 		}
 		if readErr != nil {
 			return

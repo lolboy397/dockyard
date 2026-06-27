@@ -79,6 +79,34 @@ func TestLogStreamRoleGate(t *testing.T) {
 	}
 }
 
+func TestLineLevel(t *testing.T) {
+	cases := []struct{ msg, want string }{
+		{"plain info line", "info"},
+		{"GET /health 200 OK", "info"},
+		{"disk usage WARNING high", "warn"},
+		{"WARN: retrying", "warn"},
+		{"ERROR: connection refused", "err"},
+		{"panic: runtime error", "err"},
+		{"FATAL shutdown", "err"},
+		{"WARNING then ERROR — warn wins", "warn"}, // warn checked before err
+		{"scattered (error) word", "err"},          // case-insensitive
+	}
+	for _, c := range cases {
+		if got := lineLevel(c.msg); got != c.want {
+			t.Errorf("lineLevel(%q) = %q, want %q", c.msg, got, c.want)
+		}
+	}
+}
+
+func TestMatchLevel(t *testing.T) {
+	if !matchLevel("", "info") || !matchLevel("all", "err") {
+		t.Error("empty/all filter must pass any level")
+	}
+	if !matchLevel("err", "err") || matchLevel("err", "info") {
+		t.Error("a specific filter must pass only its own level")
+	}
+}
+
 func TestSplitLogTimestamp(t *testing.T) {
 	cases := []struct {
 		name    string
