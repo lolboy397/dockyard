@@ -1,112 +1,207 @@
-<div class="content-area">
-  <div class="content-head">
-    <div class="content-title-row">
-      <span class="eyebrow">admin · diagnostics</span>
-      <h2 class="content-title">Insights</h2>
-    </div>
-    <div class="content-actions">
-      <button class="btn btn-sm btn-ghost" (click)="load()"><dy-icon name="refresh-cw" [size]="13"></dy-icon> Refresh</button>
-    </div>
-  </div>
+<div class="ins-stage">
+  <div class="ins-content">
 
-  <!-- Headline stats -->
-  <div class="ins-stats">
-    <div class="ins-stat"><span class="ins-stat-n">{{ stats()?.open_groups ?? '—' }}</span><span class="ins-stat-l">Open issues</span></div>
-    <div class="ins-stat"><span class="ins-stat-n">{{ stats()?.events_24h ?? '—' }}</span><span class="ins-stat-l">Events · 24h</span></div>
-    <div class="ins-stat"><span class="ins-stat-n ins-err">{{ stats()?.by_level?.['error'] ?? 0 }}</span><span class="ins-stat-l">Errors · 24h</span></div>
-    <div class="ins-stat"><span class="ins-stat-n ins-warn">{{ stats()?.by_level?.['warn'] ?? 0 }}</span><span class="ins-stat-l">Warnings · 24h</span></div>
-  </div>
-
-  <!-- Filters -->
-  <div class="ins-filters">
-    <div class="pills sm">
-      @for (s of statuses; track s.v) {
-        <button class="pill" [class.on]="statusFilter() === s.v" (click)="setStatusFilter(s.v)">{{ s.label }}</button>
-      }
-    </div>
-    <div class="pills sm">
-      @for (s of sourceTabs; track s.v) {
-        <button class="pill" [class.on]="sourceFilter() === s.v" (click)="setSourceFilter(s.v)">{{ s.label }}</button>
-      }
-    </div>
-  </div>
-
-  <!-- Issue feed -->
-  @if (loading()) {
-    <div class="ins-empty">Loading…</div>
-  } @else if (groups().length === 0) {
-    <div class="ins-empty">
-      <dy-icon name="shield-check" [size]="26"></dy-icon>
-      <p>No {{ statusFilter() || '' }} issues. Errors captured from the backend and browser will appear here.</p>
-    </div>
-  } @else {
-    <div class="ins-feed">
-      @for (g of groups(); track trackFp($index, g)) {
-        <div class="ins-row" [class.sel]="selected()?.fingerprint === g.fingerprint" (click)="select(g)">
-          <span class="ins-dot" [class]="'lvl-' + g.level"></span>
-          <div class="ins-row-main">
-            <div class="ins-title">{{ g.title }}</div>
-            <div class="ins-meta">
-              <span class="ins-src" [class.frontend]="g.source === 'frontend'">{{ g.source }}</span>
-              <span>·</span>
-              <span class="mono">{{ g.count }}×</span>
-              <span>·</span>
-              <span>last {{ rel(g.last_seen) }} ago</span>
-              @if (g.status !== 'open') { <span class="ins-status">{{ g.status }}</span> }
-            </div>
-          </div>
-          <div class="ins-row-actions" (click)="$event.stopPropagation()">
-            @if (g.status !== 'resolved') {
-              <button class="btn btn-xs btn-ghost" (click)="setStatus(g, 'resolved', $event)" title="Mark resolved"><dy-icon name="check" [size]="12"></dy-icon></button>
-            }
-            @if (g.status !== 'muted') {
-              <button class="btn btn-xs btn-ghost" (click)="setStatus(g, 'muted', $event)" title="Mute"><dy-icon name="bell" [size]="12"></dy-icon></button>
-            }
-            @if (g.status !== 'open') {
-              <button class="btn btn-xs btn-ghost" (click)="setStatus(g, 'open', $event)" title="Reopen"><dy-icon name="rotate-ccw" [size]="12"></dy-icon></button>
-            }
-          </div>
-        </div>
-      }
-    </div>
-  }
-
-  <!-- Detail drawer -->
-  @if (selected(); as g) {
-    <div class="ins-scrim" (click)="closeDetail()"></div>
-    <aside class="ins-drawer">
-      <div class="ins-drawer-head">
-        <div>
-          <span class="ins-dot" [class]="'lvl-' + g.level"></span>
-          <span class="ins-drawer-title">{{ g.title }}</span>
-        </div>
-        <button class="icon-btn ghost" (click)="closeDetail()" aria-label="Close"><dy-icon name="x" [size]="16"></dy-icon></button>
+    <!-- ── Header ─────────────────────────────────────────── -->
+    <div class="content-head">
+      <div class="content-title-row">
+        <span class="eyebrow" style="margin-right:8px">admin · diagnostics</span>
+        <h2 class="content-title">Insights</h2>
+        <span class="content-count mono">{{ statusCount('open') }} open</span>
       </div>
-      <div class="ins-drawer-sub mono">
-        {{ g.source }} · {{ g.count }} occurrences · first {{ rel(g.first_seen) }} ago · last {{ rel(g.last_seen) }} ago
+      <div class="content-actions">
+        <span class="ins-synced"><dy-dot tone="running"></dy-dot> live · auto-refresh</span>
+        <span class="divider-v"></span>
+        <button class="btn btn-sm" (click)="load()" [disabled]="refreshing()">
+          <dy-icon name="refresh-cw" [size]="14" [class.ins-spin]="refreshing()"></dy-icon>
+          Refresh
+        </button>
       </div>
+    </div>
 
-      @if (eventsLoading()) {
-        <div class="ins-empty">Loading occurrences…</div>
-      } @else {
-        @for (e of events(); track trackId($index, e)) {
-          <div class="ins-occ">
-            <div class="ins-occ-head mono">
-              <span [class]="'lvl-tag lvl-' + e.level">{{ e.level }}</span>
-              <span>{{ e.ts }}</span>
-              @if (e.route) { <span>· {{ e.route }}</span> }
-              @if (e.status_code) { <span>· {{ e.status_code }}</span> }
-              @if (e.actor) { <span>· {{ e.actor }}</span> }
-            </div>
-            <div class="ins-occ-msg">{{ e.message }}</div>
-            @if (e.request_id) { <div class="ins-occ-kv mono">request_id: {{ e.request_id }}</div> }
-            @if (e.release) { <div class="ins-occ-kv mono">release: {{ e.release }}</div> }
-            @if (e.stack) { <pre class="ins-occ-stack mono">{{ e.stack }}</pre> }
-            @if (e.context) { <pre class="ins-occ-ctx mono">{{ prettyContext(e.context) }}</pre> }
+    <!-- ── Stats band ─────────────────────────────────────── -->
+    <div class="ins-stats">
+      <div class="ins-stat is-open">
+        <div class="ins-stat-top"><span class="ins-stat-ic"><dy-icon name="inbox" [size]="14"></dy-icon></span><span class="ins-stat-label">Open issues</span></div>
+        <div class="ins-stat-val">{{ stats()?.open_groups ?? '—' }}</div>
+        <div class="ins-stat-sub">{{ (stats()?.open_groups || 0) === 0 ? 'all clear' : 'need triage' }}</div>
+      </div>
+      <div class="ins-stat">
+        <div class="ins-stat-top"><span class="ins-stat-ic"><dy-icon name="activity" [size]="14"></dy-icon></span><span class="ins-stat-label">Events · 24h</span></div>
+        <div class="ins-stat-val">{{ stats()?.events_24h ?? '—' }}</div>
+        <div class="ins-stat-sub">{{ stats()?.by_source?.['backend'] ?? 0 }} backend · {{ stats()?.by_source?.['frontend'] ?? 0 }} frontend</div>
+      </div>
+      <div class="ins-stat is-error">
+        <div class="ins-stat-top"><span class="ins-stat-ic"><dy-icon name="octagon-alert" [size]="14"></dy-icon></span><span class="ins-stat-label">Errors · 24h</span></div>
+        <div class="ins-stat-val">{{ stats()?.by_level?.['error'] ?? 0 }}</div>
+        <div class="ins-stat-sub">last 24 hours</div>
+      </div>
+      <div class="ins-stat is-warn">
+        <div class="ins-stat-top"><span class="ins-stat-ic"><dy-icon name="triangle-alert" [size]="14"></dy-icon></span><span class="ins-stat-label">Warnings · 24h</span></div>
+        <div class="ins-stat-val">{{ stats()?.by_level?.['warn'] ?? 0 }}</div>
+        <div class="ins-stat-sub">last 24 hours</div>
+      </div>
+    </div>
+
+    <!-- ── Filter toolbar ─────────────────────────────────── -->
+    <div class="content-toolbar ins-toolbar">
+      <div class="ins-filters">
+        <div class="pills">
+          @for (s of statuses; track s.v) {
+            <button class="pill" [class.on]="statusFilter()===s.v" (click)="setStatusFilter(s.v)">{{ s.label }}<span class="pill-count">{{ statusCount(s.v) }}</span></button>
+          }
+        </div>
+        <div class="pills">
+          @for (s of sourceTabs; track s.v) {
+            <button class="pill" [class.on]="sourceFilter()===s.v" (click)="setSourceFilter(s.v)">{{ s.label }}</button>
+          }
+        </div>
+      </div>
+      <div class="ins-toolbar-right">
+        <span class="ins-search">
+          <dy-icon name="search" [size]="13" color="var(--fg-muted)"></dy-icon>
+          <input [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Filter by title or fingerprint…" aria-label="Filter issues">
+        </span>
+        <span class="ins-live"><dy-dot tone="running"></dy-dot> live</span>
+      </div>
+    </div>
+
+    <!-- ── Feed / empty ───────────────────────────────────── -->
+    @if (loading()) {
+      <div class="ins-empty neutral"><span class="ins-empty-ic"><dy-icon name="activity" [size]="26"></dy-icon></span><div class="ins-empty-title">Loading…</div></div>
+    } @else if (filtered().length > 0) {
+      <div class="ins-feed">
+        @for (g of filtered(); track trackFp($index, g)) {
+          <div [class]="'ins-row lvl-' + g.level + ' is-' + g.status + (selected()?.fingerprint===g.fingerprint ? ' sel' : '')"
+               role="button" tabindex="0"
+               [attr.aria-label]="lvl(g.level).label + ': ' + g.title + ', ' + g.count + ' occurrences, ' + ago(g.last_seen)"
+               (click)="select(g)" (keydown.enter)="select(g)" (keydown.space)="$event.preventDefault(); select(g)">
+            <span class="ins-sev" aria-hidden="true"><dy-icon [name]="lvl(g.level).icon" [size]="15"></dy-icon></span>
+            <span class="ins-main">
+              <span class="ins-title">{{ g.title }}</span>
+              <span class="ins-meta">
+                <span class="ins-chip"><dy-icon [name]="src(g.source).icon" [size]="10"></dy-icon>{{ src(g.source).label }}</span>
+                <span class="ins-comp mono">#{{ g.fingerprint }}</span>
+              </span>
+            </span>
+            <span [class]="'ins-status ' + g.status">
+              @if (g.status==='resolved') { <dy-icon name="check" [size]="12"></dy-icon> }
+              @else if (g.status==='muted') { <dy-icon name="bell-off" [size]="11"></dy-icon> }
+              @else { <dy-dot [tone]="lvl(g.level).tone"></dy-dot> }
+              {{ statusLabel(g.status) }}
+            </span>
+            <span class="ins-num">
+              <span class="ins-count">{{ g.count }}<span class="x">×</span></span>
+              <span class="ins-recency">{{ ago(g.last_seen) }}</span>
+            </span>
+            <span aria-hidden="true"></span>
+            <span class="ins-actions" (click)="$event.stopPropagation()">
+              @if (g.status!=='resolved') {
+                <button class="ins-act ok" title="Resolve" aria-label="Resolve issue" (click)="setStatus(g,'resolved',$event)"><dy-icon name="check" [size]="15"></dy-icon></button>
+              } @else {
+                <button class="ins-act" title="Reopen" aria-label="Reopen issue" (click)="setStatus(g,'open',$event)"><dy-icon name="rotate-ccw" [size]="15"></dy-icon></button>
+              }
+              @if (g.status!=='muted') {
+                <button class="ins-act warn" title="Mute" aria-label="Mute issue" (click)="setStatus(g,'muted',$event)"><dy-icon name="bell-off" [size]="15"></dy-icon></button>
+              } @else {
+                <button class="ins-act" title="Unmute" aria-label="Unmute issue" (click)="setStatus(g,'open',$event)"><dy-icon name="bell" [size]="15"></dy-icon></button>
+              }
+            </span>
           </div>
         }
-        @if (events().length === 0) { <div class="ins-empty">No recent occurrences retained.</div> }
-      }
+      </div>
+    } @else if (statusFilter()==='open' && !search() && sourceFilter()==='') {
+      <div class="ins-empty">
+        <span class="ins-empty-ic"><dy-icon name="shield-check" [size]="28"></dy-icon></span>
+        <div class="ins-empty-title">All clear — no open issues</div>
+        <div class="ins-empty-body">Nothing needs triage right now. New backend panics, 5xx responses, and browser errors will surface here the moment they're captured.</div>
+        <div class="ins-empty-meta"><dy-dot tone="running"></dy-dot> watching backend + frontend</div>
+      </div>
+    } @else {
+      <div class="ins-empty neutral">
+        <span class="ins-empty-ic"><dy-icon name="inbox" [size]="26"></dy-icon></span>
+        <div class="ins-empty-title">No issues in this view</div>
+        <div class="ins-empty-body">There's nothing here yet. Try a different status, source, or search.</div>
+      </div>
+    }
+  </div>
+
+  <!-- ── Detail drawer ──────────────────────────────────── -->
+  @if (selected(); as g) {
+    <div class="ins-scrim" (click)="closeDetail()"></div>
+    <aside class="ins-drawer" role="dialog" aria-modal="true" [attr.aria-label]="g.title">
+      <div class="ins-drawer-head">
+        <div class="ins-drawer-top">
+          <span [class]="'ins-drawer-sev ' + (g.level==='error' ? 'error' : g.level)"><dy-icon [name]="lvl(g.level).icon" [size]="18"></dy-icon></span>
+          <div class="ins-drawer-id">
+            <div class="ins-drawer-eyebrow">
+              <span>{{ lvl(g.level).label }}</span><span class="ins-dot"></span>
+              <span class="ins-chip"><dy-icon [name]="src(g.source).icon" [size]="10"></dy-icon>{{ src(g.source).label }}</span>
+              <span class="ins-dot"></span><span>#{{ g.fingerprint }}</span>
+            </div>
+            <div class="ins-drawer-title">{{ g.title }}</div>
+          </div>
+          <div class="ins-drawer-actions">
+            @if (g.status!=='resolved') {
+              <button class="btn btn-sm" (click)="setStatus(g,'resolved')"><dy-icon name="check" [size]="14"></dy-icon> Resolve</button>
+            } @else {
+              <button class="btn btn-sm btn-ghost" (click)="setStatus(g,'open')"><dy-icon name="rotate-ccw" [size]="14"></dy-icon> Reopen</button>
+            }
+            <button class="icon-btn ghost sm" aria-label="Close" (click)="closeDetail()"><dy-icon name="x" [size]="14"></dy-icon></button>
+          </div>
+        </div>
+
+        <div class="ins-facts">
+          <div class="ins-fact"><span class="ins-fact-k">Occurrences</span><span class="ins-fact-v hot">{{ g.count }}</span></div>
+          <div class="ins-fact"><span class="ins-fact-k">Last seen</span><span class="ins-fact-v">{{ ago(g.last_seen) }}</span></div>
+          <div class="ins-fact"><span class="ins-fact-k">First seen</span><span class="ins-fact-v">{{ ago(g.first_seen) }}</span></div>
+          <div class="ins-fact"><span class="ins-fact-k">Status</span><span class="ins-fact-v">{{ statusLabel(g.status) }}</span></div>
+        </div>
+      </div>
+
+      <div class="ins-drawer-tabbar">
+        <span class="ins-occ-label">Recent occurrences · {{ events().length }} of {{ g.count }}</span>
+      </div>
+
+      <div class="ins-drawer-body">
+        @if (eventsLoading()) { <span class="ins-occ-label" style="padding:0">Loading occurrences…</span> }
+        @for (e of events(); track trackId($index, e)) {
+          <div class="ins-occ">
+            <div class="ins-occ-top">
+              <span [class]="'ins-occ-tag ' + e.level">{{ e.level }}</span>
+              <span class="ins-occ-time">{{ e.ts }}</span>
+              <span class="ins-occ-route">
+                @if (e.route) { <span class="ins-occ-path">{{ e.route }}</span> }
+                @if (e.status_code) { <span [class]="'ins-occ-code ' + codeClass(e.status_code)">{{ e.status_code }}</span> }
+              </span>
+            </div>
+            <div class="ins-occ-body">
+              <div class="ins-occ-msg">{{ e.message }}</div>
+              <dl class="ins-occ-grid">
+                @if (e.request_id) {
+                  <dt>request</dt>
+                  <dd><button [class]="'ins-copy' + (copiedId()===e.request_id ? ' copied' : '')" title="Copy request_id" (click)="copy(e.request_id)"><span>{{ e.request_id }}</span><dy-icon [name]="copiedId()===e.request_id ? 'check' : 'copy'" [size]="12"></dy-icon></button></dd>
+                }
+                @if (e.actor) { <dt>actor</dt><dd>{{ e.actor }}</dd> }
+                @if (e.component) { <dt>component</dt><dd>{{ e.component }}</dd> }
+                @if (e.release) { <dt>release</dt><dd>{{ e.release }}</dd> }
+              </dl>
+              @if (e.stack) {
+                <div class="ins-well">
+                  <div class="ins-well-head"><span class="ins-well-label"><dy-icon name="list-tree" [size]="11"></dy-icon>Stack trace</span></div>
+                  <pre class="ins-pre">@for (ln of stackLines(e.stack); track $index) {<span [class.fr-app]="ln.app" [class.fr-mut]="!ln.app" style="display:block">{{ ln.t }}</span>}</pre>
+                </div>
+              }
+              @if (e.context) {
+                <div class="ins-well">
+                  <div class="ins-well-head"><span class="ins-well-label"><dy-icon name="braces" [size]="11"></dy-icon>Context</span></div>
+                  <pre class="ins-pre" [innerHTML]="contextHtml(e.context)"></pre>
+                </div>
+              }
+            </div>
+          </div>
+        }
+        @if (!eventsLoading() && events().length === 0) { <span class="ins-occ-label" style="padding:0">No recent occurrences retained.</span> }
+      </div>
     </aside>
   }
 </div>
