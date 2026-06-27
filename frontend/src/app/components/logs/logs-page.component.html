@@ -1,15 +1,19 @@
-    <div class="content-area" style="height:100%;display:flex;flex-direction:column;overflow:hidden;">
-      <div class="content-head" style="flex-shrink:0;">
+    <div class="content-area logs-page">
+      <div class="content-head">
         <div class="content-title-row">
-          <span class="eyebrow" style="margin-right:8px;">cross-container · live</span>
+          <span class="eyebrow logs-eyebrow">cross-container · live</span>
           <h2 class="content-title">Logs</h2>
         </div>
         <div class="content-actions">
-          <button class="btn btn-sm btn-ghost" [class.on]="wrap" (click)="wrap = !wrap" title="Toggle line wrap">
+          <button class="btn btn-sm btn-ghost" [class.on]="wrap()" (click)="toggleWrap()" title="Toggle line wrap" [attr.aria-pressed]="wrap()">
             <dy-icon name="wrap-text" [size]="13"></dy-icon>
             Wrap
           </button>
-          <button class="btn btn-sm btn-ghost" (click)="download()" [disabled]="filteredLines.length === 0" title="Download visible lines">
+          <button class="btn btn-sm btn-ghost" (click)="copyVisible()" [disabled]="filteredLines().length === 0" title="Copy visible lines to clipboard">
+            <dy-icon name="copy" [size]="13"></dy-icon>
+            Copy
+          </button>
+          <button class="btn btn-sm btn-ghost" (click)="download()" [disabled]="filteredLines().length === 0" title="Download visible lines (current filter)">
             <dy-icon name="download" [size]="13"></dy-icon>
             Download
           </button>
@@ -17,37 +21,42 @@
             <dy-icon name="eraser" [size]="13"></dy-icon>
             Clear
           </button>
-          <button class="btn btn-sm btn-ghost" (click)="togglePause()">
-            <dy-icon [name]="paused ? 'play' : 'pause'" [size]="13"></dy-icon>
-            {{ paused ? 'Resume' : 'Pause' }}
+          <button class="btn btn-sm btn-ghost" (click)="togglePause()" [attr.aria-pressed]="paused()">
+            <dy-icon [name]="paused() ? 'play' : 'pause'" [size]="13"></dy-icon>
+            {{ paused() ? 'Resume' : 'Pause' }}
           </button>
         </div>
       </div>
 
-      <div class="logs-layout" style="flex:1;overflow:hidden;">
+      <div class="logs-layout">
         <!-- Sources sidebar -->
         <aside class="logs-side">
           <div class="logs-side-head">
             <span class="eyebrow">Sources</span>
-            <span class="mono" style="font-size:10px;color:var(--fg-subtle);">{{ activeSources.length }} of {{ sources.length }}</span>
+            <span class="mono logs-side-count">{{ activeSources().length }} of {{ sources().length }}</span>
           </div>
-          @if (sources.length > 1) {
+          @if (sources().length > 1) {
             <div class="src-bulk">
               <button (click)="setAll(true)">All</button>
               <span>·</span>
               <button (click)="setAll(false)">None</button>
             </div>
           }
-          @for (s of sources; track s.id) {
-            <label class="src-row" [class.is-off]="!s.on">
-              <input type="checkbox" [(ngModel)]="s.on" (change)="toggleSource(s)">
-              <span class="src-dot" [style.background]="s.color"></span>
-              <span class="src-name">{{ s.name }}</span>
-              <span class="src-count mono">{{ s.count }}</span>
-            </label>
+          @for (s of sources(); track s.id) {
+            <div class="src-row" [class.is-off]="!s.on">
+              <label class="src-row-main">
+                <input type="checkbox" [checked]="s.on" (change)="toggleSource(s)" [attr.aria-label]="'Toggle logs for ' + s.name">
+                <span class="src-dot" [style.background]="s.color"></span>
+                <span class="src-name">{{ s.name }}</span>
+              </label>
+              <span class="src-count mono">{{ count(s.id) }}</span>
+              <button class="src-solo" (click)="isolate(s, $event)" title="Show only this container" [attr.aria-label]="'Show only ' + s.name">
+                <dy-icon name="filter" [size]="11"></dy-icon>
+              </button>
+            </div>
           }
-          @if (sources.length === 0) {
-            <div style="padding:12px;color:var(--fg-subtle);font-size:11px;">No containers found.</div>
+          @if (sources().length === 0) {
+            <div class="logs-side-empty">No containers found.</div>
           }
           <button class="src-add" (click)="loadContainers()">
             <dy-icon name="refresh-cw" [size]="12"></dy-icon>
@@ -58,45 +67,83 @@
         <!-- Log stream -->
         <section class="logs-main">
           <div class="logs-toolbar">
-            <div class="logs-search-wrap">
+            <div class="logs-search-wrap" [class.is-invalid]="filterInvalid()">
               <dy-icon name="search" [size]="13" color="var(--fg-muted)"></dy-icon>
-              <input class="logs-search" [(ngModel)]="filterText" placeholder="Filter regex or text…">
+              <input class="logs-search" [ngModel]="filterText()" (ngModelChange)="filterText.set($event)"
+                     [placeholder]="useRegex() ? 'Filter by regex…' : 'Filter by text…'"
+                     aria-label="Filter log lines">
+              <button class="logs-rx" [class.on]="useRegex()" (click)="toggleRegex()"
+                      title="Toggle regular-expression matching" [attr.aria-pressed]="useRegex()">.*</button>
             </div>
-            <div class="pills sm">
-              @for (l of levels; track l) {
-                <button class="pill" [class.on]="level===l" (click)="level=l">
-                  {{ l[0].toUpperCase() + l.slice(1) }}
+            <div class="pills sm logs-levels">
+              @for (l of levels; track l.v) {
+                <button class="pill" [class.on]="level()===l.v" (click)="setLevel(l.v)">
+                  {{ l.label }}@if (levelCounts()[l.v]) {<span class="pill-n">{{ levelCounts()[l.v] }}</span>}
                 </button>
               }
             </div>
             <label class="logs-tail" title="History fetched per container when it starts streaming">
               <span>tail</span>
-              <select [ngModel]="tail" (ngModelChange)="setTail($event)">
+              <select [ngModel]="tail()" (ngModelChange)="setTail($event)">
                 @for (t of tails; track t) { <option [value]="t">{{ t }}</option> }
               </select>
             </label>
-            <span style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--running-400);display:inline-flex;align-items:center;gap:5px;">
-              @if (!paused) { <dy-dot tone="running" [size]="5"></dy-dot> live · {{ lps }} lines/s }
-              @else { <dy-dot tone="idle" [size]="5"></dy-dot> paused }
+            <span class="logs-live">
+              @if (filterText()) { <span class="logs-matchn">{{ filteredLines().length }} match{{ filteredLines().length === 1 ? '' : 'es' }}</span> }
+              @if (!paused()) { <dy-dot tone="running" [size]="5"></dy-dot> <span class="logs-live-txt">live · {{ lps() }}/s</span> }
+              @else { <dy-dot tone="idle" [size]="5"></dy-dot> <span class="logs-live-txt">paused</span> }
             </span>
           </div>
-          <div class="logs-stream" [class.wrap]="wrap" #logStream>
-            @for (line of filteredLines; track $index) {
-              <div class="lline">
+
+          @if (activeSources().length === 0) {
+            <div class="logs-stream-note">Enable at least one source to stream logs.</div>
+          } @else if (filteredLines().length === 0) {
+            <div class="logs-stream-note">
+              @if (filterText() || level() !== 'all') { No lines match the current filter. }
+              @else { Waiting for log output… }
+            </div>
+          } @else if (!wrap()) {
+            <!-- Nowrap path: virtualised (fixed-height rows). -->
+            <cdk-virtual-scroll-viewport #vp class="logs-stream" [itemSize]="itemSize"
+                minBufferPx="600" maxBufferPx="1200" (scroll)="onScroll()"
+                role="log" [attr.aria-live]="paused() ? 'off' : 'polite'" aria-relevant="additions" aria-label="Live log output">
+              <div class="lline" *cdkVirtualFor="let line of filteredLines(); trackBy: trackByUid"
+                   [class.lkind-error]="line.kind==='error'" [class.lkind-status]="line.kind==='status'">
                 <span class="lts">{{ line.ts }}</span>
-                <span class="llvl" [class]="'lvl-' + line.level">{{ line.level.toUpperCase().padEnd(4) }}</span>
-                <span class="lsrc" [style.color]="line.color">{{ line.src }}</span>
-                <span class="lmsg">{{ line.msg }}</span>
+                @if (line.kind !== 'status') {
+                  <span [class]="'llvl ' + line.levelClass">{{ line.levelLabel }}</span>
+                  <span class="lsrc" [style.color]="line.color">{{ line.src }}</span>
+                } @else {
+                  <span class="lsrc lsrc-system">system</span>
+                }
+                <span class="lmsg">@for (seg of segs(line); track $index) {<span [class.lhit]="seg.m">{{ seg.t }}</span>}</span>
               </div>
-            }
-            @if (filteredLines.length === 0 && activeSources.length > 0) {
-              <div style="color:var(--fg-subtle);font-size:11px;">Waiting for log output…</div>
-            }
-            @if (activeSources.length === 0) {
-              <div style="color:var(--fg-subtle);font-size:11px;">Enable at least one source to stream logs.</div>
-            }
-          </div>
+            </cdk-virtual-scroll-viewport>
+          } @else {
+            <!-- Wrap path: plain render (wrapped lines have variable height). -->
+            <div #plain class="logs-stream wrap" (scroll)="onScroll()"
+                 role="log" [attr.aria-live]="paused() ? 'off' : 'polite'" aria-relevant="additions" aria-label="Live log output">
+              @for (line of filteredLines(); track line.uid) {
+                <div class="lline" [class.lkind-error]="line.kind==='error'" [class.lkind-status]="line.kind==='status'">
+                  <span class="lts">{{ line.ts }}</span>
+                  @if (line.kind !== 'status') {
+                    <span [class]="'llvl ' + line.levelClass">{{ line.levelLabel }}</span>
+                    <span class="lsrc" [style.color]="line.color">{{ line.src }}</span>
+                  } @else {
+                    <span class="lsrc lsrc-system">system</span>
+                  }
+                  <span class="lmsg">@for (seg of segs(line); track $index) {<span [class.lhit]="seg.m">{{ seg.t }}</span>}</span>
+                </div>
+              }
+            </div>
+          }
+
+          @if (!atBottom() && filteredLines().length > 0) {
+            <button class="logs-jump" (click)="jumpToBottom()" title="Jump to latest output">
+              <dy-icon name="arrow-down-to-line" [size]="14"></dy-icon>
+              Latest
+            </button>
+          }
         </section>
       </div>
     </div>
-  

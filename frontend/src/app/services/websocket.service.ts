@@ -38,9 +38,17 @@ export interface ContainerStatSummary {
   net_tx: number;   // cumulative transmitted bytes
 }
 
-/** One multiplexed log line, tagged with the container it came from. */
+/**
+ * One multiplexed frame, tagged with the container it came from. `type` is
+ * 'log' for normal output, 'error' for a stream/subscription failure, and
+ * 'status' for connection notices (e.g. dropped lines). `ts` is Docker's
+ * RFC3339 timestamp for the line (absent on status frames or untimestamped
+ * output), so the client can show the real log time, not its receive time.
+ */
 export interface MultiLogFrame {
-  id: string;
+  type?: 'log' | 'error' | 'status';
+  id?: string;
+  ts?: string;
   data: string;
 }
 
@@ -80,7 +88,11 @@ export class WebSocketService {
    */
   streamMultiLogs(): MultiLogStream {
     const frames$ = new Subject<MultiLogFrame>();
-    const active = new Map<string, string>();   // containerId → tail
+    // containerId → { tail, since }. `since` is the timestamp of the last line
+    // we've seen for that container; on an involuntary reconnect we resume from
+    // it (Docker `Since`) instead of replaying the whole tail again, which is
+    // what used to dump duplicate history on every blip.
+    const active = new Map<string, { tail: string; since?: string }>();
     let ws: WebSocket | undefined;
     let closed = false;
     let attempt = 0;
@@ -96,10 +108,20 @@ export class WebSocketService {
       ws = new WebSocket(this.withToken(`${this.wsBase}/ws/logs/multi`));
       ws.onopen = () => {
         attempt = 0;
-        active.forEach((tail, id) => send({ action: 'subscribe', id, tail }));
+        // Re-subscribe the active set; resume from `since` when we have one so a
+        // reconnect doesn't replay tail history we already showed.
+        active.forEach((a, id) => send({ action: 'subscribe', id, tail: a.tail, since: a.since }));
       };
       ws.onmessage = (evt) => {
-        try { frames$.next(JSON.parse(evt.data) as MultiLogFrame); } catch { /* ignore */ }
+        try {
+          const frame = JSON.parse(evt.data) as MultiLogFrame;
+          // Track the latest timestamp per container as our reconnect resume point.
+          if (frame.id && frame.ts) {
+            const a = active.get(frame.id);
+            if (a) a.since = frame.ts;
+          }
+          frames$.next(frame);
+        } catch { /* ignore */ }
       };
       ws.onerror = () => { /* close handler reconnects */ };
       ws.onclose = () => {
@@ -126,7 +148,9 @@ export class WebSocketService {
 
     return {
       frames$: frames$.asObservable(),
-      subscribe: (id: string, tail = '50') => { active.set(id, tail); send({ action: 'subscribe', id, tail }); },
+      // An explicit (re)subscribe wants `tail` history, so it clears any prior
+      // resume point; reconnects keep the auto-tracked `since` instead.
+      subscribe: (id: string, tail = '50') => { active.set(id, { tail }); send({ action: 'subscribe', id, tail }); },
       unsubscribe: (id: string) => { active.delete(id); send({ action: 'unsubscribe', id }); },
       close: () => {
         closed = true;

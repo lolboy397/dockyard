@@ -47,6 +47,69 @@ func TestStreamExecRoleGate(t *testing.T) {
 	}
 }
 
+func TestSplitLogTimestamp(t *testing.T) {
+	cases := []struct {
+		name    string
+		line    string
+		wantTS  string
+		wantMsg string
+	}{
+		{
+			name:    "rfc3339nano prefix is split off",
+			line:    "2026-06-27T10:00:00.123456789Z hello world",
+			wantTS:  "2026-06-27T10:00:00.123456789Z",
+			wantMsg: "hello world",
+		},
+		{
+			name:    "second-precision offset timestamp",
+			line:    "2026-06-27T10:00:00+01:00 started",
+			wantTS:  "2026-06-27T10:00:00+01:00",
+			wantMsg: "started",
+		},
+		{
+			name:    "message keeps its own internal spacing",
+			line:    "2026-06-27T10:00:00Z  GET /  200",
+			wantTS:  "2026-06-27T10:00:00Z",
+			wantMsg: " GET /  200",
+		},
+		{
+			name:    "no timestamp prefix passes through unchanged",
+			line:    "plain log line with no timestamp",
+			wantTS:  "",
+			wantMsg: "plain log line with no timestamp",
+		},
+		{
+			name:    "non-timestamp first token is not mistaken for one",
+			line:    "INFO something happened",
+			wantTS:  "",
+			wantMsg: "INFO something happened",
+		},
+		{
+			name:    "empty line",
+			line:    "",
+			wantTS:  "",
+			wantMsg: "",
+		},
+		{
+			name:    "leading space (no leading token) passes through",
+			line:    " indented continuation line",
+			wantTS:  "",
+			wantMsg: " indented continuation line",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts, msg := splitLogTimestamp(tc.line)
+			if ts != tc.wantTS {
+				t.Errorf("ts = %q, want %q", ts, tc.wantTS)
+			}
+			if msg != tc.wantMsg {
+				t.Errorf("msg = %q, want %q", msg, tc.wantMsg)
+			}
+		})
+	}
+}
+
 func TestCanWriteAndIsAdmin(t *testing.T) {
 	cases := []struct {
 		role     string

@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"docker-manager/backend/safe"
@@ -119,9 +120,16 @@ func (h *WSHandlers) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// logFrame is one multiplexed log line tagged with its source container.
+// logFrame is one multiplexed frame tagged with its source container. Type is
+// "log" for normal output, "error" for a stream/subscription failure, and
+// "status" for connection notices (e.g. dropped lines); the client renders each
+// differently. TS is Docker's RFC3339Nano timestamp parsed off the line (empty
+// when the line carried none), so the client can show the real log time instead
+// of its own receive time.
 type logFrame struct {
-	ID   string `json:"id"`
+	Type string `json:"type,omitempty"`
+	ID   string `json:"id,omitempty"`
+	TS   string `json:"ts,omitempty"`
 	Data string `json:"data"`
 }
 
@@ -160,9 +168,33 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	// Single writer goroutine — gorilla/websocket forbids concurrent writes, so
-	// every follower funnels frames through this buffered channel.
-	out := make(chan []byte, 512)
+	// every follower funnels frames through this buffered channel. Sends are
+	// non-blocking: if the client can't keep up and the buffer fills, frames are
+	// dropped (and counted) rather than stalling every follower behind the
+	// slowest consumer — a live tail can't render thousands of lines/sec anyway.
+	out := make(chan []byte, 1024)
+	var dropped int64
+
+	emit := func(f logFrame) {
+		if f.Type == "" {
+			f.Type = "log"
+		}
+		b, err := json.Marshal(f)
+		if err != nil {
+			return
+		}
+		select {
+		case out <- b:
+		default:
+			atomic.AddInt64(&dropped, 1)
+		}
+	}
+
 	go func() {
+		// Periodically surface how many frames were dropped so the operator knows
+		// the view is incomplete rather than silently missing lines.
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -172,6 +204,14 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 					cancel()
 					return
 				}
+			case <-ticker.C:
+				if d := atomic.SwapInt64(&dropped, 0); d > 0 {
+					note, _ := json.Marshal(logFrame{Type: "status", Data: fmt.Sprintf("%d line(s) dropped — stream too fast to render", d)})
+					if err := conn.WriteMessage(websocket.TextMessage, note); err != nil {
+						cancel()
+						return
+					}
+				}
 			}
 		}
 	}()
@@ -180,13 +220,18 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 	var gen int64
 	subs := map[string]logSub{}
 
-	subscribe := func(id, tail string) {
+	subscribe := func(id, tail, since string) {
 		if id == "" {
 			return
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		if _, ok := subs[id]; ok || len(subs) >= maxMultiLogSubs {
+		if _, ok := subs[id]; ok {
+			return
+		}
+		if len(subs) >= maxMultiLogSubs {
+			// Tell the client instead of silently dropping the request.
+			emit(logFrame{Type: "error", ID: id, Data: fmt.Sprintf("subscription limit reached (%d): cannot follow more containers on one connection", maxMultiLogSubs)})
 			return
 		}
 		gen++
@@ -194,7 +239,7 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 		sctx, scancel := context.WithCancel(ctx)
 		subs[id] = logSub{cancel: scancel, gen: myGen}
 		go func() {
-			h.followLogs(sctx, id, tail, out)
+			h.followLogs(sctx, id, tail, since, emit)
 			// Follower ended (unsubscribed, container stopped, or stream closed):
 			// drop our own slot so the container can be followed again later.
 			mu.Lock()
@@ -226,15 +271,16 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 			ID     string   `json:"id"`
 			IDs    []string `json:"ids"`
 			Tail   string   `json:"tail"`
+			Since  string   `json:"since"`
 		}
 		if json.Unmarshal(data, &ctrl) != nil {
 			continue
 		}
 		switch ctrl.Action {
 		case "subscribe":
-			subscribe(ctrl.ID, ctrl.Tail)
+			subscribe(ctrl.ID, ctrl.Tail, ctrl.Since)
 			for _, id := range ctrl.IDs {
-				subscribe(id, ctrl.Tail)
+				subscribe(id, ctrl.Tail, ctrl.Since)
 			}
 		case "unsubscribe":
 			unsubscribe(ctrl.ID)
@@ -245,17 +291,25 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// followLogs follows one container's logs and emits tagged, line-framed frames to
-// out until ctx is cancelled.
-func (h *WSHandlers) followLogs(ctx context.Context, id, tail string, out chan []byte) {
+// followLogs follows one container's logs and emits tagged, line-framed frames
+// via emit until ctx is cancelled. When since is set (a reconnect resuming from
+// the last line the client already has) it replays from that timestamp instead
+// of the full tail, so reconnects don't dump duplicate history.
+func (h *WSHandlers) followLogs(ctx context.Context, id, tail, since string, emit func(logFrame)) {
 	if tail == "" {
 		tail = "50"
 	}
-	rc, err := h.docker.ContainerLogs(ctx, id, container.LogsOptions{
+	opts := container.LogsOptions{
 		ShowStdout: true, ShowStderr: true, Follow: true, Tail: tail, Timestamps: true,
-	})
+	}
+	if since != "" {
+		// Time-bound the replay to what we missed; Tail still caps the count so a
+		// long gap can't flood the client.
+		opts.Since = since
+	}
+	rc, err := h.docker.ContainerLogs(ctx, id, opts)
 	if err != nil {
-		emitLogFrame(ctx, out, id, fmt.Sprintf("error: %s", err))
+		emit(logFrame{Type: "error", ID: id, Data: fmt.Sprintf("error: %s", err)})
 		return
 	}
 	defer rc.Close()
@@ -270,7 +324,8 @@ func (h *WSHandlers) followLogs(ctx context.Context, id, tail string, out chan [
 	for {
 		line, readErr := reader.ReadString('\n')
 		if line != "" {
-			emitLogFrame(ctx, out, id, strings.TrimRight(line, "\r\n"))
+			ts, msg := splitLogTimestamp(strings.TrimRight(line, "\r\n"))
+			emit(logFrame{Type: "log", ID: id, TS: ts, Data: msg})
 		}
 		if readErr != nil {
 			return
@@ -278,17 +333,19 @@ func (h *WSHandlers) followLogs(ctx context.Context, id, tail string, out chan [
 	}
 }
 
-// emitLogFrame marshals one tagged log line and queues it, respecting ctx so a
-// cancelled follower never blocks on a full channel.
-func emitLogFrame(ctx context.Context, out chan []byte, id, data string) {
-	frame, err := json.Marshal(logFrame{ID: id, Data: data})
-	if err != nil {
-		return
+// splitLogTimestamp separates Docker's RFC3339Nano timestamp prefix (added by
+// Timestamps:true) from the rest of the line. It returns ("", line) when the
+// line has no parseable timestamp prefix, so non-timestamped output passes
+// through unchanged.
+func splitLogTimestamp(line string) (ts, msg string) {
+	sp := strings.IndexByte(line, ' ')
+	if sp <= 0 {
+		return "", line
 	}
-	select {
-	case out <- frame:
-	case <-ctx.Done():
+	if _, err := time.Parse(time.RFC3339Nano, line[:sp]); err != nil {
+		return "", line
 	}
+	return line[:sp], line[sp+1:]
 }
 
 // StreamStats upgrades to WebSocket and streams container stats every second.

@@ -1089,13 +1089,17 @@ input[type=checkbox] {
   display: inline-flex; align-items: center; gap: 5px;
 }
 .lline { display: block; line-height: 1.6; padding: 1px 0; }
-.lts   { display: inline; color: var(--fg-subtle); font-size: 10px; margin-right: 6px; }
-.llvl  { display: inline; font-weight: 500; margin-right: 6px; }
+// --fg-muted (not --fg-subtle) clears WCAG AA on both themes for this 10px text.
+.lts   { display: inline; color: var(--fg-muted); font-size: 10px; margin-right: 6px; }
+// inline-block + min-width aligns the level column without padEnd whitespace.
+.llvl  { display: inline-block; min-width: 32px; font-weight: 500; margin-right: 6px; }
 .lvl-info  { color: var(--info-400); }
 .lvl-warn  { color: var(--warn-400); }
 .lvl-err   { color: var(--danger-400); }
 .lvl-dbg   { color: var(--fg-subtle); }
-.lmsg { display: inline; color: var(--ink-10); word-break: break-word; }
+// --fg-default (not --ink-10) inverts per theme; --ink-10 stayed near-white in
+// light mode and made log text invisible on the light stream background.
+.lmsg { display: inline; color: var(--fg-default); word-break: break-word; }
 .lsrc { flex: none; }
 
 /* =========================================================================
@@ -1689,21 +1693,37 @@ mark {
   flex-shrink: 0;
 }
 .src-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 12px;
-  cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px 4px 12px;
   font-size: 12px;
   transition: background var(--t-fast);
 }
 .src-row:hover { background: var(--bg-hover); }
-.src-row.is-off { opacity: 0.45; }
+.src-row:focus-within { background: var(--bg-hover); }
+.src-row.is-off { opacity: 0.55; }
+.src-row-main {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1; min-width: 0; cursor: pointer;
+}
 .src-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .src-name { flex: 1; color: var(--fg-default); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.src-count { font-family: var(--font-mono); font-size: 10px; color: var(--fg-subtle); }
+.src-count { font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); flex-shrink: 0; }
+// Solo/isolate button — reveals on hover/focus (always shown on touch, see coarse query).
+.src-solo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex-shrink: 0;
+  background: transparent; border: 0; border-radius: var(--r-sm);
+  color: var(--fg-subtle); cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t-fast), background var(--t-fast), color var(--t-fast);
+}
+.src-row:hover .src-solo, .src-row:focus-within .src-solo { opacity: 1; }
+.src-solo:hover { background: var(--bg-pressed); color: var(--accent); }
+.src-solo:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 1px; }
 .src-add {
   display: flex; align-items: center; gap: 6px;
   margin: 6px 10px 0;
@@ -1725,18 +1745,89 @@ mark {
 }
 .logs-stream {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: auto;
   background: var(--bg-inset);
-  padding: 10px 14px;
+  padding: 0 14px;
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.7;
 }
+cdk-virtual-scroll-viewport.logs-stream { display: block; }
 /* Single line per log entry by default (scroll sideways); the Wrap toggle wraps. */
 .logs-stream .lline { white-space: nowrap; }
-.logs-stream.wrap { overflow-x: hidden; }
+/* Virtualised (nowrap) rows are a fixed 19px to match the cdk itemSize. */
+.logs-stream:not(.wrap) .lline { height: 19px; line-height: 19px; padding: 0; overflow: hidden; }
+.logs-stream.wrap { overflow-x: hidden; padding: 8px 14px; }
 .logs-stream.wrap .lline { white-space: normal; }
+
+/* ── Rebuilt logs page: layout, toolbar, highlight, jump-to-bottom ───────── */
+.logs-page { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.logs-page .content-head { flex-shrink: 0; }
+.logs-layout { overflow: hidden; }
+.logs-eyebrow { margin-right: 8px; }
+.logs-side-count { font-size: 10px; color: var(--fg-muted); }
+.logs-side-empty { padding: 12px; color: var(--fg-muted); font-size: 11px; }
+
+/* Regex toggle inside the search box */
+.logs-rx {
+  flex-shrink: 0;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--fg-subtle);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  padding: 2px 6px; cursor: pointer; line-height: 1.4;
+}
+.logs-rx:hover { color: var(--fg-default); border-color: var(--border-strong); }
+.logs-rx.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.logs-search-wrap.is-invalid .logs-search { color: var(--danger-400); }
+.logs-search-wrap.is-invalid .logs-rx { color: var(--danger-400); border-color: var(--danger-400); }
+
+/* Level pill counts */
+.logs-levels .pill { display: inline-flex; align-items: center; gap: 5px; }
+.pill-n {
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--fg-muted); background: var(--bg-raised);
+  border-radius: 999px; padding: 0 5px; min-width: 14px; text-align: center;
+}
+.pill.on .pill-n { color: var(--fg-on-brand); background: rgba(255, 255, 255, 0.18); }
+
+/* Live / match indicator */
+.logs-live {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 10px; color: var(--running-400);
+}
+.logs-live-txt { white-space: nowrap; }
+.logs-matchn { color: var(--fg-muted); margin-right: 4px; }
+
+/* Empty / waiting state shown in place of the stream */
+.logs-stream-note {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  background: var(--bg-inset); color: var(--fg-muted); font-size: 12px;
+}
+
+/* Search-match highlight */
+.lhit { background: var(--warn-bg); color: var(--warn-400); border-radius: 2px; }
+
+/* Distinct rendering for stream error / status notices */
+.lkind-error .lmsg { color: var(--danger-400); }
+.lkind-error { background: rgba(239, 68, 68, 0.06); }
+.lkind-status { background: var(--bg-hover); }
+.lkind-status .lmsg { color: var(--fg-muted); font-style: italic; }
+.lsrc-system { color: var(--fg-subtle); font-style: italic; }
+
+/* Floating "jump to latest" affordance */
+.logs-main { position: relative; }
+.logs-jump {
+  position: absolute; right: 16px; bottom: 14px; z-index: 4;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  background: var(--accent); color: var(--fg-on-brand); border: 0;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  box-shadow: var(--sh-2);
+}
+.logs-jump:hover { background: var(--accent-hover); }
+.logs-jump:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
 
 /* Logs sidebar bulk select + toolbar tail selector + active ghost button. */
 .src-bulk {
@@ -1948,6 +2039,11 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
   .btn-xs { min-height: 30px; }
   .nav-item { min-height: 42px; }
   .cm-item { min-height: 40px; }
+  /* Logs: meet the 44px touch target on the level pills + source rows, and keep
+     the solo button reachable without a hover state. */
+  .logs-levels .pill { min-height: 40px; padding: 6px 12px; }
+  .src-row { padding-top: 7px; padding-bottom: 7px; min-height: 44px; }
+  .src-solo { opacity: 1; width: 36px; height: 36px; }
 }
 
 @keyframes shellFadeIn { from { opacity: 0; } to { opacity: 1; } }
