@@ -60,10 +60,12 @@ func limitBodySize(next http.Handler) http.Handler {
 func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *dockerpkg.KeepAlive, bk *handlers.BackupService) http.Handler {
 	r := chi.NewRouter()
 
-	r.Use(redactTokenInLogs) // must precede Logger so the token is redacted before logging
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	// RequestID first so the id is available to every later middleware + handler
+	// (logging, panic capture, and — next phase — diagnostics correlation).
 	r.Use(middleware.RequestID)
+	r.Use(redactTokenInLogs)
+	r.Use(slogRequestLogger) // structured per-request log + X-Request-Id echo
+	r.Use(slogRecoverer)     // panic → logged with stack + sanitized 500
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ka.Touch()
@@ -83,6 +85,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		ExposedHeaders:   []string{"X-Request-Id"}, // let the browser read it off failures for correlation
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))

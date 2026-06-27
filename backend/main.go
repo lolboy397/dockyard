@@ -36,6 +36,8 @@ func main() {
 		return
 	}
 
+	initLogging()
+
 	port := envOrDefault("PORT", "8080")
 	dbPath := envOrDefault("DB_PATH", "docker-manager.db")
 
