@@ -7,6 +7,7 @@ export interface DiagGroup {
   title: string;
   level: string;   // info | warn | error
   source: string;  // backend | frontend
+  component: string; // route/component of the most-recent occurrence
   first_seen: string;
   last_seen: string;
   count: number;

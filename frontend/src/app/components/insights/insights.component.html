@@ -80,7 +80,7 @@
               <span class="ins-title">{{ g.title }}</span>
               <span class="ins-meta">
                 <span class="ins-chip"><dy-icon [name]="src(g.source).icon" [size]="10"></dy-icon>{{ src(g.source).label }}</span>
-                <span class="ins-comp mono">#{{ g.fingerprint }}</span>
+                <span class="ins-comp mono">{{ g.component || ('#' + g.fingerprint) }}</span>
               </span>
             </span>
             <span [class]="'ins-status ' + g.status">

@@ -36,6 +36,7 @@ type DiagGroup struct {
 	Title       string    `json:"title"`
 	Level       string    `json:"level"`
 	Source      string    `json:"source"`
+	Component   string    `json:"component"` // route/component of the most-recent occurrence
 	FirstSeen   time.Time `json:"first_seen"`
 	LastSeen    time.Time `json:"last_seen"`
 	Count       int       `json:"count"`
@@ -96,6 +97,16 @@ func (db *DB) migrateV27() error {
 	return err
 }
 
+// migrateV28 adds the rolled-up component (route/file of the latest occurrence)
+// to diag_groups so the issue feed can show it.
+func (db *DB) migrateV28() error {
+	_, err := db.conn.Exec(`ALTER TABLE diag_groups ADD COLUMN component TEXT NOT NULL DEFAULT ''`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		return err
+	}
+	return nil
+}
+
 func diagTitle(msg string) string {
 	msg = strings.TrimSpace(strings.SplitN(msg, "\n", 2)[0])
 	if len(msg) > 160 {
@@ -125,14 +136,15 @@ func (db *DB) InsertDiagBatch(batch []DiagAccum) error {
 		e := a.Sample
 		ts := e.TS.UTC().Format("2006-01-02 15:04:05.000")
 		if _, err := tx.Exec(`
-			INSERT INTO diag_groups (fingerprint, title, level, source, first_seen, last_seen, count, status)
-			VALUES (?, ?, ?, ?, ?, ?, ?, 'open')
+			INSERT INTO diag_groups (fingerprint, title, level, source, component, first_seen, last_seen, count, status)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')
 			ON CONFLICT(fingerprint) DO UPDATE SET
 				last_seen = excluded.last_seen,
 				count     = count + excluded.count,
 				level     = excluded.level,
-				title     = excluded.title
-		`, e.Fingerprint, diagTitle(e.Message), e.Level, e.Source, ts, ts, a.Count); err != nil {
+				title     = excluded.title,
+				component = excluded.component
+		`, e.Fingerprint, diagTitle(e.Message), e.Level, e.Source, e.Component, ts, ts, a.Count); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`
@@ -147,12 +159,12 @@ func (db *DB) InsertDiagBatch(batch []DiagAccum) error {
 	return tx.Commit()
 }
 
-const diagGroupCols = `fingerprint, title, level, source, first_seen, last_seen, count, status`
+const diagGroupCols = `fingerprint, title, level, source, component, first_seen, last_seen, count, status`
 
 func scanDiagGroup(s scanner) (*DiagGroup, error) {
 	var g DiagGroup
 	var first, last string
-	if err := s.Scan(&g.Fingerprint, &g.Title, &g.Level, &g.Source, &first, &last, &g.Count, &g.Status); err != nil {
+	if err := s.Scan(&g.Fingerprint, &g.Title, &g.Level, &g.Source, &g.Component, &first, &last, &g.Count, &g.Status); err != nil {
 		return nil, err
 	}
 	g.FirstSeen = parseDBTime(first)
