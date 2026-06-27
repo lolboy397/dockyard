@@ -130,6 +130,18 @@ func canWrite(r *http.Request) bool {
 	return t == "admin" || t == "operator"
 }
 
+// canViewLogs reports whether the request's user may read container/stack/project
+// log CONTENT. Logs routinely carry secrets — connection strings, tokens printed
+// at boot, request/response payloads, stack traces echoing env values — so log
+// streams are intentionally held to a higher bar than container metadata: any
+// viewer may see that a container exists and its state, but only operator+ tiers
+// may read what it logs. Centralised here (rather than inlining the tier check)
+// so the policy can later move to a dedicated capability without touching the six
+// log handlers that call it. Currently equivalent to canWrite (operator|admin).
+func canViewLogs(r *http.Request) bool {
+	return canWrite(r)
+}
+
 // isAdmin reports whether the request's authenticated user holds the admin tier
 // (owner/admin system roles, or a custom role granting member/role management).
 func isAdmin(r *http.Request) bool {

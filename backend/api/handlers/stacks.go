@@ -602,6 +602,11 @@ func (h *StackHandlers) Remove(w http.ResponseWriter, r *http.Request) {
 
 // Logs returns the combined stdout of `docker compose logs`.
 func (h *StackHandlers) Logs(w http.ResponseWriter, r *http.Request) {
+	// Log content is operator+ (may carry secrets). See canViewLogs.
+	if !canViewLogs(r) {
+		writeError(w, http.StatusForbidden, errMsg("operator role required"))
+		return
+	}
 	name := chi.URLParam(r, "name")
 	if !stackNameRe.MatchString(name) {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid stack name"))

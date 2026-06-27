@@ -855,6 +855,11 @@ func (h *ProjectHandlers) Stop(w http.ResponseWriter, r *http.Request) {
 
 // Logs returns the current build and run logs for a project.
 func (h *ProjectHandlers) Logs(w http.ResponseWriter, r *http.Request) {
+	// Build/run logs are operator+ (may carry secrets, e.g. build args). See canViewLogs.
+	if !canViewLogs(r) {
+		writeError(w, http.StatusForbidden, errMsg("operator role required"))
+		return
+	}
 	proj, err := h.getProject(r)
 	if err != nil {
 		writeError(w, http.StatusNotFound, errMsg("project not found"))
@@ -1647,6 +1652,12 @@ func (h *ProjectHandlers) streamCommand(
 //
 // If no build is active, the stored build log is replayed line-by-line then "done" is sent.
 func (h *ProjectHandlers) StreamBuildLogs(w http.ResponseWriter, r *http.Request) {
+	// Build logs are operator+ (may carry secrets, e.g. build args). Gate before
+	// the upgrade so a viewer gets a clean HTTP 403. See canViewLogs.
+	if !canViewLogs(r) {
+		writeError(w, http.StatusForbidden, errMsg("operator role required"))
+		return
+	}
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, errMsg("invalid id"))

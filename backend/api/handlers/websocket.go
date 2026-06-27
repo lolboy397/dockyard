@@ -54,6 +54,12 @@ func NewWSHandlers(cli *client.Client) *WSHandlers {
 
 // StreamLogs upgrades to WebSocket and streams container logs in real time.
 func (h *WSHandlers) StreamLogs(w http.ResponseWriter, r *http.Request) {
+	// Logs may leak secrets, so the /ws group's RequireAuth isn't enough — gate
+	// log content to operator+ before upgrading (see canViewLogs).
+	if !canViewLogs(r) {
+		writeError(w, http.StatusForbidden, errMsg("operator role required"))
+		return
+	}
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, errMsg("id is required"))
@@ -158,6 +164,12 @@ const maxMultiLogSubs = 200
 // (Docker has no multi-container logs API), but that is cheap server-side and
 // centrally managed behind the one connection.
 func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
+	// Gate before the upgrade so a viewer gets a clean HTTP 403, not a socket that
+	// silently closes (see canViewLogs — logs are operator+).
+	if !canViewLogs(r) {
+		writeError(w, http.StatusForbidden, errMsg("operator role required"))
+		return
+	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return

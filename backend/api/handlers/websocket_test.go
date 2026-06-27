@@ -47,6 +47,38 @@ func TestStreamExecRoleGate(t *testing.T) {
 	}
 }
 
+// TestLogStreamRoleGate verifies that the log-content WebSocket endpoints are
+// refused for read-only/anonymous callers and permitted (past the role gate) for
+// operator/admin — logs can leak secrets, so they sit above the base viewer
+// read capability. As with exec, operator/admin requests aren't real WebSocket
+// upgrades here, so they fail later with 400; the point is they are NOT 403.
+func TestLogStreamRoleGate(t *testing.T) {
+	h := &WSHandlers{} // docker client is never reached: the gate runs before any docker call
+	handlers := map[string]http.HandlerFunc{
+		"StreamLogs":      h.StreamLogs,
+		"StreamMultiLogs": h.StreamMultiLogs,
+	}
+	cases := []struct {
+		role          string
+		wantForbidden bool
+	}{
+		{"", true},          // unauthenticated
+		{"viewer", true},    // read-only must be blocked from log content
+		{"operator", false}, // allowed past the gate
+		{"admin", false},    // allowed past the gate
+	}
+	for name, fn := range handlers {
+		for _, c := range cases {
+			rec := httptest.NewRecorder()
+			fn(rec, reqWithRole(c.role))
+			gotForbidden := rec.Code == http.StatusForbidden
+			if gotForbidden != c.wantForbidden {
+				t.Errorf("%s role %q: status=%d, wantForbidden=%v", name, c.role, rec.Code, c.wantForbidden)
+			}
+		}
+	}
+}
+
 func TestSplitLogTimestamp(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -112,14 +144,15 @@ func TestSplitLogTimestamp(t *testing.T) {
 
 func TestCanWriteAndIsAdmin(t *testing.T) {
 	cases := []struct {
-		role     string
-		canWrite bool
-		isAdmin  bool
+		role        string
+		canWrite    bool
+		isAdmin     bool
+		canViewLogs bool
 	}{
-		{"admin", true, true},
-		{"operator", true, false},
-		{"viewer", false, false},
-		{"", false, false},
+		{"admin", true, true, true},
+		{"operator", true, false, true},
+		{"viewer", false, false, false},
+		{"", false, false, false},
 	}
 	for _, c := range cases {
 		r := reqWithRole(c.role)
@@ -128,6 +161,9 @@ func TestCanWriteAndIsAdmin(t *testing.T) {
 		}
 		if got := isAdmin(r); got != c.isAdmin {
 			t.Errorf("isAdmin(%q)=%v, want %v", c.role, got, c.isAdmin)
+		}
+		if got := canViewLogs(r); got != c.canViewLogs {
+			t.Errorf("canViewLogs(%q)=%v, want %v", c.role, got, c.canViewLogs)
 		}
 	}
 }

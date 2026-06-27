@@ -173,6 +173,12 @@ func (h *ContainerHandlers) UpdateResources(w http.ResponseWriter, r *http.Reque
 // Logs returns container logs. Supports tail, since, and timestamps query params.
 // For streaming logs use the WebSocket endpoint.
 func (h *ContainerHandlers) Logs(w http.ResponseWriter, r *http.Request) {
+	// Log content is operator+ (may carry secrets); GETs slip past method-based
+	// Authorize, so gate explicitly here. See canViewLogs.
+	if !canViewLogs(r) {
+		writeError(w, http.StatusForbidden, errMsg("operator role required"))
+		return
+	}
 	id := chi.URLParam(r, "id")
 	tail := r.URL.Query().Get("tail")
 	if tail == "" {

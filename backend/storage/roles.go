@@ -39,7 +39,7 @@ type CapGroupDef struct {
 // screen and the create-role modal. Keys are stable; labels are display-only.
 var CapabilityGroups = []CapGroupDef{
 	{Group: "Containers", Rows: []CapRowDef{
-		{Key: "containers.view", Label: "View containers & logs"},
+		{Key: "containers.view", Label: "View containers"},
 		{Key: "containers.lifecycle", Label: "Start, stop, restart"},
 		{Key: "containers.exec", Label: "Open shell / exec"},
 		{Key: "containers.remove", Label: "Remove containers"},
@@ -123,7 +123,7 @@ var systemRoles = []systemRoleSpec{
 	},
 	{
 		id: "viewer", name: "Viewer", icon: "eye", sort: 5, level: "Read-only",
-		desc: "Read-only access to containers, images, and logs.",
+		desc: "Read-only access to containers and images. Log content requires an operator role.",
 		caps: map[string]string{
 			"containers.view": CapRead, "containers.lifecycle": CapNone, "containers.exec": CapNone, "containers.remove": CapNone,
 			"images.pull": CapRead, "images.build": CapNone, "images.push": CapNone, "images.prune": CapNone,
