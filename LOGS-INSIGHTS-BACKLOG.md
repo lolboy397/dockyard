@@ -6,6 +6,23 @@ surfaced (logs-RBAC), and one **production bug** found while grounding the plan.
 
 All file/line references verified against `main` at time of writing.
 
+## Status — ALL SHIPPED (2026-06-28)
+
+Built in the sequence below, each its own tested commit (local on `main`):
+
+| Item | Commit | Tests |
+|------|--------|-------|
+| P0 — `new_issue` validator fix | `6ede44f` | `TestValidAlertType*` |
+| 4 — `error_rate` alert | `9a0502d` | `TestErrorCountSince`, validator list |
+| 1 — WS keepalive (8 handlers) | `7a8e87d` | `wskeepalive_test.go` (ping/dead-peer/concurrency/JSON) |
+| 2 — restart-resubscribe | `8d807a2` | `logs-sources.spec.ts` (8 cases) |
+| 3 — bounded history grep | `111dd68` | `logsearch_test.go` (scan/regex/limit/role-gate) |
+| 5 — logs-RBAC (`logs.view`) | `1d402ed` | `TestLogViewCapability`, `TestCanViewLogsAdditive` |
+| 6 — JSON Phase 2 (drawer + chips) | `b943be6` | `parseJsonDetail` specs |
+
+Final state: backend `go build` + full suite green; frontend builds clean; **52** frontend specs pass.
+Notes: the WS keepalive concurrency test wants `go test -race` in CI (cgo/gcc absent locally — ran functionally without the detector); restart-resubscribe was verified via the pure-reconcile unit tests + build (a full live UI restart needs the running app + login). Deferred follow-ups from the research are unchanged below.
+
 ---
 
 ## P0 — fix first: the `new_issue` alert is broken in production
