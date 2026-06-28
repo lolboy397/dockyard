@@ -1664,14 +1664,16 @@ func (h *ProjectHandlers) StreamBuildLogs(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	raw, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := newWSConn(raw)
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	startKeepalive(ctx, conn)
 	// Drain client messages so the connection stays alive; cancel on close.
 	go func() {
 		for {
@@ -1755,14 +1757,16 @@ func (h *ProjectHandlers) StreamDeleteProgress(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	raw, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := newWSConn(raw)
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	startKeepalive(ctx, conn)
 	go func() {
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {

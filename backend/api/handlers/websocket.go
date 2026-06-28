@@ -67,14 +67,16 @@ func (h *WSHandlers) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	raw, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := newWSConn(raw)
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	startKeepalive(ctx, conn)
 
 	// Cancel context when client disconnects.
 	go func() {
@@ -226,14 +228,16 @@ func (h *WSHandlers) StreamMultiLogs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, errMsg("operator role required"))
 		return
 	}
-	conn, err := upgrader.Upgrade(w, r, nil)
+	raw, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := newWSConn(raw)
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	startKeepalive(ctx, conn)
 
 	// Single writer goroutine — gorilla/websocket forbids concurrent writes, so
 	// every follower funnels frames through this buffered channel. Sends are
@@ -483,14 +487,16 @@ func (h *WSHandlers) StreamStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	raw, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := newWSConn(raw)
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	startKeepalive(ctx, conn)
 
 	go func() {
 		for {
@@ -522,14 +528,16 @@ func (h *WSHandlers) StreamStats(w http.ResponseWriter, r *http.Request) {
 
 // StreamEvents upgrades to WebSocket and streams Docker daemon events.
 func (h *WSHandlers) StreamEvents(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	raw, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := newWSConn(raw)
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	startKeepalive(ctx, conn)
 
 	go func() {
 		for {
@@ -559,24 +567,6 @@ func (h *WSHandlers) StreamEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Ping is a simple keepalive endpoint for WebSocket clients.
-func (h *WSHandlers) Ping(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-			return
-		}
-	}
-}
-
 // StreamExec upgrades to WebSocket and attaches to an interactive exec session inside a container.
 // Query params: id (container ID), shell (default /bin/sh)
 func (h *WSHandlers) StreamExec(w http.ResponseWriter, r *http.Request) {
@@ -600,14 +590,16 @@ func (h *WSHandlers) StreamExec(w http.ResponseWriter, r *http.Request) {
 		shell = "/bin/sh"
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	raw, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := newWSConn(raw)
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	startKeepalive(ctx, conn)
 
 	execID, err := h.docker.ContainerExecCreate(ctx, id, container.ExecOptions{
 		Cmd:          []string{shell},
@@ -679,14 +671,16 @@ type ContainerStatSummary struct {
 // StreamAllStats upgrades to WebSocket and forwards the shared all-container stats
 // snapshot (collected once for every viewer) as it is produced.
 func (h *WSHandlers) StreamAllStats(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	raw, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := newWSConn(raw)
 	defer conn.Close()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	startKeepalive(ctx, conn)
 
 	go func() {
 		for {
