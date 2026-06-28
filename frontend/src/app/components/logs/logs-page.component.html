@@ -125,7 +125,7 @@
             <span class="lts" [title]="line.rawTs || line.ts">{{ relTime() ? rel(line) : line.ts }}</span>
             @if (line.kind !== 'status') {
               <span [class]="'llvl ' + line.levelClass">{{ line.levelLabel }}</span>
-              <span class="lsrc" [style.color]="line.color">{{ line.src }}</span>
+              <span class="lsrc" [style.color]="line.color" [title]="line.src">{{ line.src }}</span>
             } @else {
               <span class="lsrc lsrc-system">system</span>
             }
@@ -139,14 +139,18 @@
             <div class="logs-stream-note">Enable at least one source to stream logs.</div>
           } @else if (filteredLines().length === 0) {
             <div class="logs-stream-note">
-              @if (filterText() || level() !== 'all') { No lines match the current filter. }
-              @else { Waiting for log output… }
+              @if (filterText()) {
+                <div>No lines match “{{ filterText() }}”.</div>
+                <div class="logs-note-sub">Searched the {{ lines().length }} buffered line(s) — increase the tail to scan more history.</div>
+              } @else if (level() !== 'all') {
+                <div>No {{ level() }} lines in view yet.</div>
+              } @else { Waiting for log output… }
             </div>
           } @else if (!wrap()) {
             <!-- Nowrap path: virtualised (fixed-height rows). -->
             <cdk-virtual-scroll-viewport #vp class="logs-stream" [itemSize]="itemSize"
                 minBufferPx="600" maxBufferPx="1200" (scroll)="onScroll()"
-                role="log" [attr.aria-live]="paused() ? 'off' : 'polite'" aria-relevant="additions" aria-label="Live log output">
+                role="log" aria-live="off" tabindex="0" aria-label="Live log output, use arrow keys to scroll">
               <div class="lline" *cdkVirtualFor="let line of filteredLines(); trackBy: trackByUid"
                    [class.lkind-error]="line.kind==='error'" [class.lkind-status]="line.kind==='status'" [class.lcont]="line.isContinuation">
                 <ng-container [ngTemplateOutlet]="lineRow" [ngTemplateOutletContext]="{ $implicit: line }"></ng-container>
@@ -155,7 +159,7 @@
           } @else {
             <!-- Wrap path: plain render (wrapped lines have variable height). -->
             <div #plain class="logs-stream wrap" (scroll)="onScroll()"
-                 role="log" [attr.aria-live]="paused() ? 'off' : 'polite'" aria-relevant="additions" aria-label="Live log output">
+                 role="log" aria-live="off" tabindex="0" aria-label="Live log output, use arrow keys to scroll">
               @for (line of filteredLines(); track line.uid) {
                 <div class="lline" [class.lkind-error]="line.kind==='error'" [class.lkind-status]="line.kind==='status'" [class.lcont]="line.isContinuation">
                   <ng-container [ngTemplateOutlet]="lineRow" [ngTemplateOutletContext]="{ $implicit: line }"></ng-container>

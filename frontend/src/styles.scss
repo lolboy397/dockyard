@@ -1101,7 +1101,9 @@ input[type=checkbox] {
 // --fg-default (not --ink-10) inverts per theme; --ink-10 stayed near-white in
 // light mode and made log text invisible on the light stream background.
 .lmsg { display: inline; color: var(--fg-default); word-break: break-word; }
-.lsrc { flex: none; }
+// Fixed-width source column so the message text shares one straight left gutter
+// across rows (the headline multi-container read); full name shown on hover.
+.lsrc { display: inline-block; width: 120px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
 
 /* =========================================================================
    SHELL — container exec tab
@@ -1803,9 +1805,10 @@ cdk-virtual-scroll-viewport.logs-stream { display: block; }
 
 /* Empty / waiting state shown in place of the stream */
 .logs-stream-note {
-  flex: 1; display: flex; align-items: center; justify-content: center;
-  background: var(--bg-inset); color: var(--fg-muted); font-size: 12px;
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: var(--bg-inset); color: var(--fg-muted); font-size: 12px; text-align: center; padding: 0 16px;
 }
+.logs-note-sub { font-size: 11px; color: var(--fg-subtle); max-width: 380px; line-height: 1.5; }
 
 /* Viewer (read-only) access-required panel — logs are operator+ */
 .logs-denied {
@@ -1830,8 +1833,26 @@ cdk-virtual-scroll-viewport.logs-stream { display: block; }
 .ansi-5 { color: #E879F9; } .ansi-b5 { color: #F0ABFC; }
 .ansi-6 { color: #22D3EE; } .ansi-b6 { color: #67E8F9; }
 .ansi-7 { color: var(--fg-default); } .ansi-b7 { color: #F9FAFB; }
-/* Search highlight must win over ANSI colour where a segment is both. */
-.lmsg .lhit { background: var(--warn-bg); color: var(--warn-400); }
+/* Search highlight: a solid, level-neutral mark with forced text colour, so it
+   wins over ANSI colour AND stays legible (AA) in both themes. */
+.lmsg .lhit { background: #FDE68A; color: #1F2937; border-radius: 2px; }
+
+/* Light theme: the ANSI palette + level colours above are tuned for the dark
+   inset; on the light stream the bright variants fall below AA (bright-white was
+   ~1.1:1). Override with darker, AA-passing equivalents. */
+:root[data-theme="light"] {
+  .ansi-0 { color: #4B5563; } .ansi-b0 { color: #6B7280; }
+  .ansi-1 { color: #DC2626; } .ansi-b1 { color: #B91C1C; }
+  .ansi-2 { color: #15803D; } .ansi-b2 { color: #166534; }
+  .ansi-3 { color: #B45309; } .ansi-b3 { color: #92400E; }
+  .ansi-4 { color: #1D4ED8; } .ansi-b4 { color: #1E40AF; }
+  .ansi-5 { color: #A21CAF; } .ansi-b5 { color: #86198F; }
+  .ansi-6 { color: #0E7490; } .ansi-b6 { color: #155E75; }
+  .ansi-7 { color: #111827; } .ansi-b7 { color: #000000; }
+  .lvl-info { color: #1D4ED8; } .lvl-warn { color: #B45309; } .lvl-err { color: #B91C1C; }
+  .lkind-error .lmsg { color: #B91C1C; }
+  .lkind-error { background: rgba(220, 38, 38, 0.10); }
+}
 
 /* Stack-trace grouping: fold chevron, "+N" badge, dimmed continuation rows */
 .lfold {
@@ -2126,7 +2147,9 @@ cdk-virtual-scroll-viewport.logs-stream { display: block; }
   border-radius: 5px; color: var(--fg-default);
   font-size: 11px; padding: 2px 4px; cursor: pointer;
 }
-.btn-ghost.on { background: var(--bg-hover); color: var(--fg); }
+/* Engaged toggle must read differently from a hover (which is bg-hover + fg) —
+   reuse the regex-toggle's accent treatment so on != hover. */
+.btn-ghost.on { color: var(--accent); background: var(--accent-soft); }
 
 /* =========================================================================
    METRICS PAGE
@@ -2406,6 +2429,13 @@ a, button, [role="button"], .nav-item, .ctable-row, .gtable-row, .bt-tab, .proj-
   }
   .logs-side.open { transform: translateX(0); }
   .logs-side-scrim { display: block; position: absolute; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.45); }
+
+  /* Logs toolbar: wrap so the search box (the most-used control) isn't crushed to
+     ~0 width; keep the sources toggle + search on the first row, with the level
+     pills / tail / live indicator wrapping onto following rows. */
+  .logs-toolbar { flex-wrap: wrap; }
+  .logs-side-toggle { order: -2; }
+  .logs-search-wrap { order: -1; flex: 1 1 auto; min-width: 150px; }
 
   /* Metrics stat cards: 2-up and allow the big numbers to shrink */
   .metrics-grid { grid-template-columns: repeat(2, 1fr); }

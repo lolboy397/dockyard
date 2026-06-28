@@ -43,6 +43,9 @@ interface LogLine {
   msg: string;
   /** ANSI-parsed colour runs; concatenating run text yields `msg`. */
   runs: AnsiRun[];
+  /** Stable no-search render segments, computed once — returned by reference from
+   *  segs() when no filter is active, so CD doesn't reallocate per row per frame. */
+  defaultSegs: Seg[];
   kind: LineKind;
   /** uid of the line this one is grouped under (its own uid when it's a primary). */
   groupId: number;
@@ -217,6 +220,11 @@ export class LogsPageComponent implements OnInit, OnDestroy {
       return;
     }
     this.restorePrefs();
+    // First-time visitors on a phone default to wrap — nowrap requires horizontal
+    // panning of every line, which is unusable on a narrow screen.
+    if (!this.wrapPrefSaved && typeof matchMedia !== 'undefined' && matchMedia('(max-width: 820px)').matches) {
+      this.wrap.set(true);
+    }
     this.stream = this.ws.streamMultiLogs();
     this.framesSub = this.stream.frames$.subscribe(frame => this.ingest(frame));
     this.stream.setLevel(this.level()); // apply any restored level filter server-side
@@ -296,6 +304,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
       levelClass: 'lvl-' + level,
       msg: clean,
       runs,
+      defaultSegs: runs.length ? runs.map(r => ({ t: r.t, m: false, cls: r.cls })) : [{ t: '', m: false, cls: '' }],
       kind,
       groupId,
       isContinuation,
@@ -407,12 +416,9 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     // Non-log lines (stream errors / status notices) render as one plain segment.
     if (line.kind !== 'log') return [{ t: line.msg, m: false, cls: '' }];
     const f = this.compiledFilter();
-    // No active search: segments are simply the ANSI colour runs.
-    if (!f.text) {
-      return line.runs.length
-        ? line.runs.map(r => ({ t: r.t, m: false, cls: r.cls }))
-        : [{ t: '', m: false, cls: '' }];
-    }
+    // No active search: the stable, precomputed colour-run segments (same array
+    // reference each call, so OnPush CD doesn't churn the row).
+    if (!f.text) return line.defaultSegs;
     const key = (f.re ? 're:' : 'tx:') + (f.re ? f.re.source : f.lower);
     const cached = this.segCache.get(line);
     if (cached && cached.key === key) return cached.segs;
@@ -643,13 +649,17 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     } catch { /* storage unavailable */ }
   }
 
+  /** True once an explicit wrap preference is restored, so the mobile default
+   *  doesn't override a deliberate choice. */
+  private wrapPrefSaved = false;
+
   private restorePrefs(): void {
     try {
       const raw = sessionStorage.getItem(PREFS_KEY);
       if (!raw) return;
       const p = JSON.parse(raw);
       if (typeof p.tail === 'string') this.tail.set(p.tail);
-      if (typeof p.wrap === 'boolean') this.wrap.set(p.wrap);
+      if (typeof p.wrap === 'boolean') { this.wrap.set(p.wrap); this.wrapPrefSaved = true; }
       if (typeof p.relTime === 'boolean') this.relTime.set(p.relTime);
       if (typeof p.level === 'string') this.level.set(p.level);
       if (Array.isArray(p.onIds)) this.savedOnIds = new Set<string>(p.onIds);
