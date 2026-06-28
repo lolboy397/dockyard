@@ -51,6 +51,36 @@ func TestDiagRegressionReopen(t *testing.T) {
 	}
 }
 
+func TestCountNewIssuesSince(t *testing.T) {
+	db := newTestDB(t)
+	now := time.Now()
+	ev := func(fp, msg string) DiagEvent {
+		return DiagEvent{TS: now, Level: "error", Source: "backend", Message: msg, Fingerprint: fp}
+	}
+	if err := db.InsertDiagBatch([]DiagAccum{{Sample: ev("a", "boom a"), Count: 1}, {Sample: ev("b", "boom b"), Count: 1}}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := db.SetDiagGroupStatus("b", "resolved"); err != nil { // only 'a' stays open
+		t.Fatalf("resolve: %v", err)
+	}
+
+	n, title, err := db.CountNewIssuesSince(now.Add(-time.Minute))
+	if err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("want 1 new OPEN issue (resolved excluded), got %d", n)
+	}
+	if title == "" {
+		t.Errorf("want a sample title for the alert message")
+	}
+
+	// A future cutoff excludes everything.
+	if n2, _, _ := db.CountNewIssuesSince(now.Add(time.Minute)); n2 != 0 {
+		t.Errorf("want 0 new issues for a future cutoff, got %d", n2)
+	}
+}
+
 func TestDiagStore(t *testing.T) {
 	db := newTestDB(t)
 	now := time.Now()

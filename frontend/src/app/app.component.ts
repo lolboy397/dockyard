@@ -12,6 +12,7 @@ import { ContextMenuComponent } from './components/shared/context-menu/context-m
 import { ConfirmDialogComponent } from './components/shared/confirm-dialog/confirm-dialog.component';
 import { PruneDialogComponent } from './components/shared/prune-dialog/prune-dialog.component';
 import { DockerService } from './services/docker.service';
+import { DiagService } from './services/diag.service';
 import { RealtimeService } from './services/realtime.service';
 import { AppEvent, HostStats } from './models/docker.models';
 import { AuthComponent } from './auth/auth.component';
@@ -83,6 +84,7 @@ export class AppComponent implements OnInit, OnDestroy {
   activeSection = '';
   updateAvailable = false;        // drives the "Updates" nav badge (admins only)
   private updateChecked = false;
+  insightsOpen: number | null = null;  // open-issue count for the "Insights" nav badge (admins only)
 
   navCounts: NavCounts = { containers: null, images: null, volumes: null, networks: null };
   hostStats: HostStats | null = null;
@@ -139,6 +141,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   constructor(
     private docker: DockerService,
+    private diag: DiagService,
     private router: Router,
     public auth: AuthService,
     private realtime: RealtimeService,
@@ -159,6 +162,7 @@ export class AppComponent implements OnInit, OnDestroy {
           next: s => { this.updateAvailable = !!s?.update_available; },
           error: () => { /* ignore */ },
         });
+        this.refreshInsights(); // seed the open-issue nav badge
       }
     });
 
@@ -329,8 +333,8 @@ export class AppComponent implements OnInit, OnDestroy {
     // a resync on (re)connect / tab refocus), replacing the old 15s poll.
     this.countPoll = this.realtime.changes(['container', 'image', 'volume', 'network'])
       .subscribe(() => this.refreshCounts());
-    // Refresh the status-bar disk readout periodically (capacity moves slowly).
-    this.statsPoll = setInterval(() => this.loadHostStats(), 60000);
+    // Refresh the status-bar disk readout + the open-issue badge periodically.
+    this.statsPoll = setInterval(() => { this.loadHostStats(); this.refreshInsights(); }, 60000);
     // Refetch on foreground so the readout isn't up to 60s stale, and so the
     // eager one-shot recovers if the app booted while hidden.
     document.addEventListener('visibilitychange', this.onVisibleStats);
@@ -353,7 +357,17 @@ export class AppComponent implements OnInit, OnDestroy {
     document.removeEventListener('visibilitychange', this.onVisibleStats);
   }
 
-  private onVisibleStats = (): void => { if (!document.hidden) this.loadHostStats(); };
+  private onVisibleStats = (): void => { if (!document.hidden) { this.loadHostStats(); this.refreshInsights(); } };
+
+  /** Open-issue count for the Insights nav badge (admins only; quietly no-ops
+   *  otherwise). Polled, since diagnostics aren't Docker events. */
+  private refreshInsights(): void {
+    if (!this.auth.authed() || !this.auth.isAdmin() || document.hidden) return;
+    this.diag.stats().subscribe({
+      next: s => { this.insightsOpen = s?.open_groups ?? null; },
+      error: () => { /* ignore — badge just stays as-is */ },
+    });
+  }
 
   private loadHostStats(): void {
     if (!this.auth.authed() || document.hidden) return;

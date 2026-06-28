@@ -360,6 +360,10 @@ app-projects {
   color: var(--accent);
   background: rgba(34,211,238,0.15);
 }
+/* Open-issue badge (Insights) — draws attention; overrides the active tint too. */
+.nav-count-alert, .nav-item.active .nav-count-alert {
+  color: var(--danger-400); background: var(--danger-bg); font-weight: 600;
+}
 
 .sidebar-foot {
   padding: 8px;

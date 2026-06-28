@@ -294,6 +294,21 @@ func (db *DB) DiagStatsSummary() (*DiagStats, error) {
 	return s, nil
 }
 
+// CountNewIssuesSince returns how many OPEN issues first appeared since the given
+// time, plus the title of the most recent — the basis for the new_issue alert.
+func (db *DB) CountNewIssuesSince(since time.Time) (int, string, error) {
+	cutoff := since.UTC().Format("2006-01-02 15:04:05.000")
+	var n int
+	if err := db.read.QueryRow(`SELECT COUNT(*) FROM diag_groups WHERE status='open' AND first_seen >= ?`, cutoff).Scan(&n); err != nil {
+		return 0, "", err
+	}
+	var title string
+	if n > 0 {
+		_ = db.read.QueryRow(`SELECT title FROM diag_groups WHERE status='open' AND first_seen >= ? ORDER BY first_seen DESC LIMIT 1`, cutoff).Scan(&title)
+	}
+	return n, title, nil
+}
+
 // PruneDiag deletes events + idle groups older than the retention window.
 func (db *DB) PruneDiag(retentionDays int) error {
 	if retentionDays <= 0 {

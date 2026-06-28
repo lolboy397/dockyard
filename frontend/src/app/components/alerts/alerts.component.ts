@@ -50,6 +50,7 @@ export class AlertsComponent implements OnInit {
       case 'host_mem':  base = `Host memory ≥ ${a.threshold}%`; break;
       case 'host_disk': base = `Host disk ≥ ${a.threshold}%`; break;
       case 'container_exited': base = 'A container exits'; break;
+      case 'new_issue': base = a.threshold > 1 ? `${a.threshold}+ new Insights issues appear` : 'A new Insights issue appears'; break;
       default: base = a.type;
     }
     if (a.for_seconds && a.for_seconds > 0) {
@@ -67,6 +68,13 @@ export class AlertsComponent implements OnInit {
   openNew(): void {
     this.form = { name: '', type: 'host_cpu', threshold: 80, channel: 'in_app', webhook_url: '', enabled: true, forMinutes: 0 };
     this.showNew = true;
+  }
+
+  /** Reset the threshold to a sensible default when the rule type changes
+   *  (percent for host rules vs a small issue count for new_issue). */
+  onTypeChange(): void {
+    if (this.form.type === 'new_issue') this.form.threshold = 1;
+    else if (this.form.type.startsWith('host_')) this.form.threshold = 80;
   }
 
   create(): void {

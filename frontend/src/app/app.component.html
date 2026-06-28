@@ -66,6 +66,7 @@
           <a class="nav-item" routerLink="/insights" routerLinkActive="active">
             <dy-icon name="siren" [size]="15"></dy-icon>
             <span class="nav-label">Insights</span>
+            @if (insightsOpen) { <span class="nav-count nav-count-alert" [title]="insightsOpen + ' open issue(s)'">{{ insightsOpen }}</span> }
           </a>
           <a class="nav-item" routerLink="/backups" routerLinkActive="active">
             <dy-icon name="database-backup" [size]="15"></dy-icon>

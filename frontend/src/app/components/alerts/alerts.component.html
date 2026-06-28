@@ -19,7 +19,7 @@
         } @else if (rules().length === 0) {
           <div class="empty">
             <dy-icon name="bell-off" [size]="22"></dy-icon>
-            <p>No alert rules yet. Create one to be notified when host CPU, memory or disk crosses a threshold, or when a container exits.</p>
+            <p>No alert rules yet. Create one to be notified when host CPU, memory or disk crosses a threshold, when a container exits, or when a new Insights issue appears.</p>
           </div>
         } @else if (responsive.isMobile()) {
           <div class="gcards">
@@ -83,14 +83,21 @@
           </div>
           <div class="field">
             <label class="label">Condition</label>
-            <select class="input input-sm" [(ngModel)]="form.type">
+            <select class="input input-sm" [(ngModel)]="form.type" (ngModelChange)="onTypeChange()">
               <option value="host_cpu">Host CPU above threshold</option>
               <option value="host_mem">Host memory above threshold</option>
               <option value="host_disk">Host disk above threshold</option>
               <option value="container_exited">A container exits</option>
+              <option value="new_issue">A new Insights issue appears</option>
             </select>
           </div>
-          @if (form.type !== 'container_exited') {
+          @if (form.type === 'new_issue') {
+            <div class="field">
+              <label class="label">New issues (minimum)</label>
+              <input class="input input-sm" type="number" min="1" step="1" [(ngModel)]="form.threshold" />
+              <span style="font-size:11px;color:var(--fg-subtle);">Fire when at least this many new issues first appear within ~5 minutes.</span>
+            </div>
+          } @else if (form.type !== 'container_exited') {
             <div class="field">
               <label class="label">Threshold (%)</label>
               <input class="input input-sm" type="number" min="0" max="100" [(ngModel)]="form.threshold" />

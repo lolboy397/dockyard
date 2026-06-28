@@ -53,7 +53,7 @@ func evaluateAlerts(ctx context.Context, cli *client.Client, db *storage.DB) {
 		if !rule.Enabled {
 			continue
 		}
-		active, msg := evalAlertRule(ctx, cli, rule, stats)
+		active, msg := evalAlertRule(ctx, cli, db, rule, stats)
 		switch {
 		case active && !rule.Firing:
 			// Condition holds but the rule hasn't fired yet. Honour the "for"
@@ -80,7 +80,12 @@ func evaluateAlerts(ctx context.Context, cli *client.Client, db *storage.DB) {
 	}
 }
 
-func evalAlertRule(ctx context.Context, cli *client.Client, rule storage.AlertRule, s handlers.HostStatsSample) (bool, string) {
+// newIssueWindow is how recently an open issue must have first appeared to count
+// as "new" for the new_issue alert (also roughly how long the alert stays firing
+// after the last new issue before it auto-resolves).
+const newIssueWindow = 5 * time.Minute
+
+func evalAlertRule(ctx context.Context, cli *client.Client, db *storage.DB, rule storage.AlertRule, s handlers.HostStatsSample) (bool, string) {
 	switch rule.Type {
 	case "host_cpu":
 		return s.CPUPct >= rule.Threshold, fmt.Sprintf("%s: host CPU %.0f%% ≥ %.0f%%", rule.Name, s.CPUPct, rule.Threshold)
@@ -109,6 +114,22 @@ func evalAlertRule(ctx context.Context, cli *client.Client, rule storage.AlertRu
 			return false, ""
 		}
 		return true, fmt.Sprintf("%s: %d container(s) exited — %s", rule.Name, len(dead), strings.Join(dead, ", "))
+	case "new_issue":
+		// Fire when >= threshold OPEN Insights issues first appeared in the recent
+		// window (a brand-new kind of error started). Independent of the sampled
+		// volume counter, so it's reliable.
+		n, title, err := db.CountNewIssuesSince(time.Now().Add(-newIssueWindow))
+		if err != nil {
+			return false, ""
+		}
+		want := max(int(rule.Threshold), 1)
+		if n < want {
+			return false, ""
+		}
+		if title != "" {
+			return true, fmt.Sprintf("%s: %d new issue(s) — %s", rule.Name, n, title)
+		}
+		return true, fmt.Sprintf("%s: %d new issue(s)", rule.Name, n)
 	}
 	return false, ""
 }
