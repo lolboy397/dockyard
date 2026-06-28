@@ -1786,6 +1786,37 @@ mark {
 .logs-hist-row .lts { flex-shrink: 0; color: var(--fg-subtle); }
 .logs-hist-row .lsrc { flex-shrink: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logs-hist-row .lmsg { white-space: pre-wrap; word-break: break-word; color: var(--fg-default); }
+/* JSON detail drawer body: message header, filterable field chips, pretty raw. */
+.ljson { padding: 0; }
+.ljson-msg {
+  padding: 12px 14px; font-size: 13px; line-height: 1.5; color: var(--fg);
+  border-bottom: 1px solid var(--border-subtle); white-space: pre-wrap; word-break: break-word;
+}
+.ljson-fields { display: flex; flex-direction: column; padding: 6px 0; }
+.ljson-field {
+  display: flex; align-items: baseline; gap: 8px; width: 100%;
+  padding: 4px 14px; background: transparent; border: 0; text-align: left; cursor: pointer;
+  font-family: var(--font-mono); font-size: 12px;
+}
+.ljson-field:hover { background: var(--bg-hover); }
+.ljson-k { flex-shrink: 0; min-width: 92px; color: var(--accent); }
+.ljson-v { color: var(--fg-default); word-break: break-word; }
+.ljson-pre-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px 4px; font-size: 11px; color: var(--fg-subtle);
+  border-top: 1px solid var(--border-subtle); margin-top: 4px;
+}
+.logs-drawer-copy {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: var(--r-sm);
+  background: transparent; border: 1px solid var(--border); color: var(--fg-muted);
+  font-size: 11px; cursor: pointer;
+}
+.logs-drawer-copy:hover { background: var(--bg-hover); color: var(--fg); }
+.ljson-pre {
+  margin: 0; padding: 8px 14px 16px; font-size: 12px; line-height: 1.5;
+  color: var(--fg-default); white-space: pre-wrap; word-break: break-word;
+}
 .logs-search-wrap {
   display: flex; align-items: center; gap: 8px;
   flex: 1; min-width: 0;
@@ -1922,6 +1953,17 @@ cdk-virtual-scroll-viewport.logs-stream { display: block; }
   color: var(--fg-subtle); cursor: pointer;
 }
 .lfold:hover { color: var(--fg-default); background: var(--bg-hover); }
+/* Expand-JSON affordance: shares the fold slot for structured lines (always
+   visible, doesn't shift the message gutter). Faint until the row is hovered. */
+.lexpand {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; padding: 0; margin-right: 2px; vertical-align: middle;
+  background: transparent; border: 0; border-radius: 3px;
+  color: var(--fg-disabled); cursor: pointer;
+  transition: color var(--t-fast) var(--ease-out);
+}
+.lline:hover .lexpand { color: var(--fg-subtle); }
+.lexpand:hover { color: var(--accent) !important; background: var(--bg-hover); }
 .lfold-n {
   display: inline-flex; align-items: center; vertical-align: middle;
   margin-left: 8px; padding: 0 6px; height: 14px;

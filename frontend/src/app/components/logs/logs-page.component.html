@@ -136,6 +136,10 @@
                       [attr.aria-label]="(collapsed().has(line.uid) ? 'Expand ' : 'Collapse ') + groupSizes()[line.uid] + ' grouped line(s)'">
                 <dy-icon [name]="collapsed().has(line.uid) ? 'chevron-right' : 'chevron-down'" [size]="11"></dy-icon>
               </button>
+            } @else if (line.jsonRaw) {
+              <button class="lexpand" (click)="openDetail(line, $event)" title="Expand JSON fields" tabindex="-1" aria-label="Expand JSON fields">
+                <dy-icon name="braces" [size]="11"></dy-icon>
+              </button>
             }
             <span class="lts" [title]="line.rawTs || line.ts">{{ relTime() ? rel(line) : line.ts }}</span>
             @if (line.kind !== 'status') {
@@ -243,6 +247,43 @@
                     <div class="logs-drawer-note">Results capped — narrow the filter or shorten the time range to see more.</div>
                   }
                 }
+              </div>
+            </aside>
+          }
+
+          <!-- JSON detail drawer: a structured line expanded (Phase 2). Pretty body
+               + per-field filter chips. A drawer, so the virtual scroll is untouched. -->
+          @if (detailOpen() && detail(); as d) {
+            <div class="logs-drawer-scrim" (click)="closeDetail()"></div>
+            <aside class="logs-drawer" role="dialog" aria-label="Log entry detail">
+              <div class="logs-drawer-head">
+                <div class="logs-drawer-title">
+                  <span [class]="'llvl lvl-' + (d.level || 'info')">{{ (d.level || 'info').toUpperCase() }}</span>
+                  <span class="mono">{{ detailSrc() }}</span>
+                </div>
+                <button class="logs-drawer-close" (click)="closeDetail()" aria-label="Close detail">
+                  <dy-icon name="x" [size]="14"></dy-icon>
+                </button>
+              </div>
+              <div class="logs-drawer-body ljson">
+                @if (d.message) { <div class="ljson-msg">{{ d.message }}</div> }
+                @if (d.fields.length) {
+                  <div class="ljson-fields">
+                    @for (f of d.fields; track f.key) {
+                      <button class="ljson-field" (click)="filterByField(f)" [title]="'Filter the stream by ' + f.key + '=' + f.value">
+                        <span class="ljson-k">{{ f.key }}</span>
+                        <span class="ljson-v mono">{{ f.value }}</span>
+                      </button>
+                    }
+                  </div>
+                }
+                <div class="ljson-pre-head">
+                  <span>Raw</span>
+                  <button class="logs-drawer-copy" (click)="copyText(d.pretty)" title="Copy JSON">
+                    <dy-icon name="copy" [size]="12"></dy-icon> Copy
+                  </button>
+                </div>
+                <pre class="ljson-pre mono">{{ d.pretty }}</pre>
               </div>
             </aside>
           }

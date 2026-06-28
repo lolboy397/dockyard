@@ -117,6 +117,45 @@ export function parseStructured(line: string): { level?: 'info' | 'warn' | 'err'
   return { level, runs, text };
 }
 
+/** One non-message/level/time field of a structured log line, for the detail drawer. */
+export interface JsonField { key: string; value: string; }
+/** A JSON log line expanded for the detail drawer: its level + message, the
+ *  remaining fields (filterable chips), and a pretty-printed copy of the whole. */
+export interface JsonDetail { level?: 'info' | 'warn' | 'err'; message: string; fields: JsonField[]; pretty: string; }
+
+/** Parses a JSON-lines entry into its expanded detail (Phase 2): level, message,
+ *  the non-skipped fields, and a pretty-printed form. Returns null when the line
+ *  isn't a JSON object. Mirrors parseStructured's field selection so the inline
+ *  render and the drawer agree; run lazily (on click) so per-line cost is nil. */
+export function parseJsonDetail(line: string): JsonDetail | null {
+  const s = line.trimStart();
+  if (s[0] !== '{') return null;
+  let obj: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(s);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    obj = parsed as Record<string, unknown>;
+  } catch { return null; }
+
+  let level: 'info' | 'warn' | 'err' | undefined;
+  for (const f of JSON_LEVEL_FIELDS) {
+    const v = obj[f];
+    if (typeof v === 'string') { level = LEVEL_MAP[v.toLowerCase()]; break; }
+  }
+  let message = '';
+  for (const f of JSON_MSG_FIELDS) {
+    const v = obj[f];
+    if (typeof v === 'string') { message = v; break; }
+  }
+  const fields: JsonField[] = [];
+  for (const k of Object.keys(obj)) {
+    if (JSON_SKIP.has(k.toLowerCase())) continue;
+    const v = obj[k];
+    fields.push({ key: k, value: typeof v === 'string' ? v : JSON.stringify(v) });
+  }
+  return { level, message, fields, pretty: JSON.stringify(obj, null, 2) };
+}
+
 /** Relative age ("now", "12s", "5m", "2h", "3d") of an RFC3339 timestamp, or the
  *  given fallback when it's absent / unparseable. `now` is epoch-ms, injected so
  *  the function stays pure and testable. */

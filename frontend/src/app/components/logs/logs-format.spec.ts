@@ -1,4 +1,4 @@
-import { parseAnsi, sgrToClass, isContinuationLine, formatRelative, parseStructured } from './logs-format';
+import { parseAnsi, sgrToClass, isContinuationLine, formatRelative, parseStructured, parseJsonDetail } from './logs-format';
 
 describe('logs-format', () => {
   describe('parseAnsi', () => {
@@ -127,6 +127,29 @@ describe('logs-format', () => {
     });
     it('returns null when only level/time are present (nothing useful to show)', () => {
       expect(parseStructured('{"level":"info","time":"2026-01-01T00:00:00Z"}')).toBeNull();
+    });
+  });
+
+  describe('parseJsonDetail', () => {
+    it('returns null for non-JSON lines', () => {
+      expect(parseJsonDetail('plain log line')).toBeNull();
+      expect(parseJsonDetail('{not valid json')).toBeNull();
+    });
+    it('splits level + message from the remaining (filterable) fields', () => {
+      const d = parseJsonDetail('{"level":"error","msg":"boom","user":"alice","code":500}');
+      expect(d).not.toBeNull();
+      expect(d!.level).toBe('err');
+      expect(d!.message).toBe('boom');
+      expect(d!.fields).toEqual([{ key: 'user', value: 'alice' }, { key: 'code', value: '500' }]);
+    });
+    it('excludes level/message/time fields from the field list', () => {
+      const d = parseJsonDetail('{"level":"info","msg":"x","time":"2026-01-01T00:00:00Z","ts":1,"region":"eu"}');
+      expect(d!.fields.map(f => f.key)).toEqual(['region']);
+    });
+    it('stringifies non-string values and pretty-prints the whole object', () => {
+      const d = parseJsonDetail('{"msg":"x","meta":{"a":1}}');
+      expect(d!.fields[0]).toEqual({ key: 'meta', value: '{"a":1}' });
+      expect(d!.pretty).toContain('\n'); // multi-line pretty form
     });
   });
 });

@@ -14,7 +14,7 @@ import { DockerService } from '../../services/docker.service';
 import { WebSocketService, MultiLogStream, MultiLogFrame, MultiLogState } from '../../services/websocket.service';
 import { AuthService } from '../../auth/auth.service';
 import { RealtimeService, DockerEvent } from '../../services/realtime.service';
-import { AnsiRun, parseAnsi, isContinuationLine, formatRelative, parseStructured } from './logs-format';
+import { AnsiRun, parseAnsi, isContinuationLine, formatRelative, parseStructured, parseJsonDetail, JsonDetail, JsonField } from './logs-format';
 import { planSourceReconcile } from './logs-sources';
 import { ContainerSummary } from '../../models/docker.models';
 
@@ -50,6 +50,9 @@ interface LogLine {
    *  segs() when no filter is active, so CD doesn't reallocate per row per frame. */
   defaultSegs: Seg[];
   kind: LineKind;
+  /** Raw JSON text when this line is a structured (JSON) entry — lets the detail
+   *  drawer re-parse it on demand (Phase 2). Undefined for plain lines. */
+  jsonRaw?: string;
   /** uid of the line this one is grouped under (its own uid when it's a primary). */
   groupId: number;
   /** True when this is a folded continuation (stack-trace / indented) line. */
@@ -75,6 +78,9 @@ const SOURCE_COLORS = [
 const MAX_LINES = 2000;
 const HIST_MAX_SOURCES = 6;  // cap history fan-out so a wide active set can't storm the daemon
 const HIST_LIMIT = 200;      // matches requested per container
+
+/** Escape a string so it matches literally inside a regular expression. */
+function escapeRegex(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 const PREFS_KEY = 'dy_logs_prefs';
 
 const WARN_RE = /\b(WARN|WARNING)\b/i;
@@ -124,6 +130,10 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   readonly histResults = signal<HistMatch[]>([]);
   readonly histTruncated = signal(false);
   readonly histQuery = signal('');
+  // ── JSON detail drawer (Phase 2: expand a structured line + filter by field) ──
+  readonly detailOpen = signal(false);
+  readonly detail = signal<JsonDetail | null>(null);
+  readonly detailSrc = signal('');
   /** Read-only viewers can't read log content (it may carry secrets); the page
    *  shows an access-required panel instead of opening the stream. The backend is
    *  the real enforcer — every log endpoint is operator+ — this is just UX. */
@@ -376,6 +386,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
       runs: displayRuns,
       defaultSegs: displayRuns.length ? displayRuns.map(r => ({ t: r.t, m: false, cls: r.cls })) : [{ t: '', m: false, cls: '' }],
       kind,
+      jsonRaw: structured ? clean : undefined,
       groupId,
       isContinuation,
     };
@@ -641,6 +652,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     if (!q || targets.length === 0) return;
     const capped = targets.length < all.length;
     this.histQuery.set(q);
+    this.detailOpen.set(false);
     this.histOpen.set(true);
     this.histLoading.set(true);
     this.histResults.set([]);
@@ -669,6 +681,34 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   }
 
   closeHistory(): void { this.histOpen.set(false); }
+
+  // ── JSON detail drawer ───────────────────────────────────────────────────────
+  /** Open the detail drawer for a structured (JSON) line: pretty-printed body +
+   *  per-field filter chips. Re-parses the raw line lazily (kept off the LogLine to
+   *  keep per-line memory flat). A drawer — NOT inline expansion — so the fixed
+   *  itemSize virtual scroll is never disturbed. */
+  openDetail(line: LogLine, ev: Event): void {
+    ev.stopPropagation();
+    if (!line.jsonRaw) return;
+    const d = parseJsonDetail(line.jsonRaw);
+    if (!d) return;
+    this.detail.set(d);
+    this.detailSrc.set(line.src);
+    this.histOpen.set(false);
+    this.detailOpen.set(true);
+  }
+  closeDetail(): void { this.detailOpen.set(false); }
+
+  copyText(s: string): void {
+    try { navigator.clipboard?.writeText(s); } catch { /* clipboard unavailable */ }
+  }
+
+  /** Filter the live stream by a JSON field (key=value), matching its inline render.
+   *  Regex-escaped in regex mode so values with metacharacters stay literal. */
+  filterByField(f: JsonField): void {
+    this.filterText.set(this.useRegex() ? `${escapeRegex(f.key)}=${escapeRegex(f.value)}` : `${f.key}=${f.value}`);
+    this.detailOpen.set(false);
+  }
 
   /** "2026-06-27T10:00:01.2Z" → "06-27 10:00:01" — history can span days, so unlike
    *  the live clock this keeps the date. */
