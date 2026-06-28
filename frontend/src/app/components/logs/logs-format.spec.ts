@@ -1,4 +1,4 @@
-import { parseAnsi, sgrToClass, isContinuationLine, formatRelative } from './logs-format';
+import { parseAnsi, sgrToClass, isContinuationLine, formatRelative, parseStructured } from './logs-format';
 
 describe('logs-format', () => {
   describe('parseAnsi', () => {
@@ -98,6 +98,35 @@ describe('logs-format', () => {
     });
     it('never returns a negative age (clock skew → "now")', () => {
       expect(formatRelative(at(-30), 'x', base)).toBe('now');
+    });
+  });
+
+  describe('parseStructured', () => {
+    it('returns null for non-JSON or invalid-JSON lines', () => {
+      expect(parseStructured('plain log line')).toBeNull();
+      expect(parseStructured('GET /health 200')).toBeNull();
+      expect(parseStructured('{not valid json')).toBeNull();
+    });
+    it('extracts the real level from the level/severity field', () => {
+      expect(parseStructured('{"level":"error","msg":"boom"}')?.level).toBe('err');
+      expect(parseStructured('{"level":"warn","msg":"x"}')?.level).toBe('warn');
+      expect(parseStructured('{"severity":"INFO","message":"ok"}')?.level).toBe('info');
+    });
+    it('does NOT let a message word dictate the level', () => {
+      // valid JSON, level=info, message mentions "panic" → stays info
+      expect(parseStructured('{"level":"info","msg":"a panic was mentioned"}')?.level).toBe('info');
+    });
+    it('renders the message first, then a dimmed key=value tail', () => {
+      const r = parseStructured('{"level":"info","msg":"hello","user":"alice","n":3}');
+      expect(r).not.toBeNull();
+      expect(r!.runs[0]).toEqual({ t: 'hello', cls: '' });
+      expect(r!.runs.some(x => x.cls === 'ldim' && x.t.includes('user=alice'))).toBeTrue();
+      expect(r!.runs.some(x => x.cls === 'ldim' && x.t.includes('n=3'))).toBeTrue();
+      expect(r!.text).toContain('hello');
+      expect(r!.text).toContain('user=alice');
+    });
+    it('returns null when only level/time are present (nothing useful to show)', () => {
+      expect(parseStructured('{"level":"info","time":"2026-01-01T00:00:00Z"}')).toBeNull();
     });
   });
 });

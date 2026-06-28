@@ -63,6 +63,60 @@ export function isContinuationLine(text: string): boolean {
   return CONT_RE.test(text);
 }
 
+// Structured (JSON-lines) log handling. Go/Node services commonly emit one JSON
+// object per line; rendered raw they're an unreadable blob, and the level is
+// guessed by regex over the whole line (so a "panic" substring mistags an info
+// line). We parse it, take the real level + message, and render the message
+// followed by a dimmed key=value tail — readable, single-line, fully searchable.
+const JSON_LEVEL_FIELDS = ['level', 'lvl', 'severity', 'levelname', 'loglevel'];
+const JSON_MSG_FIELDS = ['message', 'msg', 'log'];
+const JSON_SKIP = new Set([...JSON_LEVEL_FIELDS, ...JSON_MSG_FIELDS, 'time', 'ts', 'timestamp', 't', '@timestamp']);
+const LEVEL_MAP: Record<string, 'info' | 'warn' | 'err'> = {
+  trace: 'info', debug: 'info', info: 'info', information: 'info', notice: 'info',
+  warn: 'warn', warning: 'warn',
+  error: 'err', err: 'err', fatal: 'err', panic: 'err', dpanic: 'err',
+  critical: 'err', crit: 'err', emergency: 'err', emerg: 'err', alert: 'err',
+};
+
+/** Parses a JSON-lines log entry into a readable render (message + dimmed
+ *  key=value tail) and its real level. Returns null when the line isn't a JSON
+ *  object or yields nothing useful, so the caller falls back to raw rendering. */
+export function parseStructured(line: string): { level?: 'info' | 'warn' | 'err'; runs: AnsiRun[]; text: string } | null {
+  const s = line.trimStart();
+  if (s[0] !== '{') return null;
+  let obj: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(s);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    obj = parsed as Record<string, unknown>;
+  } catch { return null; }
+
+  let level: 'info' | 'warn' | 'err' | undefined;
+  for (const f of JSON_LEVEL_FIELDS) {
+    const v = obj[f];
+    if (typeof v === 'string') { level = LEVEL_MAP[v.toLowerCase()]; break; }
+  }
+  let message = '';
+  for (const f of JSON_MSG_FIELDS) {
+    const v = obj[f];
+    if (typeof v === 'string') { message = v; break; }
+  }
+
+  const runs: AnsiRun[] = [];
+  let text = '';
+  if (message) { runs.push({ t: message, cls: '' }); text += message; }
+  for (const k of Object.keys(obj)) {
+    if (JSON_SKIP.has(k.toLowerCase())) continue;
+    const v = obj[k];
+    const vs = typeof v === 'string' ? v : JSON.stringify(v);
+    const part = `${runs.length ? '  ' : ''}${k}=${vs}`;
+    runs.push({ t: part, cls: 'ldim' });
+    text += part;
+  }
+  if (!runs.length) return null;
+  return { level, runs, text };
+}
+
 /** Relative age ("now", "12s", "5m", "2h", "3d") of an RFC3339 timestamp, or the
  *  given fallback when it's absent / unparseable. `now` is epoch-ms, injected so
  *  the function stays pure and testable. */

@@ -12,7 +12,7 @@ import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 import { DockerService } from '../../services/docker.service';
 import { WebSocketService, MultiLogStream, MultiLogFrame, MultiLogState } from '../../services/websocket.service';
 import { AuthService } from '../../auth/auth.service';
-import { AnsiRun, parseAnsi, isContinuationLine, formatRelative } from './logs-format';
+import { AnsiRun, parseAnsi, isContinuationLine, formatRelative, parseStructured } from './logs-format';
 import { ContainerSummary } from '../../models/docker.models';
 
 /** One log source = one container's row in the sidebar. */
@@ -285,10 +285,16 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   private makeLine(srcId: string, src: string, color: string, rawTs: string, raw: string, kind: LineKind): LogLine {
     const runs = parseAnsi(raw);
     const clean = runs.map(r => r.t).join('');
+    // Structured (JSON) line: take its real level + a readable render (message +
+    // dimmed key=value tail) instead of guessing the level over the raw blob.
+    const structured = kind === 'log' ? parseStructured(clean) : null;
     const level: Level = kind === 'error' ? 'err'
+      : structured ? (structured.level ?? 'info')
       : WARN_RE.test(clean) ? 'warn'
       : ERR_RE.test(clean) ? 'err'
       : 'info';
+    const displayRuns = structured ? structured.runs : runs;
+    const displayMsg = structured ? structured.text : clean;
 
     const uid = this.uidSeq++;
     // Group continuation lines (indented / stack-trace markers) under the most
@@ -314,9 +320,9 @@ export class LogsPageComponent implements OnInit, OnDestroy {
       level,
       levelLabel: level.toUpperCase(),
       levelClass: 'lvl-' + level,
-      msg: clean,
-      runs,
-      defaultSegs: runs.length ? runs.map(r => ({ t: r.t, m: false, cls: r.cls })) : [{ t: '', m: false, cls: '' }],
+      msg: displayMsg,
+      runs: displayRuns,
+      defaultSegs: displayRuns.length ? displayRuns.map(r => ({ t: r.t, m: false, cls: r.cls })) : [{ t: '', m: false, cls: '' }],
       kind,
       groupId,
       isContinuation,

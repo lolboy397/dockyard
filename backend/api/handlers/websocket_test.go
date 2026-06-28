@@ -90,6 +90,13 @@ func TestLineLevel(t *testing.T) {
 		{"FATAL shutdown", "err"},
 		{"WARNING then ERROR — warn wins", "warn"}, // warn checked before err
 		{"scattered (error) word", "err"},          // case-insensitive
+		// Structured (JSON) lines: trust the declared level, ignore message words.
+		{`{"level":"info","msg":"boom"}`, "info"},
+		{`{"level":"error","msg":"down"}`, "err"},
+		{`{"severity":"WARNING","message":"slow"}`, "warn"},
+		{`{"lvl":"fatal","msg":"x"}`, "err"},
+		{`{"msg":"this error happened"}`, "info"}, // valid JSON, no level → info (not regex over the word "error")
+		{`{not valid json with ERROR`, "err"},     // invalid JSON → falls back to the regex heuristic
 	}
 	for _, c := range cases {
 		if got := lineLevel(c.msg); got != c.want {

@@ -167,9 +167,31 @@ const maxMultiLogSubs = 200
 var (
 	logWarnRe = regexp.MustCompile(`(?i)\b(WARN|WARNING)\b`)
 	logErrRe  = regexp.MustCompile(`(?i)\b(ERROR|ERR|FATAL|CRIT|PANIC|EMERG|ALERT)\b`)
+	// Structured (JSON) lines: pull the declared level field instead of guessing
+	// over the whole line (so a "panic" substring in a message can't mistag an
+	// info line). Mirrors the client's parseStructured.
+	jsonLevelRe = regexp.MustCompile(`(?i)"(?:level|lvl|severity|levelname|loglevel)"\s*:\s*"([^"]+)"`)
 )
 
+// jsonLevelMap normalizes common structured-log level strings to info|warn|err.
+var jsonLevelMap = map[string]string{
+	"trace": "info", "debug": "info", "info": "info", "information": "info", "notice": "info",
+	"warn": "warn", "warning": "warn",
+	"error": "err", "err": "err", "fatal": "err", "panic": "err", "dpanic": "err",
+	"critical": "err", "crit": "err", "emergency": "err", "emerg": "err", "alert": "err",
+}
+
 func lineLevel(msg string) string {
+	// A valid JSON object is a structured log: trust its declared level, and never
+	// regex-guess over its field names (matches the client exactly).
+	if t := strings.TrimSpace(msg); strings.HasPrefix(t, "{") && json.Valid([]byte(t)) {
+		if m := jsonLevelRe.FindStringSubmatch(t); m != nil {
+			if lvl, ok := jsonLevelMap[strings.ToLower(m[1])]; ok {
+				return lvl
+			}
+		}
+		return "info"
+	}
 	if logWarnRe.MatchString(msg) {
 		return "warn"
 	}

@@ -1836,6 +1836,9 @@ cdk-virtual-scroll-viewport.logs-stream { display: block; }
 /* Search highlight: a solid, level-neutral mark with forced text colour, so it
    wins over ANSI colour AND stays legible (AA) in both themes. */
 .lmsg .lhit { background: #FDE68A; color: #1F2937; border-radius: 2px; }
+/* Dimmed key=value tail of a structured (JSON) log line — message stays default,
+   the fields recede. */
+.lmsg .ldim { color: var(--fg-subtle); }
 
 /* Light theme: the ANSI palette + level colours above are tuned for the dark
    inset; on the light stream the bright variants fall below AA (bright-white was
