@@ -72,6 +72,11 @@ export interface MultiLogStream {
    *  before they cross the wire. '' / 'all' streams everything; takes effect
    *  immediately without a refetch. */
   setLevel(level: string): void;
+  /** Re-establish the follow for an already-active container from our last-seen
+   *  point (Docker Since). Used when a container restarts: its server-side log
+   *  stream ends, so we re-subscribe with the tracked `since` to recover the tail
+   *  without a gap or duplicate history. No-op when the id isn't active. */
+  resync(id: string): void;
   close(): void;
 }
 
@@ -180,6 +185,10 @@ export class WebSocketService {
       subscribe: (id: string, tail = '50', since?: string) => { active.set(id, { tail, since }); send({ action: 'subscribe', id, tail, since }); },
       unsubscribe: (id: string) => { active.delete(id); send({ action: 'unsubscribe', id }); },
       setLevel: (lvl: string) => { level = lvl === 'all' ? '' : lvl; send({ action: 'level', level }); },
+      // Re-subscribe an active container using its tracked `since` (NOT clearing it
+      // like an explicit subscribe does), so a follow that ended when the container
+      // stopped is re-established from the last line we saw.
+      resync: (id: string) => { const a = active.get(id); if (a) send({ action: 'subscribe', id, tail: a.tail, since: a.since }); },
       close: () => {
         closed = true;
         document.removeEventListener('visibilitychange', onVisible);

@@ -84,4 +84,14 @@ export class RealtimeService {
     );
     return merge(matched, this.resync$).pipe(debounceTime(debounceMs));
   }
+
+  /**
+   * Emits raw container-type Docker events (start, die, restart, destroy, …),
+   * preserving the action + container id that `changes()` collapses away. Used by
+   * the Logs page to re-establish a follow when a tailed container restarts.
+   */
+  containerEvents(): Observable<DockerEvent> {
+    this.start();
+    return this.event$.pipe(filter(e => e.Type === 'container'));
+  }
 }

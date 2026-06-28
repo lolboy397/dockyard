@@ -12,7 +12,9 @@ import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 import { DockerService } from '../../services/docker.service';
 import { WebSocketService, MultiLogStream, MultiLogFrame, MultiLogState } from '../../services/websocket.service';
 import { AuthService } from '../../auth/auth.service';
+import { RealtimeService, DockerEvent } from '../../services/realtime.service';
 import { AnsiRun, parseAnsi, isContinuationLine, formatRelative, parseStructured } from './logs-format';
+import { planSourceReconcile } from './logs-sources';
 import { ContainerSummary } from '../../models/docker.models';
 
 /** One log source = one container's row in the sidebar. */
@@ -222,6 +224,8 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   private stream?: MultiLogStream;
   private framesSub?: Subscription;
   private stateSub?: Subscription;
+  private realtimeSub?: Subscription;
+  private reconcileTimer?: ReturnType<typeof setTimeout>;
   private lpsInterval?: ReturnType<typeof setInterval>;
   /** Fast id→source lookup, kept in step with the `sources` signal. */
   private sourceById = new Map<string, LogSource>();
@@ -242,7 +246,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   /** Per-line highlight segments, cached by (line, pattern) so they're computed once. */
   private segCache = new WeakMap<LogLine, { key: string; segs: Seg[] }>();
 
-  constructor(private docker: DockerService, private ws: WebSocketService, private route: ActivatedRoute, private auth: AuthService) {}
+  constructor(private docker: DockerService, private ws: WebSocketService, private route: ActivatedRoute, private auth: AuthService, private realtime: RealtimeService) {}
 
   ngOnInit(): void {
     // Log content is operator+ on the backend; a viewer who deep-links here would
@@ -269,6 +273,10 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     this.stateSub = this.stream.state$.subscribe(s => this.connState.set(s));
     this.stream.setLevel(this.level()); // apply any restored level filter server-side
     this.loadContainers();
+    // Keep follows + the source list live as containers come and go: a restarted
+    // container's log stream ends server-side, so re-establish it; add/remove/
+    // recreate reconcile the list. (See onContainerEvent / reconcileSources.)
+    this.realtimeSub = this.realtime.containerEvents().subscribe(e => this.onContainerEvent(e));
     this.lpsInterval = setInterval(() => {
       this.lps.set(this.lpsCounter);
       this.lpsCounter = 0;
@@ -279,6 +287,8 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.framesSub?.unsubscribe();
     this.stateSub?.unsubscribe();
+    this.realtimeSub?.unsubscribe();
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
     this.stream?.close();
     if (this.lpsInterval) clearInterval(this.lpsInterval);
   }
@@ -566,6 +576,45 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   private setSources(next: LogSource[]): void {
     this.sources.set(next);
     this.sourceById = new Map(next.map(s => [s.id, s]));
+  }
+
+  /** React to a Docker container event: recover a restarted follow immediately,
+   *  and reconcile the source list (debounced) for add/remove/recreate. */
+  private onContainerEvent(e: DockerEvent): void {
+    const id = e.Actor?.ID || e.id || '';
+    const action = e.Action || e.status || '';
+    // A container that just (re)started and is an active follow lost its log stream
+    // when it stopped — re-subscribe from our last-seen point so the tail recovers
+    // with no gap and no duplicate history. (resync no-ops if the slot's still live.)
+    if (id && /^(start|restart|unpause)/.test(action)) {
+      const src = this.sourceById.get(id);
+      if (src?.on) this.stream?.resync(id);
+    }
+    // Reconcile the source list only on changes that add/remove a container or flip
+    // its run state — not on health-check / exec / pause chatter.
+    if (/^(create|destroy|start|die|stop|kill|restart|rename)/.test(action)) {
+      this.scheduleReconcile();
+    }
+  }
+
+  private scheduleReconcile(): void {
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+    // Collapse bursts (a compose up/down fires many events) into one refetch.
+    this.reconcileTimer = setTimeout(() => this.reconcileSources(), 300);
+  }
+
+  /** Re-list containers and update the source list in place: drop vanished sources,
+   *  add new ones (carrying a recreated container's selection by name), and
+   *  subscribe only the genuinely-new active sources — existing follows are left
+   *  untouched so their since-resume point and tail aren't disturbed. The diff
+   *  itself is the pure planSourceReconcile (unit-tested in logs-sources.spec.ts). */
+  private reconcileSources(): void {
+    this.docker.listContainers(true).subscribe(containers => {
+      const plan = planSourceReconcile([...this.sourceById.values()], containers, this.savedOnIds, SOURCE_COLORS);
+      plan.unsubscribe.forEach(id => this.stream?.unsubscribe(id));
+      this.setSources(plan.next);
+      plan.subscribe.forEach(id => this.stream?.subscribe(id, this.tail()));
+    });
   }
 
   toggleSource(s: LogSource): void {
