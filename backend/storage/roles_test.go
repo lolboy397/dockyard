@@ -98,6 +98,47 @@ func TestCreateAndDeleteCustomRole(t *testing.T) {
 	}
 }
 
+func TestLogViewCapability(t *testing.T) {
+	db := newTestDB(t)
+
+	// logs.view is part of the catalogue.
+	found := false
+	for _, k := range capabilityKeys() {
+		if k == "logs.view" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("logs.view missing from the capability catalogue")
+	}
+
+	// Operator-tier system roles grant it; viewer does not (logs are gated above
+	// plain read by default).
+	if !db.RoleGrantsLogView("maintainer") {
+		t.Error("maintainer should grant logs.view")
+	}
+	if db.RoleGrantsLogView("viewer") {
+		t.Error("viewer must NOT grant logs.view by default")
+	}
+
+	// Granting logs.view to an otherwise read-only role must NOT raise its tier —
+	// logs.view is not an operate capability, so this only expands log access.
+	r, err := db.CreateRole(Role{
+		ID:           "log_reader",
+		Name:         "Log Reader",
+		Capabilities: map[string]string{"containers.view": CapRead, "logs.view": CapRead},
+	})
+	if err != nil {
+		t.Fatalf("create role: %v", err)
+	}
+	if r.Tier != "viewer" {
+		t.Errorf("granting logs.view raised tier to %q; want viewer (no over-grant)", r.Tier)
+	}
+	if !db.RoleGrantsLogView("log_reader") {
+		t.Error("custom role with logs.view=read should grant it")
+	}
+}
+
 func TestCustomAdminTierProtectsLastAdmin(t *testing.T) {
 	db := newTestDB(t)
 

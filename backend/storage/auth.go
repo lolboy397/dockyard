@@ -68,6 +68,10 @@ type User struct {
 	// user's role. Populated by GetSessionUser for request authorization; not
 	// stored on the user row and not serialized.
 	Tier string `json:"-"`
+	// CanViewLogs is resolved per session (operator+ tier OR the role grants the
+	// logs.view capability). Serialized so the frontend can gate the Logs page in
+	// step with the backend; omitted (false) for non-session user payloads.
+	CanViewLogs bool `json:"can_view_logs,omitempty"`
 }
 
 // userCols is the canonical column list (and order) every user scan reads.
@@ -312,6 +316,9 @@ func (db *DB) GetSessionUser(token string) (*User, error) {
 	// Resolve the authorization tier once, here, so every authenticated request
 	// path (REST middleware, hosted-git) can authorize without re-querying.
 	u.Tier = db.RoleTier(u.Role)
+	// Log access is operator+ OR a role explicitly granted logs.view (additive —
+	// never revokes operator/admin). Resolved here so the gate is one cheap lookup.
+	u.CanViewLogs = u.Tier == "admin" || u.Tier == "operator" || db.RoleGrantsLogView(u.Role)
 	return u, nil
 }
 

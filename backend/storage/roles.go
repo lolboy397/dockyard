@@ -40,6 +40,7 @@ type CapGroupDef struct {
 var CapabilityGroups = []CapGroupDef{
 	{Group: "Containers", Rows: []CapRowDef{
 		{Key: "containers.view", Label: "View containers"},
+		{Key: "logs.view", Label: "View container logs"},
 		{Key: "containers.lifecycle", Label: "Start, stop, restart"},
 		{Key: "containers.exec", Label: "Open shell / exec"},
 		{Key: "containers.remove", Label: "Remove containers"},
@@ -103,7 +104,7 @@ var systemRoles = []systemRoleSpec{
 		id: "maintainer", name: "Maintainer", icon: "wrench", sort: 3, level: "Operate + deploy",
 		desc: "Deploy, start, stop, and prune resources. No user-management access.",
 		caps: map[string]string{
-			"containers.view": CapAll, "containers.lifecycle": CapAll, "containers.exec": CapAll, "containers.remove": CapScoped,
+			"containers.view": CapAll, "logs.view": CapAll, "containers.lifecycle": CapAll, "containers.exec": CapAll, "containers.remove": CapScoped,
 			"images.pull": CapAll, "images.build": CapAll, "images.push": CapScoped, "images.prune": CapScoped,
 			"infra.volumes_networks": CapScoped, "infra.prune": CapScoped,
 			"deploy.rollback": CapScoped,
@@ -114,7 +115,7 @@ var systemRoles = []systemRoleSpec{
 		id: "developer", name: "Developer", icon: "code", sort: 4, level: "Build + operate",
 		desc: "Build images and manage containers in non-production environments.",
 		caps: map[string]string{
-			"containers.view": CapAll, "containers.lifecycle": CapScoped, "containers.exec": CapScoped, "containers.remove": CapNone,
+			"containers.view": CapAll, "logs.view": CapAll, "containers.lifecycle": CapScoped, "containers.exec": CapScoped, "containers.remove": CapNone,
 			"images.pull": CapScoped, "images.build": CapScoped, "images.push": CapNone, "images.prune": CapNone,
 			"infra.volumes_networks": CapScoped, "infra.prune": CapNone,
 			"deploy.rollback": CapScoped,
@@ -125,7 +126,7 @@ var systemRoles = []systemRoleSpec{
 		id: "viewer", name: "Viewer", icon: "eye", sort: 5, level: "Read-only",
 		desc: "Read-only access to containers and images. Log content requires an operator role.",
 		caps: map[string]string{
-			"containers.view": CapRead, "containers.lifecycle": CapNone, "containers.exec": CapNone, "containers.remove": CapNone,
+			"containers.view": CapRead, "logs.view": CapNone, "containers.lifecycle": CapNone, "containers.exec": CapNone, "containers.remove": CapNone,
 			"images.pull": CapRead, "images.build": CapNone, "images.push": CapNone, "images.prune": CapNone,
 			"infra.volumes_networks": CapRead, "infra.prune": CapNone,
 			"deploy.rollback": CapNone,
@@ -343,6 +344,24 @@ func (db *DB) RoleTier(id string) string {
 		return "viewer"
 	}
 	return tier
+}
+
+// RoleGrantsLogView reports whether the role explicitly grants the logs.view
+// capability (any level above none). It lets a non-operator custom role be granted
+// log access WITHOUT raising its overall tier (logs.view is not in tierForCaps's
+// operate set). Operator/admin tiers get logs regardless — this only ever expands
+// access (see handlers.canViewLogs).
+func (db *DB) RoleGrantsLogView(id string) bool {
+	var capsJSON string
+	if err := db.read.QueryRow(`SELECT capabilities FROM roles WHERE id=?`, id).Scan(&capsJSON); err != nil {
+		return false
+	}
+	var caps map[string]string
+	if json.Unmarshal([]byte(capsJSON), &caps) != nil {
+		return false
+	}
+	v := caps["logs.view"]
+	return v != "" && v != CapNone
 }
 
 // CreateRole inserts a custom role. tier and level are derived from caps.

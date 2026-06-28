@@ -33,6 +33,10 @@ export interface AuthUser {
   two_factor_enabled?: boolean;
   auth_method?: string;        // password | SSO · … | invite pending
   last_active_at?: string | null;
+  /** Resolved server-side: operator+ tier OR a role granted the logs.view
+   *  capability. Lets the Logs page gate in step with the backend, custom roles
+   *  included. Omitted (falsey) when not granted. */
+  can_view_logs?: boolean;
 }
 
 /** A role: a named bundle of capabilities (system or custom). */

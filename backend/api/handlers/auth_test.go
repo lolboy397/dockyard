@@ -2,6 +2,28 @@ package handlers
 
 import "testing"
 
+// canViewLogs must be strictly additive: a viewer-tier user whose role grants
+// logs.view (resolved into CanViewLogs) may read logs, the capability must not
+// confer write access, and operator/admin keep log access regardless of the flag.
+func TestCanViewLogsAdditive(t *testing.T) {
+	r := reqWithRole("viewer")
+	if canViewLogs(r) {
+		t.Fatal("plain viewer should not see logs")
+	}
+	UserFromContext(r.Context()).CanViewLogs = true
+	if !canViewLogs(r) {
+		t.Error("viewer granted logs.view should see logs")
+	}
+	if canWrite(r) {
+		t.Error("logs.view must NOT grant write access")
+	}
+	for _, role := range []string{"operator", "admin"} {
+		if !canViewLogs(reqWithRole(role)) {
+			t.Errorf("%s must keep log access regardless of the capability", role)
+		}
+	}
+}
+
 func TestHashVerifyPassword(t *testing.T) {
 	hash, err := hashPassword("correct horse battery")
 	if err != nil {

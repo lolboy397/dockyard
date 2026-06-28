@@ -265,7 +265,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     // Log content is operator+ on the backend; a viewer who deep-links here would
     // otherwise watch a stream that 403s and never produces output. Short-circuit
     // to a clear access panel instead.
-    if (!this.auth.canWrite()) {
+    if (!this.auth.canViewLogs()) {
       this.denied.set(true);
       return;
     }

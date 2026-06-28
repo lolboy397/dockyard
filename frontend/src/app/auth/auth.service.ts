@@ -140,6 +140,13 @@ export class AuthService {
     const r = this.user()?.role ?? '';
     return ['admin', 'owner', 'operator', 'maintainer', 'developer'].includes(r);
   }
+  /** True when the user may read container log CONTENT. Mirrors the backend's
+   *  additive canViewLogs: operator+ OR a role granted the logs.view capability
+   *  (resolved server-side into can_view_logs, so custom roles work too). Falls
+   *  back to canWrite when the flag is absent (older payloads). */
+  canViewLogs(): boolean {
+    return this.user()?.can_view_logs ?? this.canWrite();
+  }
 
   // ---- User administration (admin only) ----
   listUsers(): Observable<AuthUser[]> {
