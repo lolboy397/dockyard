@@ -19,9 +19,14 @@ func NewAlertHandlers(db *storage.DB) *AlertHandlers {
 	return &AlertHandlers{db: db}
 }
 
+// validAlertType reports whether t is a rule type the engine can evaluate. It is
+// the single gate Create/Update apply, so it MUST stay in sync with both the
+// evalAlertRule switch (backend/alerts_eval.go) and the <option> list the Alerts
+// UI offers (frontend/.../alerts.component.html) — a type offered by the dropdown
+// but missing here is rejected with a 400 (see TestValidAlertTypeAcceptsEveryUIType).
 func validAlertType(t string) bool {
 	switch t {
-	case "host_cpu", "host_mem", "host_disk", "container_exited":
+	case "host_cpu", "host_mem", "host_disk", "container_exited", "new_issue":
 		return true
 	}
 	return false
@@ -48,7 +53,7 @@ func (h *AlertHandlers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.Name == "" || !validAlertType(a.Type) {
-		writeError(w, http.StatusBadRequest, errMsg("name and a valid type (host_cpu|host_mem|host_disk|container_exited) are required"))
+		writeError(w, http.StatusBadRequest, errMsg("name and a valid type (host_cpu|host_mem|host_disk|container_exited|new_issue) are required"))
 		return
 	}
 	if a.Channel == "" {
