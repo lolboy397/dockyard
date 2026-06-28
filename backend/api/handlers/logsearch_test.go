@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/pkg/stdcopy"
@@ -77,6 +78,41 @@ func TestSearchLogStreamLimitTruncates(t *testing.T) {
 	}
 	if !res.Truncated {
 		t.Errorf("truncated = false, want true (limit hit with more behind)")
+	}
+}
+
+func TestRenderStructured(t *testing.T) {
+	got := renderStructured(`{"level":"error","msg":"widget failed","seq":35,"code":500}`)
+	// Message + both non-skipped fields as key=value (order-independent), level/msg excluded.
+	for _, want := range []string{"widget failed", "code=500", "seq=35"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("renderStructured = %q, want it to contain %q", got, want)
+		}
+	}
+	if strings.Contains(got, "level=") || strings.Contains(got, "msg=") {
+		t.Errorf("renderStructured = %q, should exclude level/msg fields", got)
+	}
+	if renderStructured("plain text line") != "" || renderStructured(`["not","obj"]`) != "" {
+		t.Error("non-object lines should render empty")
+	}
+}
+
+// A JSON field chip sets the filter to the RENDERED form (code=500); the history
+// grep must find it even though the raw line is "code":500 — while still matching
+// the raw form and free text (additive).
+func TestSearchLogStreamMatchesRenderedJSON(t *testing.T) {
+	src := muxLog(
+		`2026-06-27T10:00:00Z {"level":"error","msg":"widget failed","seq":35,"code":500}`,
+		`2026-06-27T10:00:01Z {"level":"info","msg":"ok","user":"alice"}`,
+	)
+	if n := len(searchLogStream(context.Background(), src, substr("code=500"), 100).Matches); n != 1 {
+		t.Errorf("rendered-form field match (code=500): got %d, want 1", n)
+	}
+	if n := len(searchLogStream(context.Background(), muxLog(`2026-06-27T10:00:00Z {"msg":"x","code":500}`), substr(`"code":500`), 100).Matches); n != 1 {
+		t.Errorf("raw-form match must still work: got %d, want 1", n)
+	}
+	if n := len(searchLogStream(context.Background(), muxLog(`2026-06-27T10:00:01Z {"msg":"hello world"}`), substr("hello"), 100).Matches); n != 1 {
+		t.Errorf("free-text message match must still work: got %d, want 1", n)
 	}
 }
 

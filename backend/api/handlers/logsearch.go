@@ -3,6 +3,7 @@ package handlers
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"regexp"
@@ -100,6 +101,71 @@ func compileLogMatcher(q string, useRegex bool) (func(string) bool, error) {
 	return func(s string) bool { return strings.Contains(strings.ToLower(s), needle) }, nil
 }
 
+// jsonRenderSkip / jsonRenderMsgFields mirror the frontend's parseStructured field
+// selection so renderStructured produces the same readable text the operator sees.
+var jsonRenderSkip = map[string]bool{
+	"level": true, "lvl": true, "severity": true, "levelname": true, "loglevel": true,
+	"message": true, "msg": true, "log": true,
+	"time": true, "ts": true, "timestamp": true, "t": true, "@timestamp": true,
+}
+var jsonRenderMsgFields = []string{"message", "msg", "log"}
+
+// renderStructured mirrors the frontend's parseStructured: for a JSON-object log
+// line it returns the readable text the operator actually sees — the message
+// followed by a " key=value" tail of the remaining fields — so a history search
+// matches the RENDERED view (e.g. a "code=500" field chip), not just the raw JSON
+// ("code":500). Returns "" when the line isn't a JSON object. Field order is
+// irrelevant here: the search only substring/regex-matches the result.
+func renderStructured(line string) string {
+	s := strings.TrimLeft(line, " \t")
+	if s == "" || s[0] != '{' {
+		return ""
+	}
+	dec := json.NewDecoder(strings.NewReader(s))
+	dec.UseNumber()
+	var obj map[string]any
+	if dec.Decode(&obj) != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, f := range jsonRenderMsgFields {
+		if v, ok := obj[f].(string); ok {
+			b.WriteString(v)
+			break
+		}
+	}
+	for k, v := range obj {
+		if jsonRenderSkip[strings.ToLower(k)] {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString("  ")
+		}
+		b.WriteString(k)
+		b.WriteByte('=')
+		if sv, ok := v.(string); ok {
+			b.WriteString(sv)
+		} else {
+			raw, _ := json.Marshal(v)
+			b.Write(raw)
+		}
+	}
+	return b.String()
+}
+
+// matchLine matches q against the raw line AND, for a JSON line, its rendered form
+// — additive, so raw and free-text matches are never lost while rendered-form
+// field filters (key=value) now match too.
+func matchLine(matchFn func(string) bool, msg string) bool {
+	if matchFn(msg) {
+		return true
+	}
+	if r := renderStructured(msg); r != "" {
+		return matchFn(r)
+	}
+	return false
+}
+
 // searchLogStream demuxes a Docker (non-TTY) log stream and returns the lines
 // matching matchFn — up to limit matches, scanning at most logSearchMaxScan lines.
 // Factored out of the handler so it is table-testable against canned multiplexed
@@ -126,7 +192,7 @@ func searchLogStream(ctx context.Context, rc io.Reader, matchFn func(string) boo
 		if line != "" {
 			res.Scanned++
 			ts, msg := splitLogTimestamp(strings.TrimRight(line, "\r\n"))
-			if matchFn(msg) {
+			if matchLine(matchFn, msg) {
 				if len(res.Matches) >= limit {
 					res.Truncated = true
 					pr.CloseWithError(nil) // stop the copier; more matches exist
