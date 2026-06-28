@@ -131,6 +131,40 @@ export class InsightsComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Period-over-period trend: last 24h vs the 24h before it. */
+  readonly trend = computed(() => {
+    const s = this.stats();
+    if (!s) return null;
+    return { delta: (s.events_24h ?? 0) - (s.events_prev_24h ?? 0), prev: s.events_prev_24h ?? 0 };
+  });
+
+  /** 24 hourly bars (zero-filled) for the events sparkline; error share tinted. */
+  readonly sparkBars = computed(() => {
+    const byHour = new Map((this.stats()?.series ?? []).map(p => [p.bucket, p]));
+    const now = new Date();
+    const baseUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours());
+    const slots: { total: number; errors: number }[] = [];
+    let max = 1;
+    for (let i = 23; i >= 0; i--) {
+      const p = byHour.get(this.hourKeyUTC(new Date(baseUTC - i * 3600_000)));
+      const total = p?.total ?? 0, errors = p?.errors ?? 0;
+      max = Math.max(max, total);
+      slots.push({ total, errors });
+    }
+    return slots.map(s => ({
+      h: s.total ? Math.max(8, Math.round((s.total / max) * 100)) : 0,
+      errPct: s.total ? Math.round((s.errors / s.total) * 100) : 0,
+      title: s.total ? `${s.total} event${s.total === 1 ? '' : 's'}${s.errors ? `, ${s.errors} error${s.errors === 1 ? '' : 's'}` : ''}` : 'no events',
+    }));
+  });
+
+  private hourKeyUTC(d: Date): string {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:00:00`;
+  }
+
+  abs(n: number): number { return Math.abs(n); }
+
   /** Pivot to the Logs view, time-anchored to this occurrence (and pre-filtered to
    *  its request_id when present) — error → its surrounding container logs. */
   viewLogs(e: DiagEvent): void {

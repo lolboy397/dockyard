@@ -189,6 +189,35 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     return c;
   });
 
+  /** Client-side log-volume histogram over the buffered window: ~48 time buckets,
+   *  each with total + error share + the index of its first line (for click-to-
+   *  scroll). Drives the spark strip above the stream. */
+  readonly logSpark = computed(() => {
+    const lines = this.filteredLines();
+    if (lines.length < 2) return [] as { h: number; errPct: number; startIdx: number; title: string }[];
+    const times = lines.map(l => { const t = new Date(l.rawTs || '').getTime(); return isNaN(t) ? 0 : t; });
+    let min = Infinity, max = -Infinity;
+    for (const t of times) { if (t > 0) { if (t < min) min = t; if (t > max) max = t; } }
+    if (!isFinite(min) || max <= min) return [];
+    const N = 48, span = max - min;
+    const buckets = Array.from({ length: N }, () => ({ total: 0, err: 0, startIdx: -1 }));
+    for (let i = 0; i < lines.length; i++) {
+      const t = times[i];
+      if (t <= 0) continue;
+      const b = buckets[Math.min(N - 1, Math.floor((t - min) / span * N))];
+      b.total++;
+      if (lines[i].level === 'err') b.err++;
+      if (b.startIdx < 0) b.startIdx = i;
+    }
+    const maxTotal = Math.max(1, ...buckets.map(b => b.total));
+    return buckets.map(b => ({
+      h: b.total ? Math.max(8, Math.round((b.total / maxTotal) * 100)) : 0,
+      errPct: b.total ? Math.round((b.err / b.total) * 100) : 0,
+      startIdx: b.startIdx,
+      title: b.total ? `${b.total} line${b.total === 1 ? '' : 's'}${b.err ? `, ${b.err} error${b.err === 1 ? '' : 's'}` : ''}` : '',
+    }));
+  });
+
   // ── Internals ───────────────────────────────────────────────────────────────
   private stream?: MultiLogStream;
   private framesSub?: Subscription;
@@ -427,6 +456,18 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   jumpToBottom(): void {
     this.atBottom.set(true);
     this.scrollBottom();
+  }
+
+  /** Jump the stream to the first line in a histogram bucket (click-to-scroll). */
+  scrollToBucket(idx: number): void {
+    if (idx < 0) return;
+    this.atBottom.set(false); // don't immediately yank back to live
+    if (this.wrap()) {
+      const el = this.plain?.nativeElement;
+      if (el) el.scrollTop = (idx / Math.max(1, this.filteredLines().length)) * el.scrollHeight;
+    } else {
+      this.viewport?.scrollToIndex(idx, 'auto');
+    }
   }
 
   // ── Search highlight ────────────────────────────────────────────────────────

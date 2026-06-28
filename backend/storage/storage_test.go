@@ -81,6 +81,32 @@ func TestCountNewIssuesSince(t *testing.T) {
 	}
 }
 
+func TestDiagBucketStats(t *testing.T) {
+	db := newTestDB(t)
+	now := time.Now()
+	ev := func(fp string) DiagEvent {
+		return DiagEvent{TS: now, Level: "error", Source: "backend", Message: "boom", Fingerprint: fp}
+	}
+	// One fingerprint, but 50 TRUE occurrences this flush — sampling stores a single
+	// diag_events row, while the hour bucket records the full 50.
+	if err := db.InsertDiagBatch([]DiagAccum{{Sample: ev("x"), Count: 50}}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	s, err := db.DiagStatsSummary()
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if s.Events24h != 50 {
+		t.Errorf("events_24h should be the TRUE count 50 (not the sampled 1), got %d", s.Events24h)
+	}
+	if s.ByLevel["error"] != 50 {
+		t.Errorf("by_level[error] = %d, want 50", s.ByLevel["error"])
+	}
+	if len(s.Series) == 0 {
+		t.Errorf("want a non-empty hourly series for the sparkline")
+	}
+}
+
 func TestDiagStore(t *testing.T) {
 	db := newTestDB(t)
 	now := time.Now()

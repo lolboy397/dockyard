@@ -125,6 +125,9 @@ func Open(path string) (*DB, error) {
 	if err := db.migrateV28(); err != nil {
 		return nil, fmt.Errorf("migrateV28: %w", err)
 	}
+	if err := db.migrateV29(); err != nil {
+		return nil, fmt.Errorf("migrateV29: %w", err)
+	}
 
 	// On-disk: open a separate read pool now that WAL + the schema are in place.
 	// query_only(true) makes accidental writes on the read handle fail loudly.

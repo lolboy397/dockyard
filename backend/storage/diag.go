@@ -52,10 +52,20 @@ type DiagAccum struct {
 
 // DiagStats is the headline rollup for the Insights dashboard.
 type DiagStats struct {
-	OpenGroups  int            `json:"open_groups"`
-	Events24h   int            `json:"events_24h"`
-	ByLevel     map[string]int `json:"by_level"`
-	BySource    map[string]int `json:"by_source"`
+	OpenGroups    int               `json:"open_groups"`
+	Events24h     int               `json:"events_24h"`
+	EventsPrev24h int               `json:"events_prev_24h"` // the 24h before that, for a trend delta
+	ByLevel       map[string]int    `json:"by_level"`
+	BySource      map[string]int    `json:"by_source"`
+	Series        []DiagBucketPoint `json:"series"` // hourly, last 24h, for the sparkline
+}
+
+// DiagBucketPoint is one hour of the events-over-time series (true counts).
+type DiagBucketPoint struct {
+	Bucket string `json:"bucket"` // hour, UTC "2006-01-02 15:00:00"
+	Total  int    `json:"total"`
+	Errors int    `json:"errors"`
+	Warns  int    `json:"warns"`
 }
 
 // migrateV27 creates the diagnostics tables.
@@ -105,6 +115,23 @@ func (db *DB) migrateV28() error {
 		return err
 	}
 	return nil
+}
+
+// migrateV29 creates the hourly event counter. Unlike diag_events (which stores
+// one SAMPLED occurrence per fingerprint per flush), these buckets accumulate the
+// TRUE occurrence count, so the 24h totals + the events-over-time trend are exact.
+func (db *DB) migrateV29() error {
+	_, err := db.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS diag_buckets (
+			bucket TEXT    NOT NULL,            -- hour, "2006-01-02 15:00:00" UTC
+			level  TEXT    NOT NULL,            -- info | warn | error
+			source TEXT    NOT NULL,            -- backend | frontend
+			count  INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY (bucket, level, source)
+		);
+		CREATE INDEX IF NOT EXISTS idx_diag_buckets_bucket ON diag_buckets(bucket);
+	`)
+	return err
 }
 
 func diagTitle(msg string) string {
@@ -157,6 +184,15 @@ func (db *DB) InsertDiagBatch(batch []DiagAccum) error {
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, ts, e.Level, e.Source, e.Component, e.Message, e.Fingerprint, e.RequestID, e.Actor,
 			e.Route, e.StatusCode, e.Stack, e.Context, e.Release, e.UserAgent); err != nil {
+			return err
+		}
+		// Accumulate the TRUE occurrence count into the hour bucket (a.Count, not 1)
+		// — this is what makes the 24h totals + trend exact despite event sampling.
+		hour := e.TS.UTC().Truncate(time.Hour).Format("2006-01-02 15:00:00")
+		if _, err := tx.Exec(`
+			INSERT INTO diag_buckets (bucket, level, source, count) VALUES (?, ?, ?, ?)
+			ON CONFLICT(bucket, level, source) DO UPDATE SET count = count + excluded.count
+		`, hour, e.Level, e.Source, a.Count); err != nil {
 			return err
 		}
 	}
@@ -259,18 +295,26 @@ func (db *DB) SetDiagGroupStatus(fingerprint, status string) error {
 	return err
 }
 
-// DiagStatsSummary returns the dashboard headline numbers.
+// DiagStatsSummary returns the dashboard headline numbers from the TRUE hourly
+// counters (not the sampled diag_events rows), so the totals + trend are exact.
 func (db *DB) DiagStatsSummary() (*DiagStats, error) {
 	s := &DiagStats{ByLevel: map[string]int{}, BySource: map[string]int{}}
 	if err := db.read.QueryRow(`SELECT COUNT(*) FROM diag_groups WHERE status='open'`).Scan(&s.OpenGroups); err != nil {
 		return nil, err
 	}
-	cutoff := time.Now().UTC().Add(-24 * time.Hour).Format("2006-01-02 15:04:05.000")
-	if err := db.read.QueryRow(`SELECT COUNT(*) FROM diag_events WHERE ts >= ?`, cutoff).Scan(&s.Events24h); err != nil {
+	now := time.Now().UTC()
+	hour := func(t time.Time) string { return t.Truncate(time.Hour).Format("2006-01-02 15:00:00") }
+	cut24 := hour(now.Add(-24 * time.Hour))
+	cut48 := hour(now.Add(-48 * time.Hour))
+
+	if err := db.read.QueryRow(`SELECT COALESCE(SUM(count),0) FROM diag_buckets WHERE bucket >= ?`, cut24).Scan(&s.Events24h); err != nil {
 		return nil, err
 	}
-	collect := func(q string, into map[string]int) error {
-		rows, err := db.read.Query(q, cutoff)
+	if err := db.read.QueryRow(`SELECT COALESCE(SUM(count),0) FROM diag_buckets WHERE bucket >= ? AND bucket < ?`, cut48, cut24).Scan(&s.EventsPrev24h); err != nil {
+		return nil, err
+	}
+	collect := func(col string, into map[string]int) error {
+		rows, err := db.read.Query(`SELECT `+col+`, SUM(count) FROM diag_buckets WHERE bucket >= ? GROUP BY `+col, cut24)
 		if err != nil {
 			return err
 		}
@@ -285,13 +329,31 @@ func (db *DB) DiagStatsSummary() (*DiagStats, error) {
 		}
 		return rows.Err()
 	}
-	if err := collect(`SELECT level, COUNT(*) FROM diag_events WHERE ts >= ? GROUP BY level`, s.ByLevel); err != nil {
+	if err := collect("level", s.ByLevel); err != nil {
 		return nil, err
 	}
-	if err := collect(`SELECT source, COUNT(*) FROM diag_events WHERE ts >= ? GROUP BY source`, s.BySource); err != nil {
+	if err := collect("source", s.BySource); err != nil {
 		return nil, err
 	}
-	return s, nil
+
+	// Hourly events-over-time series (last 24h) for the sparkline.
+	rows, err := db.read.Query(`
+		SELECT bucket, SUM(count),
+		       SUM(CASE WHEN level='error' THEN count ELSE 0 END),
+		       SUM(CASE WHEN level='warn'  THEN count ELSE 0 END)
+		FROM diag_buckets WHERE bucket >= ? GROUP BY bucket ORDER BY bucket`, cut24)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p DiagBucketPoint
+		if err := rows.Scan(&p.Bucket, &p.Total, &p.Errors, &p.Warns); err != nil {
+			return nil, err
+		}
+		s.Series = append(s.Series, p)
+	}
+	return s, rows.Err()
 }
 
 // CountNewIssuesSince returns how many OPEN issues first appeared since the given
@@ -316,6 +378,9 @@ func (db *DB) PruneDiag(retentionDays int) error {
 	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays).Format("2006-01-02 15:04:05.000")
 	if _, err := db.conn.Exec(`DELETE FROM diag_events WHERE ts < ?`, cutoff); err != nil {
+		return err
+	}
+	if _, err := db.conn.Exec(`DELETE FROM diag_buckets WHERE bucket < ?`, cutoff); err != nil {
 		return err
 	}
 	_, err := db.conn.Exec(`DELETE FROM diag_groups WHERE last_seen < ?`, cutoff)

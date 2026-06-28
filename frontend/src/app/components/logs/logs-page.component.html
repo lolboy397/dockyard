@@ -144,6 +144,17 @@
             }
           </ng-template>
 
+          @if (logSpark().length && filteredLines().length > 1) {
+            <div class="logs-spark" title="Log volume over the buffered window (red = errors) — click a bar to jump there.">
+              @for (b of logSpark(); track $index) {
+                <button class="logs-spark-bar" [style.height.%]="b.h" [title]="b.title"
+                        (click)="scrollToBucket(b.startIdx)" [disabled]="b.startIdx < 0" tabindex="-1" aria-hidden="true">
+                  @if (b.errPct) { <span class="logs-spark-err" [style.height.%]="b.errPct"></span> }
+                </button>
+              }
+            </div>
+          }
+
           @if (activeSources().length === 0) {
             <div class="logs-stream-note">Enable at least one source to stream logs.</div>
           } @else if (filteredLines().length === 0) {

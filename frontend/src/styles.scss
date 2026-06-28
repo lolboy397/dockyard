@@ -1812,6 +1812,19 @@ cdk-virtual-scroll-viewport.logs-stream { display: block; }
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   background: var(--bg-inset); color: var(--fg-muted); font-size: 12px; text-align: center; padding: 0 16px;
 }
+/* Log-volume histogram strip above the stream (red = errors; click to jump). */
+.logs-spark {
+  display: flex; align-items: flex-end; gap: 1px; height: 30px; padding: 5px 12px 0;
+  background: var(--bg-inset); border-bottom: 1px solid var(--border-subtle); flex: none;
+}
+.logs-spark-bar {
+  flex: 1; min-width: 0; min-height: 2px; padding: 0; border: 0; cursor: pointer;
+  background: var(--border-strong); border-radius: 1px 1px 0 0;
+  display: flex; align-items: flex-end;
+}
+.logs-spark-bar:hover { background: var(--accent); }
+.logs-spark-bar:disabled { cursor: default; }
+.logs-spark-err { width: 100%; background: var(--danger-400); border-radius: 1px 1px 0 0; }
 .logs-note-sub { font-size: 11px; color: var(--fg-subtle); max-width: 380px; line-height: 1.5; }
 
 /* Viewer (read-only) access-required panel — logs are operator+ */
@@ -1986,6 +1999,14 @@ cdk-virtual-scroll-viewport.logs-stream { display: block; }
 .ins-stat-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--fg-subtle); }
 .ins-stat-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 27px; font-weight: 500; letter-spacing: -0.02em; line-height: 1; color: var(--fg); }
 .ins-stat-sub { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--fg-muted); }
+/* Period-over-period delta on the Events card (more events = worse → danger). */
+.ins-delta { margin-left: 8px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); white-space: nowrap; vertical-align: 3px; }
+.ins-delta.up { color: var(--danger-400); }
+.ins-delta.down { color: var(--running-400); }
+/* Events-over-time sparkline (24 hourly bars, error share tinted at the base). */
+.ins-spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; margin-top: 8px; }
+.ins-spark-bar { flex: 1; min-width: 2px; min-height: 2px; background: var(--border-strong); border-radius: 1px; display: flex; align-items: flex-end; }
+.ins-spark-err { width: 100%; background: var(--danger-400); border-radius: 1px; }
 
 /* FILTER TOOLBAR */
 .ins-toolbar { flex-wrap: wrap; gap: 12px; align-items: center; }

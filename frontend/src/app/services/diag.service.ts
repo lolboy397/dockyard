@@ -32,11 +32,20 @@ export interface DiagEvent {
   user_agent?: string;
 }
 
+export interface DiagBucketPoint {
+  bucket: string; // hour, UTC "2026-06-28 15:00:00"
+  total: number;
+  errors: number;
+  warns: number;
+}
+
 export interface DiagStats {
   open_groups: number;
   events_24h: number;
+  events_prev_24h: number;
   by_level: Record<string, number>;
   by_source: Record<string, number>;
+  series: DiagBucketPoint[];
 }
 
 /** Admin client for the Dockyard Insights diagnostics store. */

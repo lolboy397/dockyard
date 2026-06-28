@@ -25,20 +25,30 @@
         <div class="ins-stat-val">{{ stats()?.open_groups ?? '—' }}</div>
         <div class="ins-stat-sub">{{ (stats()?.open_groups || 0) === 0 ? 'all clear' : 'need triage' }}</div>
       </div>
-      <div class="ins-stat" title="Sampled estimate: one occurrence per fingerprint is stored per ~2s flush, so true volume is higher during a storm.">
+      <div class="ins-stat" [title]="'True event counts. ' + (stats()?.by_source?.['backend'] ?? 0) + ' backend · ' + (stats()?.by_source?.['frontend'] ?? 0) + ' frontend'">
         <div class="ins-stat-top"><span class="ins-stat-ic"><dy-icon name="activity" [size]="14"></dy-icon></span><span class="ins-stat-label">Events · 24h</span></div>
-        <div class="ins-stat-val">{{ stats()?.events_24h ?? '—' }}</div>
-        <div class="ins-stat-sub">sampled · {{ stats()?.by_source?.['backend'] ?? 0 }} backend · {{ stats()?.by_source?.['frontend'] ?? 0 }} frontend</div>
+        <div class="ins-stat-val">
+          {{ stats()?.events_24h ?? '—' }}
+          @if (trend(); as t) { @if (t.delta !== 0) {
+            <span class="ins-delta" [class.up]="t.delta > 0" [class.down]="t.delta < 0"
+                  [title]="(t.delta > 0 ? '+' : '−') + abs(t.delta) + ' vs the previous 24h'">{{ t.delta > 0 ? '▲' : '▼' }} {{ abs(t.delta) }}</span>
+          } }
+        </div>
+        <div class="ins-spark" aria-hidden="true">
+          @for (b of sparkBars(); track $index) {
+            <span class="ins-spark-bar" [style.height.%]="b.h" [title]="b.title"><span class="ins-spark-err" [style.height.%]="b.errPct"></span></span>
+          }
+        </div>
       </div>
-      <div class="ins-stat is-error" title="Sampled estimate (one occurrence per fingerprint per flush).">
+      <div class="ins-stat is-error">
         <div class="ins-stat-top"><span class="ins-stat-ic"><dy-icon name="octagon-alert" [size]="14"></dy-icon></span><span class="ins-stat-label">Errors · 24h</span></div>
         <div class="ins-stat-val">{{ stats()?.by_level?.['error'] ?? 0 }}</div>
-        <div class="ins-stat-sub">sampled · last 24h</div>
+        <div class="ins-stat-sub">last 24 hours</div>
       </div>
-      <div class="ins-stat is-warn" title="Sampled estimate (one occurrence per fingerprint per flush).">
+      <div class="ins-stat is-warn">
         <div class="ins-stat-top"><span class="ins-stat-ic"><dy-icon name="triangle-alert" [size]="14"></dy-icon></span><span class="ins-stat-label">Warnings · 24h</span></div>
         <div class="ins-stat-val">{{ stats()?.by_level?.['warn'] ?? 0 }}</div>
-        <div class="ins-stat-sub">sampled · last 24h</div>
+        <div class="ins-stat-sub">last 24 hours</div>
       </div>
     </div>
 
