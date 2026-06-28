@@ -371,6 +371,27 @@ func (db *DB) CountNewIssuesSince(since time.Time) (int, string, error) {
 	return n, title, nil
 }
 
+// ErrorCountSince returns the TRUE number of error-level diagnostic events within
+// the given window, read from the hourly counters (diag_buckets) rather than the
+// sampled diag_events table — so single-fingerprint storms are counted in full.
+// Counts are exact but at HOUR granularity: the window start is truncated to the
+// hour, so a 1h window covers the current plus the previous hour bucket. Backs the
+// error_rate alert.
+func (db *DB) ErrorCountSince(window time.Duration) (int, error) {
+	if window <= 0 {
+		window = time.Hour
+	}
+	cutoff := time.Now().UTC().Add(-window).Truncate(time.Hour).Format("2006-01-02 15:00:00")
+	var n int
+	if err := db.read.QueryRow(
+		`SELECT COALESCE(SUM(count),0) FROM diag_buckets WHERE level='error' AND bucket >= ?`,
+		cutoff,
+	).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // PruneDiag deletes events + idle groups older than the retention window.
 func (db *DB) PruneDiag(retentionDays int) error {
 	if retentionDays <= 0 {

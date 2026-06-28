@@ -107,6 +107,43 @@ func TestDiagBucketStats(t *testing.T) {
 	}
 }
 
+func TestErrorCountSince(t *testing.T) {
+	db := newTestDB(t)
+	now := time.Now()
+	ev := func(fp, level string) DiagEvent {
+		return DiagEvent{TS: now, Level: level, Source: "backend", Message: "x", Fingerprint: fp}
+	}
+	// 50 TRUE errors this flush (one sampled row, full count in the bucket), plus
+	// warns + infos that must NOT be counted as errors.
+	if err := db.InsertDiagBatch([]DiagAccum{
+		{Sample: ev("e", "error"), Count: 50},
+		{Sample: ev("w", "warn"), Count: 7},
+		{Sample: ev("i", "info"), Count: 3},
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	n, err := db.ErrorCountSince(time.Hour)
+	if err != nil {
+		t.Fatalf("ErrorCountSince: %v", err)
+	}
+	if n != 50 {
+		t.Errorf("ErrorCountSince = %d, want 50 (errors only, true count; warns/infos excluded)", n)
+	}
+
+	// An error from 5 hours ago must fall outside the 1h window.
+	old := DiagEvent{TS: now.Add(-5 * time.Hour), Level: "error", Source: "backend", Message: "old", Fingerprint: "old"}
+	if err := db.InsertDiagBatch([]DiagAccum{{Sample: old, Count: 9}}); err != nil {
+		t.Fatalf("seed old: %v", err)
+	}
+	n, err = db.ErrorCountSince(time.Hour)
+	if err != nil {
+		t.Fatalf("ErrorCountSince: %v", err)
+	}
+	if n != 50 {
+		t.Errorf("ErrorCountSince(1h) = %d, want 50 — the 5h-old error must be outside the window", n)
+	}
+}
+
 func TestDiagStore(t *testing.T) {
 	db := newTestDB(t)
 	now := time.Now()

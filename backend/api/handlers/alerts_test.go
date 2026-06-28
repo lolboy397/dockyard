@@ -13,6 +13,7 @@ var alertTypesOfferedByUI = []string{
 	"host_disk",
 	"container_exited",
 	"new_issue",
+	"error_rate",
 }
 
 func TestValidAlertTypeAcceptsEveryUIType(t *testing.T) {

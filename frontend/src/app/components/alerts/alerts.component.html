@@ -19,7 +19,7 @@
         } @else if (rules().length === 0) {
           <div class="empty">
             <dy-icon name="bell-off" [size]="22"></dy-icon>
-            <p>No alert rules yet. Create one to be notified when host CPU, memory or disk crosses a threshold, when a container exits, or when a new Insights issue appears.</p>
+            <p>No alert rules yet. Create one to be notified when host CPU, memory or disk crosses a threshold, when a container exits, or when Insights surfaces a new issue or a spike in errors.</p>
           </div>
         } @else if (responsive.isMobile()) {
           <div class="gcards">
@@ -89,6 +89,7 @@
               <option value="host_disk">Host disk above threshold</option>
               <option value="container_exited">A container exits</option>
               <option value="new_issue">A new Insights issue appears</option>
+              <option value="error_rate">Error rate above threshold</option>
             </select>
           </div>
           @if (form.type === 'new_issue') {
@@ -96,6 +97,12 @@
               <label class="label">New issues (minimum)</label>
               <input class="input input-sm" type="number" min="1" step="1" [(ngModel)]="form.threshold" />
               <span style="font-size:11px;color:var(--fg-subtle);">Fire when at least this many new issues first appear within ~5 minutes.</span>
+            </div>
+          } @else if (form.type === 'error_rate') {
+            <div class="field">
+              <label class="label">Errors per hour (minimum)</label>
+              <input class="input input-sm" type="number" min="1" step="1" [(ngModel)]="form.threshold" />
+              <span style="font-size:11px;color:var(--fg-subtle);">Fire when at least this many error-level Insights events occur within the last hour.</span>
             </div>
           } @else if (form.type !== 'container_exited') {
             <div class="field">

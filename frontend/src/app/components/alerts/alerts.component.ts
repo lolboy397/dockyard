@@ -51,6 +51,7 @@ export class AlertsComponent implements OnInit {
       case 'host_disk': base = `Host disk ≥ ${a.threshold}%`; break;
       case 'container_exited': base = 'A container exits'; break;
       case 'new_issue': base = a.threshold > 1 ? `${a.threshold}+ new Insights issues appear` : 'A new Insights issue appears'; break;
+      case 'error_rate': base = `${a.threshold > 0 ? a.threshold : 1}+ errors per hour`; break;
       default: base = a.type;
     }
     if (a.for_seconds && a.for_seconds > 0) {
@@ -71,9 +72,11 @@ export class AlertsComponent implements OnInit {
   }
 
   /** Reset the threshold to a sensible default when the rule type changes
-   *  (percent for host rules vs a small issue count for new_issue). */
+   *  (percent for host rules, a small issue count for new_issue, an errors/hour
+   *  count for error_rate). */
   onTypeChange(): void {
     if (this.form.type === 'new_issue') this.form.threshold = 1;
+    else if (this.form.type === 'error_rate') this.form.threshold = 10;
     else if (this.form.type.startsWith('host_')) this.form.threshold = 80;
   }
 

@@ -85,6 +85,10 @@ func evaluateAlerts(ctx context.Context, cli *client.Client, db *storage.DB) {
 // after the last new issue before it auto-resolves).
 const newIssueWindow = 5 * time.Minute
 
+// errorRateWindow is the lookback for the error_rate alert. At diag_buckets hour
+// granularity this rounds out to whole hours (see storage.ErrorCountSince).
+const errorRateWindow = time.Hour
+
 func evalAlertRule(ctx context.Context, cli *client.Client, db *storage.DB, rule storage.AlertRule, s handlers.HostStatsSample) (bool, string) {
 	switch rule.Type {
 	case "host_cpu":
@@ -130,6 +134,19 @@ func evalAlertRule(ctx context.Context, cli *client.Client, db *storage.DB, rule
 			return true, fmt.Sprintf("%s: %d new issue(s) — %s", rule.Name, n, title)
 		}
 		return true, fmt.Sprintf("%s: %d new issue(s)", rule.Name, n)
+	case "error_rate":
+		// Fire when >= threshold error-level diagnostic events occurred in the
+		// recent window. Keys off the TRUE hourly counters (diag_buckets), so a
+		// single-fingerprint error storm is counted in full.
+		n, err := db.ErrorCountSince(errorRateWindow)
+		if err != nil {
+			return false, ""
+		}
+		want := max(int(rule.Threshold), 1)
+		if n < want {
+			return false, ""
+		}
+		return true, fmt.Sprintf("%s: %d error(s) in the last hour ≥ %d", rule.Name, n, want)
 	}
 	return false, ""
 }

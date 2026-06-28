@@ -26,7 +26,7 @@ func NewAlertHandlers(db *storage.DB) *AlertHandlers {
 // but missing here is rejected with a 400 (see TestValidAlertTypeAcceptsEveryUIType).
 func validAlertType(t string) bool {
 	switch t {
-	case "host_cpu", "host_mem", "host_disk", "container_exited", "new_issue":
+	case "host_cpu", "host_mem", "host_disk", "container_exited", "new_issue", "error_rate":
 		return true
 	}
 	return false
@@ -53,7 +53,7 @@ func (h *AlertHandlers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.Name == "" || !validAlertType(a.Type) {
-		writeError(w, http.StatusBadRequest, errMsg("name and a valid type (host_cpu|host_mem|host_disk|container_exited|new_issue) are required"))
+		writeError(w, http.StatusBadRequest, errMsg("name and a valid type (host_cpu|host_mem|host_disk|container_exited|new_issue|error_rate) are required"))
 		return
 	}
 	if a.Channel == "" {
