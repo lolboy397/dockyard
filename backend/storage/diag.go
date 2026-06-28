@@ -143,7 +143,11 @@ func (db *DB) InsertDiagBatch(batch []DiagAccum) error {
 				count     = count + excluded.count,
 				level     = excluded.level,
 				title     = excluded.title,
-				component = excluded.component
+				component = excluded.component,
+				-- A recurrence REOPENS a resolved issue (regression) so it doesn't
+				-- silently pile up while the feed shows "all clear"; a deliberate
+				-- mute is respected.
+				status    = CASE WHEN status = 'resolved' THEN 'open' ELSE status END
 		`, e.Fingerprint, diagTitle(e.Message), e.Level, e.Source, e.Component, ts, ts, a.Count); err != nil {
 			return err
 		}

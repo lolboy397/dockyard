@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, BehaviorSubject } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 
 export interface WsMessage {
@@ -55,9 +55,15 @@ export interface MultiLogFrame {
   counts?: { info: number; warn: number; err: number };
 }
 
+/** Live connection state of the multiplexed socket, so the UI can be honest about
+ *  whether the "live" claim actually holds (vs reconnecting/offline). */
+export type MultiLogState = 'connecting' | 'live' | 'reconnecting' | 'offline';
+
 /** Controller for a single multiplexed log WebSocket (see streamMultiLogs). */
 export interface MultiLogStream {
   frames$: Observable<MultiLogFrame>;
+  /** Emits the current connection state (starts 'connecting'). */
+  state$: Observable<MultiLogState>;
   subscribe(id: string, tail?: string): void;
   unsubscribe(id: string): void;
   /** Push the active level filter to the server so non-matching lines are dropped
@@ -95,6 +101,7 @@ export class WebSocketService {
    */
   streamMultiLogs(): MultiLogStream {
     const frames$ = new Subject<MultiLogFrame>();
+    const state$ = new BehaviorSubject<MultiLogState>('connecting');
     // containerId → { tail, since }. `since` is the timestamp of the last line
     // we've seen for that container; on an involuntary reconnect we resume from
     // it (Docker `Since`) instead of replaying the whole tail again, which is
@@ -113,9 +120,11 @@ export class WebSocketService {
     const open = () => {
       if (closed || document.hidden) return; // pause the log firehose while backgrounded
       if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return; // idempotent
+      state$.next(navigator.onLine ? 'connecting' : 'offline');
       ws = new WebSocket(this.withToken(`${this.wsBase}/ws/logs/multi`));
       ws.onopen = () => {
         attempt = 0;
+        state$.next('live');
         // Re-subscribe the active set; resume from `since` when we have one so a
         // reconnect doesn't replay tail history we already showed.
         active.forEach((a, id) => send({ action: 'subscribe', id, tail: a.tail, since: a.since }));
@@ -135,10 +144,15 @@ export class WebSocketService {
       ws.onerror = () => { /* close handler reconnects */ };
       ws.onclose = () => {
         if (closed || document.hidden) return; // paused — onVisible reopens + re-subscribes
+        state$.next(navigator.onLine ? 'reconnecting' : 'offline');
         attempt++;
-        timer = setTimeout(() => { if (!closed && !document.hidden) open(); }, Math.min(1000 * 2 ** attempt, 15000));
+        // Backoff with jitter so many followers don't reconnect in lockstep.
+        const delay = Math.min(1000 * 2 ** attempt, 15000) * (0.7 + Math.random() * 0.6);
+        timer = setTimeout(() => { if (!closed && !document.hidden) open(); }, delay);
       };
     };
+
+    const onOffline = () => state$.next('offline');
 
     const onVisible = () => {
       if (closed) return;
@@ -154,9 +168,11 @@ export class WebSocketService {
     open();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onVisible);
+    window.addEventListener('offline', onOffline);
 
     return {
       frames$: frames$.asObservable(),
+      state$: state$.asObservable(),
       // An explicit (re)subscribe wants `tail` history, so it clears any prior
       // resume point; reconnects keep the auto-tracked `since` instead.
       subscribe: (id: string, tail = '50') => { active.set(id, { tail }); send({ action: 'subscribe', id, tail }); },
@@ -166,9 +182,11 @@ export class WebSocketService {
         closed = true;
         document.removeEventListener('visibilitychange', onVisible);
         window.removeEventListener('online', onVisible);
+        window.removeEventListener('offline', onOffline);
         if (timer) clearTimeout(timer);
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close();
         frames$.complete();
+        state$.complete();
       },
     };
   }

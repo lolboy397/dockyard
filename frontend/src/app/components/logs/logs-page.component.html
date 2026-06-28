@@ -106,8 +106,17 @@
             </label>
             <span class="logs-live">
               @if (filterText()) { <span class="logs-matchn">{{ filteredLines().length }} match{{ filteredLines().length === 1 ? '' : 'es' }}</span> }
-              @if (!paused()) { <dy-dot tone="running" [size]="5"></dy-dot> <span class="logs-live-txt">live · {{ lps() }}/s</span> }
-              @else { <dy-dot tone="idle" [size]="5"></dy-dot> <span class="logs-live-txt">paused</span> }
+              @if (paused()) {
+                <dy-dot tone="idle" [size]="5"></dy-dot> <span class="logs-live-txt">paused</span>
+              } @else if (connState() === 'live') {
+                <dy-dot tone="running" [size]="5"></dy-dot> <span class="logs-live-txt">live · {{ lps() }}/s</span>
+              } @else if (connState() === 'reconnecting') {
+                <dy-dot tone="warn" [size]="5"></dy-dot> <span class="logs-live-txt">reconnecting…</span>
+              } @else if (connState() === 'offline') {
+                <dy-dot tone="danger" [size]="5"></dy-dot> <span class="logs-live-txt">offline</span>
+              } @else {
+                <dy-dot tone="idle" [size]="5"></dy-dot> <span class="logs-live-txt">connecting…</span>
+              }
             </span>
           </div>
 
@@ -144,6 +153,12 @@
                 <div class="logs-note-sub">Searched the {{ lines().length }} buffered line(s) — increase the tail to scan more history.</div>
               } @else if (level() !== 'all') {
                 <div>No {{ level() }} lines in view yet.</div>
+              } @else if (connState() === 'reconnecting') {
+                <div>Reconnecting to the log stream…</div>
+              } @else if (connState() === 'offline') {
+                <div>Offline — waiting for the connection to return…</div>
+              } @else if (connState() === 'connecting') {
+                <div>Connecting…</div>
               } @else { Waiting for log output… }
             </div>
           } @else if (!wrap()) {

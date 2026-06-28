@@ -10,7 +10,7 @@ import { Subscription } from 'rxjs';
 import { IconComponent } from '../shared/icon/icon.component';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 import { DockerService } from '../../services/docker.service';
-import { WebSocketService, MultiLogStream, MultiLogFrame } from '../../services/websocket.service';
+import { WebSocketService, MultiLogStream, MultiLogFrame, MultiLogState } from '../../services/websocket.service';
 import { AuthService } from '../../auth/auth.service';
 import { AnsiRun, parseAnsi, isContinuationLine, formatRelative } from './logs-format';
 import { ContainerSummary } from '../../models/docker.models';
@@ -106,6 +106,9 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   readonly tail = signal('50');
   readonly lps = signal(0);
   readonly atBottom = signal(true);
+  /** Real socket connection state, so the "live" indicator is honest during a
+   *  reconnect/offline rather than showing a confident green dot while frozen. */
+  readonly connState = signal<MultiLogState>('connecting');
   /** Read-only viewers can't read log content (it may carry secrets); the page
    *  shows an access-required panel instead of opening the stream. The backend is
    *  the real enforcer — every log endpoint is operator+ — this is just UX. */
@@ -189,6 +192,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   // ── Internals ───────────────────────────────────────────────────────────────
   private stream?: MultiLogStream;
   private framesSub?: Subscription;
+  private stateSub?: Subscription;
   private lpsInterval?: ReturnType<typeof setInterval>;
   /** Fast id→source lookup, kept in step with the `sources` signal. */
   private sourceById = new Map<string, LogSource>();
@@ -227,6 +231,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     }
     this.stream = this.ws.streamMultiLogs();
     this.framesSub = this.stream.frames$.subscribe(frame => this.ingest(frame));
+    this.stateSub = this.stream.state$.subscribe(s => this.connState.set(s));
     this.stream.setLevel(this.level()); // apply any restored level filter server-side
     this.loadContainers();
     this.lpsInterval = setInterval(() => {
@@ -238,6 +243,7 @@ export class LogsPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.framesSub?.unsubscribe();
+    this.stateSub?.unsubscribe();
     this.stream?.close();
     if (this.lpsInterval) clearInterval(this.lpsInterval);
   }

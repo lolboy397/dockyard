@@ -18,6 +18,39 @@ func newTestDB(t *testing.T) *DB {
 	return db
 }
 
+func TestDiagRegressionReopen(t *testing.T) {
+	db := newTestDB(t)
+	now := time.Now()
+	ev := func(fp string) DiagEvent {
+		return DiagEvent{TS: now, Level: "error", Source: "backend", Component: "/x", Message: "boom", Fingerprint: fp, StatusCode: 500}
+	}
+	if err := db.InsertDiagBatch([]DiagAccum{{Sample: ev("fpR"), Count: 1}, {Sample: ev("fpM"), Count: 1}}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := db.SetDiagGroupStatus("fpR", "resolved"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if err := db.SetDiagGroupStatus("fpM", "muted"); err != nil {
+		t.Fatalf("mute: %v", err)
+	}
+
+	// A new occurrence of each.
+	if err := db.InsertDiagBatch([]DiagAccum{{Sample: ev("fpR"), Count: 1}, {Sample: ev("fpM"), Count: 1}}); err != nil {
+		t.Fatalf("recur: %v", err)
+	}
+	status := map[string]string{}
+	groups, _ := db.QueryGroups("", "", 100)
+	for _, g := range groups {
+		status[g.Fingerprint] = g.Status
+	}
+	if status["fpR"] != "open" {
+		t.Errorf("a resolved issue must REOPEN on recurrence, got %q", status["fpR"])
+	}
+	if status["fpM"] != "muted" {
+		t.Errorf("a muted issue must stay muted on recurrence, got %q", status["fpM"])
+	}
+}
+
 func TestDiagStore(t *testing.T) {
 	db := newTestDB(t)
 	now := time.Now()
