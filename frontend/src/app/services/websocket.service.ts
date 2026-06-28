@@ -64,7 +64,9 @@ export interface MultiLogStream {
   frames$: Observable<MultiLogFrame>;
   /** Emits the current connection state (starts 'connecting'). */
   state$: Observable<MultiLogState>;
-  subscribe(id: string, tail?: string): void;
+  /** `since` (RFC3339) time-anchors the first fetch (Docker Since) — used to land
+   *  the view at a specific moment, e.g. when pivoting from an Insights error. */
+  subscribe(id: string, tail?: string, since?: string): void;
   unsubscribe(id: string): void;
   /** Push the active level filter to the server so non-matching lines are dropped
    *  before they cross the wire. '' / 'all' streams everything; takes effect
@@ -175,7 +177,7 @@ export class WebSocketService {
       state$: state$.asObservable(),
       // An explicit (re)subscribe wants `tail` history, so it clears any prior
       // resume point; reconnects keep the auto-tracked `since` instead.
-      subscribe: (id: string, tail = '50') => { active.set(id, { tail }); send({ action: 'subscribe', id, tail }); },
+      subscribe: (id: string, tail = '50', since?: string) => { active.set(id, { tail, since }); send({ action: 'subscribe', id, tail, since }); },
       unsubscribe: (id: string) => { active.delete(id); send({ action: 'unsubscribe', id }); },
       setLevel: (lvl: string) => { level = lvl === 'all' ? '' : lvl; send({ action: 'level', level }); },
       close: () => {

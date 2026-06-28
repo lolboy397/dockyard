@@ -229,6 +229,12 @@ export class LogsPageComponent implements OnInit, OnDestroy {
     if (!this.wrapPrefSaved && typeof matchMedia !== 'undefined' && matchMedia('(max-width: 820px)').matches) {
       this.wrap.set(true);
     }
+    // Deep-link: ?search= pre-fills the filter; ?since= time-anchors the first
+    // fetch — used by the Insights "view logs at this time" correlation pivot.
+    const qp = this.route.snapshot.queryParamMap;
+    const search = qp.get('search');
+    if (search) this.filterText.set(search);
+    this.initialSince = qp.get('since') || undefined;
     this.stream = this.ws.streamMultiLogs();
     this.framesSub = this.stream.frames$.subscribe(frame => this.ingest(frame));
     this.stateSub = this.stream.state$.subscribe(s => this.connState.set(s));
@@ -502,7 +508,11 @@ export class LogsPageComponent implements OnInit, OnDestroy {
       this.firstLoad = false;
 
       // Subscribe the active ones (duplicate subscribes are ignored server-side).
-      next.filter(s => s.on).forEach(s => this.stream?.subscribe(s.id, this.tail()));
+      // Time-anchor the very FIRST subscribe when deep-linked from an error (a
+      // larger tail gives context around that moment); used once, then cleared.
+      const since = this.initialSince;
+      this.initialSince = undefined;
+      next.filter(s => s.on).forEach(s => this.stream?.subscribe(s.id, since ? '500' : this.tail(), since));
     });
   }
 
@@ -658,6 +668,9 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   /** True once an explicit wrap preference is restored, so the mobile default
    *  doesn't override a deliberate choice. */
   private wrapPrefSaved = false;
+  /** RFC3339 time-anchor from a ?since= deep-link, applied to the first subscribe
+   *  only (e.g. pivoting from an Insights error to the logs at that moment). */
+  private initialSince?: string;
 
   private restorePrefs(): void {
     try {

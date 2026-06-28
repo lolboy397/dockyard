@@ -185,6 +185,10 @@
                 @if (e.component) { <dt>component</dt><dd>{{ e.component }}</dd> }
                 @if (e.release) { <dt>release</dt><dd>{{ e.release }}</dd> }
               </dl>
+              <button class="ins-logs-link" (click)="viewLogs(e)" title="Open the Logs view anchored to this moment">
+                <dy-icon name="scroll-text" [size]="12"></dy-icon> View container logs at this time
+                <dy-icon name="arrow-right" [size]="12"></dy-icon>
+              </button>
               @if (e.stack) {
                 <div class="ins-well">
                   <div class="ins-well-head"><span class="ins-well-label"><dy-icon name="list-tree" [size]="11"></dy-icon>Stack trace</span></div>

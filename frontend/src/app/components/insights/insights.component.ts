@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, signal, computed, ChangeDetectionStrategy, inject, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { IconComponent } from '../shared/icon/icon.component';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
@@ -35,6 +36,7 @@ export class InsightsComponent implements OnInit, OnDestroy {
   private diag = inject(DiagService);
   private notify = inject(NotificationService);
   private sanitizer = inject(DomSanitizer);
+  private router = inject(Router);
 
   readonly stats = signal<DiagStats | null>(null);
   /** ALL groups (server returns every fingerprint); status/source/search are
@@ -127,6 +129,16 @@ export class InsightsComponent implements OnInit, OnDestroy {
       },
       error: () => this.notify.error('Could not update the issue'),
     });
+  }
+
+  /** Pivot to the Logs view, time-anchored to this occurrence (and pre-filtered to
+   *  its request_id when present) — error → its surrounding container logs. */
+  viewLogs(e: DiagEvent): void {
+    const qp: Record<string, string> = {};
+    const t = new Date((e.ts || '').replace(' ', 'T') + 'Z').getTime(); // stored UTC
+    if (!isNaN(t)) qp['since'] = new Date(t - 30_000).toISOString(); // ~30s of lead-up
+    if (e.request_id) qp['search'] = e.request_id;
+    this.router.navigate(['/logs'], { queryParams: qp });
   }
 
   copy(id: string): void {
