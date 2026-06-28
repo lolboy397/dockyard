@@ -207,6 +207,7 @@ func NewRouter(cli *client.Client, db *storage.DB, w *watcher.Watcher, ka *docke
 		r.Post("/containers/{id}/rename", containers.Rename)
 		r.Post("/containers/{id}/update", containers.UpdateResources)
 		r.Get("/containers/{id}/logs", containers.Logs)
+		r.Get("/containers/{id}/logs/search", containers.SearchLogs)
 		r.Get("/containers/{id}/stats", containers.Stats)
 		r.Get("/containers/{id}/top", containers.Top)
 		r.Post("/containers/{id}/exec", containers.Exec)

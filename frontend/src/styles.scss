@@ -1745,7 +1745,47 @@ mark {
 .logs-main {
   display: flex; flex-direction: column;
   overflow: hidden;
+  position: relative; /* anchors the history-search drawer overlay */
 }
+/* History-search drawer: bounded server-side matches, overlaid on the stream so
+   the live virtual scroll underneath is never disturbed. */
+.logs-drawer-scrim {
+  position: absolute; inset: 0; z-index: 6;
+  background: rgba(0, 0, 0, 0.32);
+}
+.logs-drawer {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 7;
+  width: min(520px, 92%);
+  display: flex; flex-direction: column;
+  background: var(--bg-inset);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.28);
+}
+.logs-drawer-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.logs-drawer-title { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--fg); min-width: 0; }
+.logs-drawer-title .mono { color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logs-drawer-meta { margin-left: auto; font-size: 11px; color: var(--fg-subtle); white-space: nowrap; }
+.logs-drawer-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: var(--r-sm);
+  background: transparent; border: 0; color: var(--fg-muted); cursor: pointer;
+}
+.logs-drawer-close:hover { background: var(--bg-hover); color: var(--fg); }
+.logs-drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0 10px; }
+.logs-drawer-empty { padding: 24px 14px; text-align: center; color: var(--fg-subtle); font-size: 12.5px; }
+.logs-drawer-note { padding: 10px 14px; color: var(--fg-subtle); font-size: 11px; border-top: 1px solid var(--border-subtle); margin-top: 4px; }
+.logs-hist-row {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 3px 12px; font: var(--font-mono); font-size: 12px; line-height: 1.5;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.logs-hist-row .lts { flex-shrink: 0; color: var(--fg-subtle); }
+.logs-hist-row .lsrc { flex-shrink: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logs-hist-row .lmsg { white-space: pre-wrap; word-break: break-word; color: var(--fg-default); }
 .logs-search-wrap {
   display: flex; align-items: center; gap: 8px;
   flex: 1; min-width: 0;

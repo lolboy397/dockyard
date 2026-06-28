@@ -6,7 +6,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ScrollingModule, CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
-import { Subscription } from 'rxjs';
+import { Subscription, forkJoin, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { IconComponent } from '../shared/icon/icon.component';
 import { StatusDotComponent } from '../shared/status-dot/status-dot.component';
 import { DockerService } from '../../services/docker.service';
@@ -58,6 +59,10 @@ interface LogLine {
 /** A render segment: text + whether it's a search hit + its ANSI colour class. */
 interface Seg { t: string; m: boolean; cls: string; }
 
+/** One row in the history-search drawer (a server-side match, tagged with its
+ *  source so results from several containers can be merged + time-sorted). */
+interface HistMatch { ts: string; tsDisplay: string; src: string; color: string; level: Level; text: string; }
+
 // A 12-colour palette (was 8) spaced around the hue wheel so neighbouring
 // sources stay distinguishable; container names remain the primary label, so
 // colour is a secondary cue rather than the only one.
@@ -68,6 +73,8 @@ const SOURCE_COLORS = [
 ];
 
 const MAX_LINES = 2000;
+const HIST_MAX_SOURCES = 6;  // cap history fan-out so a wide active set can't storm the daemon
+const HIST_LIMIT = 200;      // matches requested per container
 const PREFS_KEY = 'dy_logs_prefs';
 
 const WARN_RE = /\b(WARN|WARNING)\b/i;
@@ -111,6 +118,12 @@ export class LogsPageComponent implements OnInit, OnDestroy {
   /** Real socket connection state, so the "live" indicator is honest during a
    *  reconnect/offline rather than showing a confident green dot while frozen. */
   readonly connState = signal<MultiLogState>('connecting');
+  // ── History search drawer (bounded server-side scan beyond the live buffer) ──
+  readonly histOpen = signal(false);
+  readonly histLoading = signal(false);
+  readonly histResults = signal<HistMatch[]>([]);
+  readonly histTruncated = signal(false);
+  readonly histQuery = signal('');
   /** Read-only viewers can't read log content (it may carry secrets); the page
    *  shows an access-required panel instead of opening the stream. The backend is
    *  the real enforcer — every log endpoint is operator+ — this is just UX. */
@@ -615,6 +628,53 @@ export class LogsPageComponent implements OnInit, OnDestroy {
       this.setSources(plan.next);
       plan.subscribe.forEach(id => this.stream?.subscribe(id, this.tail()));
     });
+  }
+
+  // ── History search (bounded server-side scan past the live buffer) ───────────
+  /** Search the active containers' full server-side history for the current filter,
+   *  showing matches in a drawer. Fans out (capped) to the bounded grep endpoint;
+   *  results are kept OUT of the live virtual stream so they can't disturb it. */
+  searchHistory(): void {
+    const q = this.filterText().trim();
+    const all = this.activeSources();
+    const targets = all.slice(0, HIST_MAX_SOURCES);
+    if (!q || targets.length === 0) return;
+    const capped = targets.length < all.length;
+    this.histQuery.set(q);
+    this.histOpen.set(true);
+    this.histLoading.set(true);
+    this.histResults.set([]);
+    this.histTruncated.set(false);
+
+    const reqs = targets.map(s =>
+      this.docker.searchContainerLogs(s.id, q, { regex: this.useRegex(), limit: HIST_LIMIT }).pipe(
+        map(r => ({ s, r })),
+        catchError(() => of(null)),
+      ));
+    forkJoin(reqs).subscribe(items => {
+      const merged: HistMatch[] = [];
+      let truncated = capped;
+      for (const item of items) {
+        if (!item) continue;
+        if (item.r.truncated) truncated = true;
+        for (const m of item.r.matches) {
+          merged.push({ ts: m.ts, tsDisplay: this.histTs(m.ts), src: item.s.name, color: item.s.color, level: (m.level as Level) || 'info', text: m.text });
+        }
+      }
+      merged.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+      this.histResults.set(merged);
+      this.histTruncated.set(truncated);
+      this.histLoading.set(false);
+    });
+  }
+
+  closeHistory(): void { this.histOpen.set(false); }
+
+  /** "2026-06-27T10:00:01.2Z" → "06-27 10:00:01" — history can span days, so unlike
+   *  the live clock this keeps the date. */
+  private histTs(ts: string): string {
+    const m = /^\d{4}-(\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/.exec(ts);
+    return m ? `${m[1]} ${m[2]}` : ts;
   }
 
   toggleSource(s: LogSource): void {

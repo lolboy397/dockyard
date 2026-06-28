@@ -91,6 +91,12 @@
               <button class="logs-rx" [class.on]="useRegex()" (click)="toggleRegex()"
                       title="Toggle regular-expression matching" [attr.aria-pressed]="useRegex()">.*</button>
             </div>
+            <button class="btn btn-sm btn-ghost logs-hist-btn" (click)="searchHistory()"
+                    [disabled]="!filterText().trim() || activeSources().length === 0"
+                    title="Search the full server-side history for this filter — reaches past the live buffer">
+              <dy-icon name="history" [size]="13"></dy-icon>
+              History
+            </button>
             <div class="pills sm logs-levels">
               @for (l of levels; track l.v) {
                 <button class="pill" [class.on]="level()===l.v" (click)="setLevel(l.v)">
@@ -199,6 +205,46 @@
               <dy-icon name="arrow-down-to-line" [size]="14"></dy-icon>
               Latest
             </button>
+          }
+
+          <!-- History-search drawer: server-side matches beyond the live buffer.
+               A separate list (not the virtual stream) so it can't disturb it. -->
+          @if (histOpen()) {
+            <div class="logs-drawer-scrim" (click)="closeHistory()"></div>
+            <aside class="logs-drawer" role="dialog" aria-label="Log history search results">
+              <div class="logs-drawer-head">
+                <div class="logs-drawer-title">
+                  <dy-icon name="history" [size]="14"></dy-icon>
+                  <span>History · <span class="mono">“{{ histQuery() }}”</span></span>
+                </div>
+                <span class="logs-drawer-meta mono">
+                  @if (histLoading()) { scanning… }
+                  @else { {{ histResults().length }} match{{ histResults().length === 1 ? '' : 'es' }}@if (histTruncated()) { · capped } }
+                </span>
+                <button class="logs-drawer-close" (click)="closeHistory()" aria-label="Close history search">
+                  <dy-icon name="x" [size]="14"></dy-icon>
+                </button>
+              </div>
+              <div class="logs-drawer-body">
+                @if (histLoading()) {
+                  <div class="logs-drawer-empty">Scanning server-side history…</div>
+                } @else if (histResults().length === 0) {
+                  <div class="logs-drawer-empty">No matches in the searched history.</div>
+                } @else {
+                  @for (m of histResults(); track $index) {
+                    <div class="logs-hist-row">
+                      <span class="lts mono">{{ m.tsDisplay }}</span>
+                      <span [class]="'llvl lvl-' + m.level">{{ m.level.toUpperCase() }}</span>
+                      <span class="lsrc" [style.color]="m.color" [title]="m.src">{{ m.src }}</span>
+                      <span class="lmsg">{{ m.text }}</span>
+                    </div>
+                  }
+                  @if (histTruncated()) {
+                    <div class="logs-drawer-note">Results capped — narrow the filter or shorten the time range to see more.</div>
+                  }
+                }
+              </div>
+            </aside>
           }
         </section>
       </div>

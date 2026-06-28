@@ -84,6 +84,12 @@ export interface BackupsOverview {
   destinations: BkpDest[]; policies: BkpPolicy[]; recent: BkpHistory[];
 }
 
+/** One line returned by the bounded server-side log history search. */
+export interface LogSearchMatch { ts: string; level: string; text: string; }
+/** Result of GET /containers/{id}/logs/search — matches plus how far the bounded
+ *  scan reached and whether it was capped. */
+export interface LogSearchResult { matches: LogSearchMatch[]; scanned: number; truncated: boolean; }
+
 @Injectable({ providedIn: 'root' })
 export class DockerService {
   private base = '/api/v1';
@@ -199,6 +205,17 @@ export class DockerService {
       .set('tail', tail)
       .set('timestamps', String(timestamps));
     return this.http.get(`${this.base}/containers/${id}/logs`, { params, responseType: 'text' });
+  }
+
+  /** Search a container's recent history (bounded server-side scan) for `q` —
+   *  substring by default, or a regular expression when opts.regex. Reaches further
+   *  back than the live buffer the Logs page holds. */
+  searchContainerLogs(id: string, q: string, opts: { regex?: boolean; since?: string; limit?: number } = {}): Observable<LogSearchResult> {
+    let params = new HttpParams().set('q', q);
+    if (opts.regex) params = params.set('regex', 'true');
+    if (opts.since) params = params.set('since', opts.since);
+    if (opts.limit) params = params.set('limit', String(opts.limit));
+    return this.http.get<LogSearchResult>(`${this.base}/containers/${id}/logs/search`, { params });
   }
 
   getContainerStats(id: string): Observable<ContainerStats> {
